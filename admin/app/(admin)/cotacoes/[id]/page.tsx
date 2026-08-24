@@ -1,0 +1,120 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { api } from "@/lib/api";
+import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
+import type { Order, Quote } from "@/lib/types";
+import { Alert, Button, Card, Table } from "@/components/ui";
+
+export default function CotacaoDetailPage() {
+  const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [converting, setConverting] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const q = await api<Quote>(`/api/v1/sales/quotes/${params.id}`);
+      setQuote(q);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao carregar");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.id]);
+
+  async function sendQuote() {
+    setInfo("");
+    try {
+      const q = await api<Quote>(`/api/v1/sales/quotes/${params.id}/send`, { method: "POST" });
+      setQuote(q);
+      setInfo("Cotação enviada — pronta para converter em pedido");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao enviar");
+    }
+  }
+
+  async function convertToOrder() {
+    setConverting(true);
+    setError("");
+    setInfo("");
+    try {
+      const o = await api<Order>(`/api/v1/sales/quotes/${params.id}/convert`, {
+        method: "POST",
+        body: JSON.stringify({ warehouse_id: DEFAULT_WAREHOUSE_ID }),
+      });
+      setInfo(`Pedido ${o.order_number} criado`);
+      router.push(`/pedidos/${o.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao converter");
+    } finally {
+      setConverting(false);
+    }
+  }
+
+  if (loading) return <p className="text-slate-500">Carregando…</p>;
+  if (!quote) return error ? <Alert tone="error">{error}</Alert> : null;
+
+  const canConvert = quote.status === "sent" || quote.status === "approved";
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-6">
+      <header>
+        <Link href="/cotacoes" className="text-sm text-blue-600 hover:underline">
+          ← Cotações
+        </Link>
+        <h1 className="mt-2 text-2xl font-semibold text-slate-900">Cotação {quote.quote_number}</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Status: <strong>{quote.status}</strong> · Total: <strong>USD {quote.total_usd.toFixed(2)}</strong>
+        </p>
+      </header>
+
+      {error ? <Alert tone="error">{error}</Alert> : null}
+      {info ? <Alert tone="success">{info}</Alert> : null}
+
+      <Card title="Itens">
+        <Table
+          headers={["SKU ID", "Qtd", "Preço unit.", "Total linha"]}
+          rows={(quote.items ?? []).map((item) => [
+            item.sku_id.slice(0, 8) + "…",
+            item.quantity,
+            `$${item.unit_price_usd.toFixed(2)}`,
+            `$${item.line_total_usd.toFixed(2)}`,
+          ])}
+        />
+      </Card>
+
+      <div className="flex flex-wrap gap-3">
+        {quote.status === "draft" ? (
+          <Button type="button" onClick={() => void sendQuote()}>
+            Enviar cotação
+          </Button>
+        ) : null}
+        {canConvert ? (
+          <Button type="button" variant="secondary" disabled={converting} onClick={() => void convertToOrder()}>
+            {converting ? "Convertendo…" : "Converter em pedido"}
+          </Button>
+        ) : null}
+        {quote.status === "converted" ? (
+          <Link href="/pedidos">
+            <Button variant="secondary" type="button">
+              Ver pedidos
+            </Button>
+          </Link>
+        ) : null}
+      </div>
+    </div>
+  );
+}

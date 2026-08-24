@@ -1,0 +1,161 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import { Alert, Button, Card, Table } from "@/components/ui";
+
+type HealthStats = {
+  total_units: number;
+  available_units: number;
+  reserved_units: number;
+  open_issues: number;
+  expiring_reservations: number;
+  low_stock_skus: number;
+  units_by_status: Record<string, number>;
+};
+
+type ExpiringReservation = {
+  id: string;
+  order_id: string;
+  order_number?: string;
+  sku_code: string;
+  expires_at: string;
+};
+
+type HealthIssue = {
+  id: string;
+  issue_type: string;
+  status: string;
+  unit_code?: string;
+  sku_code?: string;
+  detected_at: string;
+};
+
+export default function EstoqueSaudePage() {
+  const [stats, setStats] = useState<HealthStats | null>(null);
+  const [expiring, setExpiring] = useState<ExpiringReservation[]>([]);
+  const [issues, setIssues] = useState<HealthIssue[]>([]);
+  const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await api<{
+        stats: HealthStats;
+        expiring_reservations: ExpiringReservation[];
+        open_issues: HealthIssue[];
+      }>("/api/v1/stock/health/dashboard");
+      setStats(data.stats);
+      setExpiring(data.expiring_reservations ?? []);
+      setIssues(data.open_issues ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao carregar");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function scan() {
+    setInfo("");
+    try {
+      const res = await api<{ detected: number }>("/api/v1/stock/health/scan", { method: "POST" });
+      setInfo(`${res.detected} nova(s) inconsistência(s) detectada(s)`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro no scan");
+    }
+  }
+
+  async function resolve(id: string) {
+    try {
+      await api(`/api/v1/stock/health/issues/${id}/resolve`, {
+        method: "POST",
+        body: JSON.stringify({ notes: "Resolvido manualmente" }),
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao resolver");
+    }
+  }
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-6">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Saúde do estoque</h1>
+          <p className="mt-1 text-sm text-slate-600">KPIs, reservas expirando e inconsistências</p>
+        </div>
+        <Button type="button" onClick={() => void scan()}>Executar scan</Button>
+      </header>
+
+      {error ? <Alert tone="error">{error}</Alert> : null}
+      {info ? <Alert tone="success">{info}</Alert> : null}
+
+      {loading || !stats ? (
+        <p className="text-sm text-slate-500">Carregando…</p>
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            <Stat label="Unidades" value={stats.total_units} />
+            <Stat label="Disponíveis" value={stats.available_units} />
+            <Stat label="Reservadas" value={stats.reserved_units} />
+            <Stat label="Issues abertas" value={stats.open_issues} />
+            <Stat label="Reservas ≤24h" value={stats.expiring_reservations} />
+            <Stat label="SKUs baixo" value={stats.low_stock_skus} />
+          </div>
+
+          <Card title="Reservas expirando (48h)">
+            {expiring.length === 0 ? (
+              <p className="text-sm text-slate-500">Nenhuma reserva próxima do vencimento.</p>
+            ) : (
+              <Table
+                headers={["Pedido", "SKU", "Expira em", ""]}
+                rows={expiring.map((r) => [
+                  r.order_number ?? r.order_id.slice(0, 8),
+                  r.sku_code,
+                  new Date(r.expires_at).toLocaleString("pt-BR"),
+                  "—",
+                ])}
+              />
+            )}
+          </Card>
+
+          <Card title="Inconsistências abertas">
+            {issues.length === 0 ? (
+              <p className="text-sm text-slate-500">Nenhuma issue aberta.</p>
+            ) : (
+              <Table
+                headers={["Tipo", "Unidade", "SKU", "Detectado", ""]}
+                rows={issues.map((i) => [
+                  i.issue_type,
+                  i.unit_code ?? "—",
+                  i.sku_code ?? "—",
+                  new Date(i.detected_at).toLocaleString("pt-BR"),
+                  <button key="r" type="button" className="text-blue-600 hover:underline" onClick={() => void resolve(i.id)}>
+                    Resolver
+                  </button>,
+                ])}
+              />
+            )}
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg bg-slate-100 px-4 py-3">
+      <p className="text-xs uppercase text-slate-500">{label}</p>
+      <p className="text-2xl font-semibold text-slate-900">{value}</p>
+    </div>
+  );
+}
