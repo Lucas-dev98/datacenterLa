@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Etiqueta SKU {{.SKU}}</title>
+<style>
+  @page { size: {{printf "%.0f" .WidthMM}}mm {{printf "%.0f" .HeightMM}}mm; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: {{printf "%.1f" .WidthMM}}mm;
+    height: {{printf "%.1f" .HeightMM}}mm;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #000;
+    background: #fff;
+  }
+  .label {
+    width: 100%;
+    height: 100%;
+    padding: 2mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .text { width: 100%; text-align: center; }
+  .description {
+    font-size: 7pt;
+    font-weight: 700;
+    line-height: 1.15;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+  }
+  .sku {
+    margin-top: 1mm;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+  .qr img {
+    width: 18mm;
+    height: 18mm;
+    display: block;
+    image-rendering: pixelated;
+  }
+  @media print {
+    html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+  <div class="label">
+    <div class="text">
+      <div class="description">{{.Description}}</div>
+      <div class="sku">SKU: {{.SKU}}</div>
+    </div>
+    <div class="qr"><img src="data:image/png;base64,{{.QRImageBase64}}" alt="QR SKU {{.SKU}}"></div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,1047 @@
+package repository
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/datacenterla/platform/internal/sales/domain"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+type Postgres struct {
+	pool *pgxpool.Pool
+}
+
+func NewPostgres(pool *pgxpool.Pool) *Postgres {
+	return &Postgres{pool: pool}
+}
+
+// --- Customers ---
+
+func (r *Postgres) CreateCustomer(ctx context.Context, in domain.CreateCustomerInput) (*domain.Customer, error) {
+	customerType := strings.ToLower(strings.TrimSpace(in.Type))
+	if customerType == "" {
+		customerType = "b2b"
+	}
+	var c domain.Customer
+	err := r.pool.QueryRow(ctx, `
+		INSERT INTO customers (type, name, email, phone, document_id, credit_limit_usd, payment_terms_days)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, type, name, email, phone, document_id, credit_limit_usd, payment_terms_days, is_active, created_at
+	`, customerType, strings.TrimSpace(in.Name), in.Email, in.Phone, in.DocumentID,
+		in.CreditLimitUSD, in.PaymentTermsDays,
+	).Scan(&c.ID, &c.Type, &c.Name, &c.Email, &c.Phone, &c.DocumentID,
+		&c.CreditLimitUSD, &c.PaymentTermsDays, &c.IsActive, &c.CreatedAt)
+	if isUniqueViolation(err) {
+		return nil, domain.ErrInvalidInput
+	}
+	return &c, err
+}
+
+func (r *Postgres) GetCustomerByEmail(ctx context.Context, email string) (*domain.Customer, error) {
+	email = strings.TrimSpace(strings.ToLower(email))
+	if email == "" {
+		return nil, domain.ErrNotFound
+	}
+	return scanCustomer(r.pool.QueryRow(ctx, customerSelect+` WHERE LOWER(COALESCE(email,'')) = $1 LIMIT 1`, email))
+}
+
+func (r *Postgres) GetCustomer(ctx context.Context, id uuid.UUID) (*domain.Customer, error) {
+	return scanCustomer(r.pool.QueryRow(ctx, customerSelect+" WHERE id = $1", id))
+}
+
+func (r *Postgres) ListCustomers(ctx context.Context, activeOnly bool) ([]domain.Customer, error) {
+	q := customerSelect
+	if activeOnly {
+		q += " WHERE is_active = true"
+	}
+	q += " ORDER BY name"
+	rows, err := r.pool.Query(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanCustomers(rows)
+}
+
+// --- Quotes ---
+
+func (r *Postgres) CreateQuote(ctx context.Context, in domain.CreateQuoteInput) (*domain.Quote, error) {
+	channel := strings.ToLower(strings.TrimSpace(in.Channel))
+	if channel == "" {
+		channel = "erp"
+	}
+	var q domain.Quote
+	err := r.pool.QueryRow(ctx, `
+		INSERT INTO quotes (quote_number, customer_id, seller_id, channel, discount_pct, notes)
+		VALUES (generate_quote_number(), $1, $2, $3, $4, $5)
+		RETURNING id, quote_number, customer_id, seller_id, status, channel, valid_until,
+		          discount_pct, notes, created_at
+	`, in.CustomerID, in.SellerID, channel, in.DiscountPct, in.Notes,
+	).Scan(&q.ID, &q.QuoteNumber, &q.CustomerID, &q.SellerID, &q.Status, &q.Channel,
+		&q.ValidUntil, &q.DiscountPct, &q.Notes, &q.CreatedAt)
+	return &q, err
+}
+
+func (r *Postgres) GetQuote(ctx context.Context, id uuid.UUID) (*domain.Quote, error) {
+	q, err := scanQuote(r.pool.QueryRow(ctx, quoteSelect+" WHERE id = $1", id))
+	if err != nil {
+		return nil, err
+	}
+	items, err := r.listQuoteItems(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	q.Items = items
+	q.TotalUSD = quoteTotal(items, q.DiscountPct)
+	return q, nil
+}
+
+func (r *Postgres) ListQuotes(ctx context.Context, limit, offset int, status string) ([]domain.QuoteListItem, int, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	where := ""
+	countArgs := []any{}
+	listArgs := []any{limit, offset}
+	if status != "" {
+		where = " WHERE q.status = $1"
+		countArgs = append(countArgs, status)
+		listArgs = append(listArgs, status)
+	}
+
+	var total int
+	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM quotes q`+where, countArgs...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	statusFilter := ""
+	if status != "" {
+		if len(listArgs) == 3 {
+			statusFilter = " WHERE q.status = $3"
+		}
+	}
+
+	q := `
+		SELECT q.id, q.quote_number, q.customer_id, c.name, q.status, q.channel,
+		       COALESCE(SUM(qi.line_total_usd), 0) * (1 - q.discount_pct / 100.0) AS total_usd,
+		       q.created_at
+		FROM quotes q
+		JOIN customers c ON c.id = q.customer_id
+		LEFT JOIN quote_items qi ON qi.quote_id = q.id
+	` + statusFilter + `
+		GROUP BY q.id, q.quote_number, q.customer_id, c.name, q.status, q.channel, q.discount_pct, q.created_at
+		ORDER BY q.created_at DESC
+		LIMIT $1 OFFSET $2
+	`
+	rows, err := r.pool.Query(ctx, q, listArgs...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var out []domain.QuoteListItem
+	for rows.Next() {
+		var item domain.QuoteListItem
+		if err := rows.Scan(&item.ID, &item.QuoteNumber, &item.CustomerID, &item.CustomerName,
+			&item.Status, &item.Channel, &item.TotalUSD, &item.CreatedAt); err != nil {
+			return nil, 0, err
+		}
+		item.TotalUSD = roundUSD(item.TotalUSD)
+		out = append(out, item)
+	}
+	return out, total, rows.Err()
+}
+
+func (r *Postgres) AddQuoteItems(ctx context.Context, quoteID uuid.UUID, items []domain.QuoteItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	for _, item := range items {
+		_, err := tx.Exec(ctx, `
+			INSERT INTO quote_items (quote_id, sku_id, quantity, unit_price_usd, discount_pct, line_total_usd)
+			VALUES ($1, $2, $3, $4, $5, $6)
+		`, quoteID, item.SKUID, item.Quantity, item.UnitPriceUSD, item.DiscountPct, item.LineTotalUSD)
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+func (r *Postgres) UpdateQuoteStatus(ctx context.Context, id uuid.UUID, status string) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE quotes SET status = $2, updated_at = now(),
+			sent_at = CASE WHEN $2 = 'sent' THEN now() ELSE sent_at END
+		WHERE id = $1
+	`, id, status)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *Postgres) SetQuoteValidUntil(ctx context.Context, id uuid.UUID, until time.Time) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE quotes SET valid_until = $2, updated_at = now() WHERE id = $1
+	`, id, until)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *Postgres) MarkQuoteConverted(ctx context.Context, quoteID, orderID uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE quotes SET status = 'converted', converted_order_id = $2, updated_at = now()
+		WHERE id = $1
+	`, quoteID, orderID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+// --- Orders ---
+
+func (r *Postgres) CreateOrder(ctx context.Context, in domain.CreateOrderInput) (*domain.Order, error) {
+	channel := strings.ToLower(strings.TrimSpace(in.Channel))
+	if channel == "" {
+		channel = "erp"
+	}
+	var o domain.Order
+	err := r.pool.QueryRow(ctx, `
+		INSERT INTO orders (order_number, customer_id, quote_id, seller_id, channel, warehouse_id, discount_pct)
+		VALUES (generate_order_number(), $1, $2, $3, $4, $5, $6)
+		RETURNING id, order_number, customer_id, quote_id, seller_id, channel, status, warehouse_id,
+		          discount_pct, subtotal_usd, total_usd, confirmed_at, paid_at, created_at
+	`, in.CustomerID, in.QuoteID, in.SellerID, channel, in.WarehouseID, in.DiscountPct,
+	).Scan(&o.ID, &o.OrderNumber, &o.CustomerID, &o.QuoteID, &o.SellerID, &o.Channel, &o.Status,
+		&o.WarehouseID, &o.DiscountPct, &o.SubtotalUSD, &o.TotalUSD, &o.ConfirmedAt, &o.PaidAt, &o.CreatedAt)
+	return &o, err
+}
+
+func (r *Postgres) GetOrder(ctx context.Context, id uuid.UUID) (*domain.Order, error) {
+	o, err := scanOrder(r.pool.QueryRow(ctx, orderSelect+" WHERE id = $1", id))
+	if err != nil {
+		return nil, err
+	}
+	items, err := r.listOrderItems(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	o.Items = items
+	return o, nil
+}
+
+func (r *Postgres) ListOrders(ctx context.Context, limit, offset int, status, channel string) ([]domain.OrderListItem, int, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	var conditions []string
+	var filterArgs []any
+	if status != "" {
+		filterArgs = append(filterArgs, status)
+		conditions = append(conditions, fmt.Sprintf("o.status = $%d", len(filterArgs)))
+	}
+	if channel != "" {
+		filterArgs = append(filterArgs, channel)
+		conditions = append(conditions, fmt.Sprintf("o.channel = $%d::sales_channel", len(filterArgs)))
+	}
+	where := ""
+	if len(conditions) > 0 {
+		where = " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	var total int
+	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM orders o`+where, filterArgs...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	listArgs := append([]any{limit, offset}, filterArgs...)
+	filterOffset := 2
+	filterSQL := ""
+	if len(conditions) > 0 {
+		var parts []string
+		for i := range conditions {
+			parts = append(parts, strings.Replace(conditions[i], fmt.Sprintf("$%d", i+1), fmt.Sprintf("$%d", filterOffset+i+1), 1))
+		}
+		filterSQL = " WHERE " + strings.Join(parts, " AND ")
+	}
+
+	q := `
+		SELECT o.id, o.order_number, o.customer_id, c.name, o.status, o.channel, o.total_usd, o.quote_id, o.created_at
+		FROM orders o
+		JOIN customers c ON c.id = o.customer_id
+	` + filterSQL + `
+		ORDER BY o.created_at DESC
+		LIMIT $1 OFFSET $2
+	`
+	rows, err := r.pool.Query(ctx, q, listArgs...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var out []domain.OrderListItem
+	for rows.Next() {
+		var item domain.OrderListItem
+		if err := rows.Scan(&item.ID, &item.OrderNumber, &item.CustomerID, &item.CustomerName,
+			&item.Status, &item.Channel, &item.TotalUSD, &item.QuoteID, &item.CreatedAt); err != nil {
+			return nil, 0, err
+		}
+		out = append(out, item)
+	}
+	return out, total, rows.Err()
+}
+
+func (r *Postgres) AddOrderItems(ctx context.Context, orderID uuid.UUID, items []domain.OrderItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	for _, item := range items {
+		var id uuid.UUID
+		err := tx.QueryRow(ctx, `
+			INSERT INTO order_items (order_id, sku_id, quantity, unit_price_usd, discount_pct, line_total_usd)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING id
+		`, orderID, item.SKUID, item.Quantity, item.UnitPriceUSD, item.DiscountPct, item.LineTotalUSD,
+		).Scan(&id)
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+func (r *Postgres) UpdateOrderStatus(ctx context.Context, id uuid.UUID, status string) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE orders SET status = $2, updated_at = now() WHERE id = $1
+	`, id, status)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *Postgres) SetOrderTotals(ctx context.Context, id uuid.UUID, subtotal, total float64) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE orders SET subtotal_usd = $2, total_usd = $3, updated_at = now() WHERE id = $1
+	`, id, subtotal, total)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *Postgres) SetOrderConfirmed(ctx context.Context, id uuid.UUID, at time.Time) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE orders SET confirmed_at = $2, updated_at = now() WHERE id = $1
+	`, id, at)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *Postgres) SetOrderPaid(ctx context.Context, id uuid.UUID, at time.Time) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE orders SET paid_at = $2, updated_at = now() WHERE id = $1
+	`, id, at)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *Postgres) SetOrderShipped(ctx context.Context, id uuid.UUID, at time.Time) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE orders SET shipped_at = $2, updated_at = now() WHERE id = $1
+	`, id, at)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *Postgres) SetOrderCancelled(ctx context.Context, id uuid.UUID, at time.Time) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE orders SET status = 'cancelled', cancelled_at = $2, updated_at = now() WHERE id = $1
+	`, id, at)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *Postgres) CancelReceivable(ctx context.Context, id uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE accounts_receivable
+		SET status = 'cancelled', updated_at = now()
+		WHERE id = $1 AND status IN ('open', 'partial')
+	`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+// --- Payments ---
+
+func (r *Postgres) InsertPayment(ctx context.Context, orderID uuid.UUID, in domain.PaymentInput, recordedBy *uuid.UUID) (uuid.UUID, error) {
+	var id uuid.UUID
+	err := r.pool.QueryRow(ctx, `
+		INSERT INTO payments (order_id, amount_usd, method, reference, recorded_by)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id
+	`, orderID, in.AmountUSD, in.Method, in.Reference, recordedBy).Scan(&id)
+	return id, err
+}
+
+func (r *Postgres) CompletePayment(ctx context.Context, paymentID uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE payments SET status = 'completed', completed_at = now() WHERE id = $1
+	`, paymentID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *Postgres) SumCompletedPayments(ctx context.Context, orderID uuid.UUID) (float64, error) {
+	var total float64
+	err := r.pool.QueryRow(ctx, `
+		SELECT COALESCE(SUM(amount_usd), 0) FROM payments
+		WHERE order_id = $1 AND status = 'completed'
+	`, orderID).Scan(&total)
+	return total, err
+}
+
+// --- Receivables ---
+
+func (r *Postgres) CreateReceivable(ctx context.Context, orderID, customerID uuid.UUID, amount float64, dueDate string) (*domain.Receivable, error) {
+	var rcv domain.Receivable
+	err := r.pool.QueryRow(ctx, `
+		INSERT INTO accounts_receivable (order_id, customer_id, amount_usd, due_date)
+		VALUES ($1, $2, $3, $4::date)
+		RETURNING id, order_id, customer_id, amount_usd, paid_usd, due_date::text, status
+	`, orderID, customerID, amount, dueDate,
+	).Scan(&rcv.ID, &rcv.OrderID, &rcv.CustomerID, &rcv.AmountUSD, &rcv.PaidUSD, &rcv.DueDate, &rcv.Status)
+	return &rcv, err
+}
+
+func (r *Postgres) UpdateReceivablePaid(ctx context.Context, id uuid.UUID, paidUSD float64, status string) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE accounts_receivable SET paid_usd = $2, status = $3, updated_at = now() WHERE id = $1
+	`, id, paidUSD, status)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *Postgres) GetReceivable(ctx context.Context, id uuid.UUID) (*domain.ReceivableListItem, error) {
+	var item domain.ReceivableListItem
+	err := r.pool.QueryRow(ctx, `
+		SELECT r.id, r.order_id, r.customer_id, r.amount_usd, r.paid_usd, r.due_date::text, r.status,
+		       c.name, o.order_number
+		FROM accounts_receivable r
+		JOIN customers c ON c.id = r.customer_id
+		JOIN orders o ON o.id = r.order_id
+		WHERE r.id = $1
+	`, id).Scan(&item.ID, &item.OrderID, &item.CustomerID, &item.AmountUSD, &item.PaidUSD,
+		&item.DueDate, &item.Status, &item.CustomerName, &item.OrderNumber)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	return &item, err
+}
+
+func (r *Postgres) GetReceivableByOrderID(ctx context.Context, orderID uuid.UUID) (*domain.Receivable, error) {
+	var rcv domain.Receivable
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, order_id, customer_id, amount_usd, paid_usd, due_date::text, status
+		FROM accounts_receivable
+		WHERE order_id = $1 AND status IN ('open', 'partial')
+		ORDER BY created_at DESC LIMIT 1
+	`, orderID).Scan(&rcv.ID, &rcv.OrderID, &rcv.CustomerID, &rcv.AmountUSD, &rcv.PaidUSD, &rcv.DueDate, &rcv.Status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	return &rcv, err
+}
+
+func (r *Postgres) ApplyReceivablePayment(ctx context.Context, id uuid.UUID, amountUSD float64) (*domain.Receivable, error) {
+	var rcv domain.Receivable
+	err := r.pool.QueryRow(ctx, `
+		UPDATE accounts_receivable
+		SET paid_usd = paid_usd + $2,
+		    status = CASE
+		        WHEN paid_usd + $2 >= amount_usd THEN 'paid'::receivable_status
+		        WHEN paid_usd + $2 > 0 THEN 'partial'::receivable_status
+		        ELSE status
+		    END,
+		    updated_at = now()
+		WHERE id = $1 AND status IN ('open', 'partial')
+		RETURNING id, order_id, customer_id, amount_usd, paid_usd, due_date::text, status
+	`, id, amountUSD).Scan(&rcv.ID, &rcv.OrderID, &rcv.CustomerID, &rcv.AmountUSD, &rcv.PaidUSD, &rcv.DueDate, &rcv.Status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	return &rcv, err
+}
+
+func (r *Postgres) ListReceivables(ctx context.Context, limit, offset int, status string) ([]domain.ReceivableListItem, int, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	where := ""
+	countArgs := []any{}
+	listArgs := []any{limit, offset}
+	if status != "" {
+		where = " WHERE r.status = $1"
+		countArgs = append(countArgs, status)
+		listArgs = append(listArgs, status)
+	}
+
+	var total int
+	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM accounts_receivable r`+where, countArgs...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	statusFilter := ""
+	if status != "" {
+		statusFilter = " WHERE r.status = $3"
+	}
+
+	q := `
+		SELECT r.id, r.order_id, r.customer_id, r.amount_usd, r.paid_usd, r.due_date::text, r.status,
+		       c.name, o.order_number
+		FROM accounts_receivable r
+		JOIN customers c ON c.id = r.customer_id
+		JOIN orders o ON o.id = r.order_id
+	` + statusFilter + `
+		ORDER BY r.due_date ASC
+		LIMIT $1 OFFSET $2
+	`
+	rows, err := r.pool.Query(ctx, q, listArgs...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var out []domain.ReceivableListItem
+	for rows.Next() {
+		var item domain.ReceivableListItem
+		if err := rows.Scan(&item.ID, &item.OrderID, &item.CustomerID, &item.AmountUSD, &item.PaidUSD,
+			&item.DueDate, &item.Status, &item.CustomerName, &item.OrderNumber); err != nil {
+			return nil, 0, err
+		}
+		out = append(out, item)
+	}
+	return out, total, rows.Err()
+}
+
+func (r *Postgres) GetDashboardStats(ctx context.Context) (*domain.DashboardStats, error) {
+	var s domain.DashboardStats
+	err := r.pool.QueryRow(ctx, `
+		SELECT
+			(SELECT COUNT(*) FROM orders WHERE status = 'draft'),
+			(SELECT COUNT(*) FROM orders WHERE status IN ('confirmed', 'paid')),
+			(SELECT COUNT(*) FROM quotes WHERE status IN ('sent', 'approved')),
+			(SELECT COUNT(*) FROM accounts_receivable WHERE status IN ('open', 'partial')),
+			(SELECT COALESCE(SUM(amount_usd - paid_usd), 0) FROM accounts_receivable WHERE status IN ('open', 'partial')),
+			(SELECT COUNT(DISTINCT s.id) FROM skus s
+			 JOIN stock_balances b ON b.sku_id = s.id
+			 WHERE s.is_active = true AND b.qty_available <= 2),
+			(SELECT COUNT(*) FROM skus WHERE is_active = true)
+	`).Scan(&s.OrdersDraft, &s.OrdersPendingShip, &s.QuotesOpen,
+		&s.ReceivablesOpen, &s.ReceivablesOutstandingUSD, &s.SkusLowStock, &s.ActiveSKUs)
+	if err != nil {
+		return nil, err
+	}
+	s.ReceivablesOutstandingUSD = roundUSD(s.ReceivablesOutstandingUSD)
+	return &s, nil
+}
+
+func (r *Postgres) ListPendingOrders(ctx context.Context, limit int) ([]domain.PendingOrderSummary, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT o.id, o.order_number, c.name, o.status, o.total_usd, o.created_at
+		FROM orders o
+		JOIN customers c ON c.id = o.customer_id
+		WHERE o.status IN ('draft', 'confirmed', 'paid')
+		ORDER BY o.created_at DESC
+		LIMIT $1
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.PendingOrderSummary
+	for rows.Next() {
+		var item domain.PendingOrderSummary
+		if err := rows.Scan(&item.ID, &item.OrderNumber, &item.CustomerName, &item.Status, &item.TotalUSD, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+func (r *Postgres) ListLowStockSKUs(ctx context.Context, threshold, limit int) ([]domain.LowStockSKU, error) {
+	if threshold <= 0 {
+		threshold = 2
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT s.code, s.name, COALESCE(SUM(b.qty_available), 0)::INT
+		FROM skus s
+		LEFT JOIN stock_balances b ON b.sku_id = s.id
+		WHERE s.is_active = true
+		GROUP BY s.id, s.code, s.name
+		HAVING COALESCE(SUM(b.qty_available), 0) <= $1
+		ORDER BY COALESCE(SUM(b.qty_available), 0) ASC, s.code
+		LIMIT $2
+	`, threshold, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.LowStockSKU
+	for rows.Next() {
+		var item domain.LowStockSKU
+		if err := rows.Scan(&item.SKUCode, &item.Name, &item.QtyAvailable); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+// --- Cart ---
+
+func (r *Postgres) GetOrCreateCart(ctx context.Context, sessionID string) (*domain.Cart, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return nil, domain.ErrInvalidInput
+	}
+	expires := time.Now().UTC().Add(24 * time.Hour)
+	var c domain.Cart
+	err := r.pool.QueryRow(ctx, `
+		INSERT INTO ecommerce_carts (session_id, expires_at)
+		VALUES ($1, $2)
+		ON CONFLICT (session_id) DO UPDATE SET
+			expires_at = GREATEST(ecommerce_carts.expires_at, EXCLUDED.expires_at),
+			updated_at = now()
+		RETURNING id, session_id, expires_at
+	`, sessionID, expires).Scan(&c.ID, &c.SessionID, &c.ExpiresAt)
+	return &c, err
+}
+
+func (r *Postgres) AddCartItem(ctx context.Context, cartID, skuID uuid.UUID, qty int) error {
+	if qty <= 0 {
+		return domain.ErrInvalidInput
+	}
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO ecommerce_cart_items (cart_id, sku_id, quantity)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (cart_id, sku_id) DO UPDATE SET quantity = ecommerce_cart_items.quantity + EXCLUDED.quantity
+	`, cartID, skuID, qty)
+	return err
+}
+
+func (r *Postgres) SetCartItemQuantity(ctx context.Context, cartID, skuID uuid.UUID, qty int) error {
+	if qty < 0 {
+		return domain.ErrInvalidInput
+	}
+	if qty == 0 {
+		_, err := r.pool.Exec(ctx, `
+			DELETE FROM ecommerce_cart_items WHERE cart_id = $1 AND sku_id = $2
+		`, cartID, skuID)
+		return err
+	}
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE ecommerce_cart_items SET quantity = $3 WHERE cart_id = $1 AND sku_id = $2
+	`, cartID, skuID, qty)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		_, err = r.pool.Exec(ctx, `
+			INSERT INTO ecommerce_cart_items (cart_id, sku_id, quantity) VALUES ($1, $2, $3)
+		`, cartID, skuID, qty)
+		return err
+	}
+	return nil
+}
+
+func (r *Postgres) GetCartWithItems(ctx context.Context, sessionID string) (*domain.Cart, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return nil, domain.ErrInvalidInput
+	}
+	var c domain.Cart
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, session_id, expires_at FROM ecommerce_carts WHERE session_id = $1
+	`, sessionID).Scan(&c.ID, &c.SessionID, &c.ExpiresAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT ci.sku_id, s.code, s.name, ci.quantity
+		FROM ecommerce_cart_items ci
+		JOIN skus s ON s.id = ci.sku_id
+		WHERE ci.cart_id = $1
+		ORDER BY s.name
+	`, c.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var item domain.CartItem
+		if err := rows.Scan(&item.SKUID, &item.SKUCode, &item.Name, &item.Quantity); err != nil {
+			return nil, err
+		}
+		c.Items = append(c.Items, item)
+	}
+	if c.Items == nil {
+		c.Items = []domain.CartItem{}
+	}
+	return &c, rows.Err()
+}
+
+func (r *Postgres) ClearCart(ctx context.Context, cartID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM ecommerce_cart_items WHERE cart_id = $1`, cartID)
+	return err
+}
+
+// --- Catalog ---
+
+func (r *Postgres) ListEcommerceCatalog(ctx context.Context, warehouseID uuid.UUID, categoryID *uuid.UUID, search string) ([]domain.CatalogProduct, error) {
+	q := `
+		SELECT s.id, s.code, s.name, s.description, p.category_id, c.name, s.image_url,
+		       COALESCE(b.qty_available, 0)
+		FROM skus s
+		JOIN products p ON p.id = s.product_id
+		LEFT JOIN categories c ON c.id = p.category_id
+		LEFT JOIN stock_balances b ON b.sku_id = s.id AND b.warehouse_id = $1
+		WHERE s.publish_ecommerce = true AND s.is_active = true
+	`
+	args := []any{warehouseID}
+	n := 2
+	if categoryID != nil {
+		q += fmt.Sprintf(` AND p.category_id = $%d`, n)
+		args = append(args, *categoryID)
+		n++
+	}
+	if strings.TrimSpace(search) != "" {
+		q += fmt.Sprintf(` AND (s.name ILIKE $%d OR s.code ILIKE $%d OR COALESCE(s.description,'') ILIKE $%d)`, n, n, n)
+		args = append(args, "%"+strings.TrimSpace(search)+"%")
+		n++
+	}
+	q += ` ORDER BY s.name`
+
+	rows, err := r.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.CatalogProduct
+	for rows.Next() {
+		var p domain.CatalogProduct
+		if err := rows.Scan(&p.SKUID, &p.SKUCode, &p.Name, &p.Description, &p.CategoryID, &p.CategoryName, &p.ImageURL, &p.Available); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+func (r *Postgres) ListEcommerceCategories(ctx context.Context) ([]domain.EcommerceCategory, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT c.id, c.code, c.name, c.parent_id
+		FROM categories c
+		LEFT JOIN categories p ON p.id = c.parent_id
+		WHERE c.is_active = true
+		ORDER BY COALESCE(p.name, c.name), c.parent_id NULLS FIRST, c.name
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.EcommerceCategory
+	for rows.Next() {
+		var c domain.EcommerceCategory
+		if err := rows.Scan(&c.ID, &c.Code, &c.Name, &c.ParentID); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+func (r *Postgres) LookupOrderPublic(ctx context.Context, email, orderNumber string) (*domain.PublicOrderSummary, error) {
+	email = strings.TrimSpace(strings.ToLower(email))
+	orderNumber = strings.TrimSpace(orderNumber)
+	var o domain.PublicOrderSummary
+	err := r.pool.QueryRow(ctx, `
+		SELECT o.id, o.order_number, o.status::text, o.total_usd, o.created_at, c.name
+		FROM orders o
+		JOIN customers c ON c.id = o.customer_id
+		WHERE o.order_number = $1 AND LOWER(COALESCE(c.email,'')) = $2
+	`, orderNumber, email).Scan(&o.ID, &o.OrderNumber, &o.Status, &o.TotalUSD, &o.CreatedAt, &o.CustomerName)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT COALESCE(s.code, ''), COALESCE(s.name, ''), oi.quantity, oi.unit_price_usd, oi.line_total_usd
+		FROM order_items oi
+		LEFT JOIN skus s ON s.id = oi.sku_id
+		WHERE oi.order_id = $1
+		ORDER BY oi.created_at
+	`, o.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var item domain.PublicOrderItem
+		if err := rows.Scan(&item.SKUCode, &item.SKUName, &item.Quantity, &item.UnitPriceUSD, &item.LineTotalUSD); err != nil {
+			return nil, err
+		}
+		o.Items = append(o.Items, item)
+	}
+	return &o, rows.Err()
+}
+
+func (r *Postgres) ListPublicOrdersByEmail(ctx context.Context, email string) ([]domain.PublicOrderSummary, error) {
+	email = strings.TrimSpace(strings.ToLower(email))
+	if email == "" {
+		return nil, domain.ErrInvalidInput
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT o.id, o.order_number, o.status::text, o.total_usd, o.created_at, c.name
+		FROM orders o
+		JOIN customers c ON c.id = o.customer_id
+		WHERE LOWER(COALESCE(c.email,'')) = $1
+		  AND o.channel = 'ecommerce'
+		  AND o.status NOT IN ('draft', 'cancelled')
+		ORDER BY o.created_at DESC
+		LIMIT 20
+	`, email)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.PublicOrderSummary
+	for rows.Next() {
+		var o domain.PublicOrderSummary
+		if err := rows.Scan(&o.ID, &o.OrderNumber, &o.Status, &o.TotalUSD, &o.CreatedAt, &o.CustomerName); err != nil {
+			return nil, err
+		}
+		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+const customerSelect = `
+	SELECT id, type, name, email, phone, document_id, credit_limit_usd, payment_terms_days, is_active, created_at
+	FROM customers
+`
+
+const quoteSelect = `
+	SELECT id, quote_number, customer_id, seller_id, status, channel, valid_until,
+	       discount_pct, notes, created_at
+	FROM quotes
+`
+
+const orderSelect = `
+	SELECT id, order_number, customer_id, quote_id, seller_id, channel, status, warehouse_id,
+	       discount_pct, subtotal_usd, total_usd, confirmed_at, paid_at, created_at
+	FROM orders
+`
+
+func (r *Postgres) listQuoteItems(ctx context.Context, quoteID uuid.UUID) ([]domain.QuoteItem, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, sku_id, quantity, unit_price_usd, discount_pct, line_total_usd
+		FROM quote_items WHERE quote_id = $1 ORDER BY created_at
+	`, quoteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []domain.QuoteItem
+	for rows.Next() {
+		var item domain.QuoteItem
+		if err := rows.Scan(&item.ID, &item.SKUID, &item.Quantity, &item.UnitPriceUSD,
+			&item.DiscountPct, &item.LineTotalUSD); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (r *Postgres) listOrderItems(ctx context.Context, orderID uuid.UUID) ([]domain.OrderItem, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT oi.id, oi.sku_id, s.code, oi.quantity, oi.unit_price_usd, oi.discount_pct, oi.line_total_usd
+		FROM order_items oi
+		JOIN skus s ON s.id = oi.sku_id
+		WHERE oi.order_id = $1 ORDER BY oi.created_at
+	`, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []domain.OrderItem
+	for rows.Next() {
+		var item domain.OrderItem
+		if err := rows.Scan(&item.ID, &item.SKUID, &item.SKUCode, &item.Quantity, &item.UnitPriceUSD,
+			&item.DiscountPct, &item.LineTotalUSD); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func quoteTotal(items []domain.QuoteItem, headerDiscountPct float64) float64 {
+	var subtotal float64
+	for _, item := range items {
+		subtotal += item.LineTotalUSD
+	}
+	if headerDiscountPct <= 0 {
+		return roundUSD(subtotal)
+	}
+	return roundUSD(subtotal * (1 - headerDiscountPct/100))
+}
+
+func roundUSD(v float64) float64 {
+	return float64(int(v*100+0.5)) / 100
+}
+
+func scanCustomer(row pgx.Row) (*domain.Customer, error) {
+	var c domain.Customer
+	err := row.Scan(&c.ID, &c.Type, &c.Name, &c.Email, &c.Phone, &c.DocumentID,
+		&c.CreditLimitUSD, &c.PaymentTermsDays, &c.IsActive, &c.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	return &c, err
+}
+
+func scanCustomers(rows pgx.Rows) ([]domain.Customer, error) {
+	var out []domain.Customer
+	for rows.Next() {
+		var c domain.Customer
+		if err := rows.Scan(&c.ID, &c.Type, &c.Name, &c.Email, &c.Phone, &c.DocumentID,
+			&c.CreditLimitUSD, &c.PaymentTermsDays, &c.IsActive, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+func scanQuote(row pgx.Row) (*domain.Quote, error) {
+	var q domain.Quote
+	err := row.Scan(&q.ID, &q.QuoteNumber, &q.CustomerID, &q.SellerID, &q.Status, &q.Channel,
+		&q.ValidUntil, &q.DiscountPct, &q.Notes, &q.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	return &q, err
+}
+
+func scanOrder(row pgx.Row) (*domain.Order, error) {
+	var o domain.Order
+	err := row.Scan(&o.ID, &o.OrderNumber, &o.CustomerID, &o.QuoteID, &o.SellerID, &o.Channel, &o.Status,
+		&o.WarehouseID, &o.DiscountPct, &o.SubtotalUSD, &o.TotalUSD, &o.ConfirmedAt, &o.PaidAt, &o.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	return &o, err
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}

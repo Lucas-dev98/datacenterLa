@@ -1,0 +1,52 @@
+<rss version="2.0">
+	<channel>
+		<title>Produtos da loja nome_da_minha_loja</title>
+		<link>http://www.minhaloja.com</link>
+		<description>Feed contendo os atributos obrigatórios e recomendados para cada produto da loja</description>
+
+		<item>
+			<!--  Os atributos a seguir são obrigatórios  -->
+
+			<!-- Usar a codificação Unicode (UTF-8), sem usar tags HTML para acentuação no title e description -->
+
+			<!-- Nome e descrição do produto em português do Brasil -->
+			<title>LG Flatron M2262D 22" Full HD LCD TV</title>
+			<description>
+				Com um estilo atraente e uma qualidade de imagem impressionante, a TV LCD Full HD LG Flatron M2262D de 22" é uma excelente televisão/monitor. A TV LCD Full HD LG Flatron M2262D de 22" possui um painel widescreen de 1080p, perfeito para assistir a filmes em seu formato original, além de oferecer bastante espaço de trabalho para seus outros aplicativos. Você também desfrutará de uma excelente qualidade de som com a tecnologia SRS TruSurround HD e alto-falantes estéreo integrados. Desfrute de uma ampla gama de canais de televisão digital abertos e estações de rádio digitais na LG Flatron M2262D, graças ao seu sintonizador DVB-T Freeview integrado. Conecte a TV LCD Full HD LG Flatron M2262D de 22" à maioria dos dispositivos externos com facilidade, graças à sua ampla gama de portas, incluindo 2 portas HDMI, 2 conectores SCART, um conector DVI, um conector VGA e conectividade USB, permitindo que você insira seus próprios arquivos multimídia.
+			</description>
+
+			<!-- Nome e descrição do produto em espanhol -->
+			<title_es>LG Flatron M2262D 22" Full HD LCD TV</title_es>
+			<description_es>
+				Con un estilo atractivo y una calidad de imagen impresionante, el televisor LCD LG Flatron M2262D de 22" Full HD es un excelente televisor/monitor. Este televisor cuenta con una pantalla panorámica de 1080p, perfecta para ver películas en su formato original y, a la vez, ofrece amplio espacio de trabajo para otras aplicaciones. Además, disfrutará de una excelente calidad de sonido gracias a la tecnología SRS TruSurround HD y los altavoces estéreo integrados. Disfrute de una amplia gama de canales de televisión digital en abierto y emisoras de radio digitales en el LG Flatron M2262D gracias a su sintonizador TDT integrado. Conecte el televisor LCD LG Flatron M2262D de 22" Full HD a la mayoría de los dispositivos externos fácilmente gracias a su amplia gama de puertos, que incluye 2 puertos HDMI, 2 conectores SCART, un conector DVI, un conector VGA y conectividad USB, lo que le permite cargar sus propios archivos multimedia.
+			</description_es>
+
+			<codigo>123456</codigo>
+			<!-- Preço em dólar  -->
+			<preco>199.50 USD</preco>
+			<!-- Preço em dólar com IVA aplicado (para venda a paraguaios). Opcional: se não enviado, o site exibirá o <preco> padrão no domínio paraguaio. -->
+			<price_iva>219.45 USD</price_iva>
+			<estoque>109</estoque>
+			<link>http://www.minhaloja.com/electronics/tv/LGM2262D.html</link>
+
+			<!-- Não usar uma foto padrão de imagem indisponível quando o produto não tem imagem, deixar o campo vazio  -->
+			<link_imagem>http://images.example.com/TV_123456.png</link_imagem>
+
+			<!-- Os atributos a seguir são opcionais  -->
+
+			<!-- disponibilidade pode ser em estoque ou fora de estoque -->
+			<disponibilidade>em estoque</disponibilidade>
+			<link_comprar>http://www.minhaloja.com/electronics/tv/comprar-online</link_comprar>
+
+			<!-- Para produtos em liquidação, abaixo do custo, usar o preço de valor mais alto, neste campo (apenas para lojas autorizadas) -->
+			<preco_normal_sem_liquidacao>259.00 USD</preco_normal_sem_liquidacao>
+			<marca>LG</marca>
+			<!-- Se também faz venda do produto pela internet para o Brasil. Opções: apenas loja, apenas internet ou loja+internet -->
+			<tipo_venda>loja+internet</tipo_venda>
+		</item>
+
+		<item>
+			<!--  Atributos do próximo item  -->
+		</item>
+	</channel>
+</rss>

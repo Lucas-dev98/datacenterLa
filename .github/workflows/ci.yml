@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: datacenterla
+          POSTGRES_PASSWORD: datacenterla
+          POSTGRES_DB: datacenterla
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U datacenterla"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - name: Integration tests
+        working-directory: backend
+        env:
+          DATABASE_URL: postgres://datacenterla:datacenterla@localhost:5434/datacenterla?sslmode=disable
+        run: |
+          go run ./cmd/seed
+          go test ./... -tags=integration -count=1
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Admin typecheck
+        working-directory: admin
+        run: npm ci && npx tsc --noEmit
+      - name: Shop typecheck
+        working-directory: shop
+        run: npm ci && npx tsc --noEmit
