@@ -1048,6 +1048,7 @@ func (r *Postgres) ListEcommerceCatalog(ctx context.Context, warehouseID uuid.UU
 		FROM skus s
 		JOIN products p ON p.id = s.product_id
 		LEFT JOIN categories c ON c.id = p.category_id
+		LEFT JOIN categories parent ON parent.id = c.parent_id
 		LEFT JOIN stock_balances b ON b.sku_id = s.id AND b.warehouse_id = $1
 		WHERE s.publish_ecommerce = true AND s.is_active = true
 	`
@@ -1059,11 +1060,25 @@ func (r *Postgres) ListEcommerceCatalog(ctx context.Context, warehouseID uuid.UU
 		n++
 	}
 	if strings.TrimSpace(search) != "" {
-		q += fmt.Sprintf(` AND (s.name ILIKE $%d OR s.code ILIKE $%d OR COALESCE(s.description,'') ILIKE $%d)`, n, n, n)
-		args = append(args, "%"+strings.TrimSpace(search)+"%")
-		n++
+		frag, nextArgs, nextN := catalogSearchSQL(search, args, n)
+		q += frag
+		args, n = nextArgs, nextN
+		folded := catalogFold(search)
+		compact := catalogCompact(search)
+		padded := catalogPadSKU(strings.TrimSpace(search))
+		args = append(args, strings.TrimSpace(search), padded, folded+"%", "%"+compact+"%")
+		codeExact, codePad, namePrefix, compactContains := n, n+1, n+2, n+3
+		q += fmt.Sprintf(` ORDER BY
+			CASE
+				WHEN btrim(s.code::text) IN ($%d, $%d) THEN 0
+				WHEN %s LIKE $%d THEN 1
+				WHEN %s LIKE $%d THEN 2
+				ELSE 3
+			END,
+			s.name`, codeExact, codePad, catalogFoldedSQL("btrim(s.code::text)"), namePrefix, catalogCompactSQL("s.name"), compactContains)
+	} else {
+		q += ` ORDER BY s.name`
 	}
-	q += ` ORDER BY s.name`
 
 	rows, err := r.pool.Query(ctx, q, args...)
 	if err != nil {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { addToCart, fetchCatalog, fetchCategories } from "@/lib/api";
 import { CATALOG_GROUPS, categoryIdsForGroup, productInGroup } from "@/lib/catalog-groups";
 import { formatPyg, formatUsd } from "@/lib/format";
@@ -14,6 +14,7 @@ import { MediaFrame } from "@/components/media-frame";
 import { Alert, Button, Input, Select } from "@/components/ui";
 
 export function CatalogBrowser() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialQ = searchParams.get("q") ?? "";
   const grupo = searchParams.get("grupo") ?? "";
@@ -26,6 +27,9 @@ export function CatalogBrowser() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [adding, setAdding] = useState<string | null>(null);
+
+  const term = search.trim();
+  const searching = term.length > 0;
 
   useEffect(() => {
     setCategoryId("");
@@ -61,13 +65,26 @@ export function CatalogBrowser() {
     return () => clearTimeout(t);
   }, [categoryId, search, initialQ]);
 
+  useEffect(() => {
+    if (search === initialQ) return;
+    const t = setTimeout(() => {
+      const next = term
+        ? `/loja?q=${encodeURIComponent(term)}`
+        : grupo
+          ? `/loja?grupo=${encodeURIComponent(grupo)}`
+          : "/loja";
+      router.replace(next, { scroll: false });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [search, initialQ, grupo, router, term]);
+
   const visible = useMemo(() => {
-    if (!grupo) return products;
+    if (!grupo || searching) return products;
     return products.filter((p) => productInGroup(p, categories, grupo));
-  }, [products, categories, grupo]);
+  }, [products, categories, grupo, searching]);
 
   const groupLabel = CATALOG_GROUPS[grupo as keyof typeof CATALOG_GROUPS]?.label;
-  const waitingGroup = Boolean(grupo && categories.length === 0);
+  const waitingGroup = Boolean(grupo && !searching && categories.length === 0);
 
   async function handleAdd(skuId: string) {
     setInfo("");
@@ -84,11 +101,21 @@ export function CatalogBrowser() {
 
   return (
     <div>
-      <Breadcrumb items={groupLabel ? [{ href: "/loja", label: "Loja" }, { label: groupLabel }] : [{ label: "Loja" }]} />
+      <Breadcrumb
+        items={
+          searching
+            ? [{ href: "/loja", label: "Loja" }, { label: `Busca` }]
+            : groupLabel
+              ? [{ href: "/loja", label: "Loja" }, { label: groupLabel }]
+              : [{ label: "Loja" }]
+        }
+      />
 
       <header className="flex flex-col gap-4 border-b border-neutral-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">{groupLabel ?? "Loja"}</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            {searching ? `Resultados para “${term}”` : (groupLabel ?? "Loja")}
+          </h1>
           <p className="mt-1 text-sm text-neutral-500">
             Preços em USD · referência em guaranis · {loading || waitingGroup ? "…" : `${visible.length} itens`}
           </p>
@@ -103,7 +130,7 @@ export function CatalogBrowser() {
           <div className="flex flex-wrap gap-2">
             <Link
               href="/loja"
-              className={`rounded-full px-3 py-1.5 text-[13px] ${!grupo ? "bg-neutral-900 text-white" : "bg-white text-neutral-700 ring-1 ring-neutral-200 hover:ring-neutral-400"}`}
+              className={`rounded-full px-3 py-1.5 text-[13px] ${!grupo || searching ? "bg-neutral-900 text-white" : "bg-white text-neutral-700 ring-1 ring-neutral-200 hover:ring-neutral-400"}`}
             >
               Todos
             </Link>
@@ -111,7 +138,7 @@ export function CatalogBrowser() {
               <Link
                 key={key}
                 href={item.href}
-                className={`rounded-full px-3 py-1.5 text-[13px] ${grupo === key ? "bg-neutral-900 text-white" : "bg-white text-neutral-700 ring-1 ring-neutral-200 hover:ring-neutral-400"}`}
+                className={`rounded-full px-3 py-1.5 text-[13px] ${!searching && grupo === key ? "bg-neutral-900 text-white" : "bg-white text-neutral-700 ring-1 ring-neutral-200 hover:ring-neutral-400"}`}
               >
                 {item.label}
               </Link>
@@ -121,7 +148,7 @@ export function CatalogBrowser() {
             <Input
               id="busca"
               className="max-w-xs bg-white"
-              placeholder="SKU, nome, marca…"
+              placeholder="SKU, marca, modelo…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -170,11 +197,24 @@ export function CatalogBrowser() {
         </div>
       ) : visible.length === 0 ? (
         <div className="mt-10 rounded-lg bg-white px-6 py-14 text-center ring-1 ring-neutral-200">
-          <p className="text-neutral-800">Nenhum produto nesta combinação.</p>
-          <p className="mt-1 text-sm text-neutral-500">Ajuste a busca ou peça sourcing — localizamos o modelo.</p>
-          <Link href="/contato" className="mt-5 inline-flex rounded-full bg-neutral-900 px-5 py-2.5 text-sm text-white">
-            Solicitar cotação
-          </Link>
+          <p className="text-neutral-800">
+            {searching ? `Nenhum produto para “${term}”.` : "Nenhum produto nesta combinação."}
+          </p>
+          <p className="mt-1 text-sm text-neutral-500">
+            {searching
+              ? "Tente SKU, marca ou um termo mais curto — ou peça sourcing."
+              : "Ajuste a busca ou peça sourcing — localizamos o modelo."}
+          </p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+            {searching ? (
+              <Link href="/loja" className="inline-flex rounded-full bg-white px-5 py-2.5 text-sm text-neutral-800 ring-1 ring-neutral-300">
+                Limpar busca
+              </Link>
+            ) : null}
+            <Link href="/contato" className="inline-flex rounded-full bg-neutral-900 px-5 py-2.5 text-sm text-white">
+              Solicitar cotação
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">

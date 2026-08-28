@@ -30,6 +30,7 @@ import (
 	pimhandler "github.com/datacenterla/platform/internal/pim/handler"
 	pimrepo "github.com/datacenterla/platform/internal/pim/repository"
 	pimservice "github.com/datacenterla/platform/internal/pim/service"
+	"github.com/datacenterla/platform/internal/platform/http/ratelimit"
 	"github.com/datacenterla/platform/internal/platform/worker"
 	pricinghandler "github.com/datacenterla/platform/internal/pricing/handler"
 	pricingrepo "github.com/datacenterla/platform/internal/pricing/repository"
@@ -140,8 +141,17 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
+	r.Use(ratelimit.PublicAPI)
 
-	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
+	r.Get("/health", func(w http.ResponseWriter, req *http.Request) {
+		ctx, cancel := context.WithTimeout(req.Context(), 2*time.Second)
+		defer cancel()
+		w.Header().Set("Content-Type", "application/json")
+		if err := pool.Ping(ctx); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"status":"unhealthy"}`))
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})

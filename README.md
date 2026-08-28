@@ -2,6 +2,27 @@
 
 Sobe Postgres, API Go, admin (:3000) e loja pública (:3001).
 
+## Arquitetura
+
+Três processos separados, **um backend Go** e **um Postgres**. Não é microsserviço: é um monólito modular com fronts desacoplados.
+
+```
+Admin (:3000) ─┐
+Loja  (:3001) ─┼─► API REST Go ─► PostgreSQL
+Parceiros     ─┘     (estoque, PIM, vendas, feed)
+```
+
+| Peça do conselho “desacoplado” | Aqui |
+|---|---|
+| Backend como fonte da verdade | Já. Só a API fala com o banco |
+| ERP e loja em fronts separados | Já. `admin/` e `shop/` |
+| Integração Compras Paraguai no backend | Já. Feed XML + webhook de entrega, sem passar pela loja |
+| Falha num front não derruba o banco | Já. São containers independentes |
+| Escalar loja sem o ERP | Compose: `docker compose up --scale shop=N` (a API continua compartilhada) |
+| GraphQL / um serviço por módulo | Não. REST + módulos Go no mesmo binário — o tamanho certo para o time |
+
+A superfície pública (`/api/v1/ecommerce`, feed, login) tem limite por IP. Rotas do ERP e webhooks de pagamento não entram nesse limite. `/health` só responde ok se o Postgres responder.
+
 ## Pré-requisitos
 
 - Docker e Docker Compose v2

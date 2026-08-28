@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import { ShopSearch } from "@/components/shop-search";
 import { fetchCart } from "@/lib/api";
 import { CART_EVENT } from "@/lib/cart-events";
 import { CATALOG_GROUPS } from "@/lib/catalog-groups";
@@ -17,7 +18,6 @@ const PRIMARY_NAV = [
 
 export function SiteHeader() {
   const pathname = usePathname() ?? "";
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [scrolled, setScrolled] = useState(false);
@@ -26,7 +26,9 @@ export function SiteHeader() {
   const home = pathname === "/";
 
   useEffect(() => {
-    setGrupo(new URLSearchParams(window.location.search).get("grupo") ?? "");
+    const params = new URLSearchParams(window.location.search);
+    setGrupo(params.get("grupo") ?? "");
+    setQ(pathname === "/loja" ? (params.get("q") ?? "") : "");
   }, [pathname]);
 
   useEffect(() => {
@@ -60,13 +62,6 @@ export function SiteHeader() {
     };
   }, [open]);
 
-  function onSearch(e: FormEvent) {
-    e.preventDefault();
-    const term = q.trim();
-    router.push(term ? `/loja?q=${encodeURIComponent(term)}` : "/loja");
-    setOpen(false);
-  }
-
   return (
     <HeaderChrome
       pathname={pathname}
@@ -76,8 +71,7 @@ export function SiteHeader() {
       open={open}
       onToggle={() => setOpen((v) => !v)}
       q={q}
-      onQ={setQ}
-      onSearch={onSearch}
+      onNavigate={() => setOpen(false)}
     />
   );
 }
@@ -90,8 +84,7 @@ function HeaderChrome({
   open = false,
   onToggle,
   q = "",
-  onQ,
-  onSearch,
+  onNavigate,
 }: {
   pathname: string;
   grupo: string;
@@ -100,8 +93,7 @@ function HeaderChrome({
   open?: boolean;
   onToggle?: () => void;
   q?: string;
-  onQ?: (v: string) => void;
-  onSearch?: (e: FormEvent) => void;
+  onNavigate?: () => void;
 }) {
   function navClass(href: string) {
     const active = href.startsWith("/loja?grupo=")
@@ -148,15 +140,7 @@ function HeaderChrome({
         </nav>
 
         <div className="ml-auto flex items-center gap-2 md:gap-3">
-          <form onSubmit={onSearch} className="relative hidden md:block">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/45" />
-            <input
-              value={q}
-              onChange={(e) => onQ?.(e.target.value)}
-              placeholder="Buscar SKU, modelo…"
-              className="h-10 w-52 rounded-full border border-white/15 bg-white/5 pl-9 pr-3 text-[13px] text-white outline-none placeholder:text-white/35 focus:border-white/40 focus:bg-white/10 xl:w-64"
-            />
-          </form>
+          <ShopSearch initialQ={q} onNavigate={onNavigate} />
           <Link
             href="/conta"
             className="hidden h-10 items-center px-2 text-[13px] text-white/70 hover:text-white lg:inline-flex"
@@ -186,15 +170,9 @@ function HeaderChrome({
 
       {open ? (
         <div className="fixed inset-x-0 top-16 bottom-0 z-40 overflow-y-auto bg-black lg:hidden">
-          <form onSubmit={onSearch} className="border-b border-white/10 px-4 py-4">
-            <input
-              autoFocus
-              value={q}
-              onChange={(e) => onQ?.(e.target.value)}
-              placeholder="Buscar SKU, modelo ou marca…"
-              className="h-11 w-full rounded-lg border border-white/15 bg-white/5 px-3 text-sm text-white outline-none placeholder:text-white/40"
-            />
-          </form>
+          <div className="border-b border-white/10 px-4 py-4">
+            <ShopSearch variant="mobile" initialQ={q} onNavigate={onNavigate} />
+          </div>
           <nav className="flex flex-col px-4 py-4 text-lg" aria-label="Menu">
             {PRIMARY_NAV.map((item) => (
               <Link key={item.href} href={item.href} className="border-b border-white/10 py-3.5">
@@ -217,14 +195,6 @@ function HeaderChrome({
   );
 }
 
-function SearchIcon({ className }: { className?: string }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
-      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M20 20L17 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
 function BagIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
