@@ -5,6 +5,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { orderChannelLabel } from "@/lib/order-channels";
 import type { AnalyticsDashboard } from "@/lib/types";
+import { AbcParetoChart } from "@/components/abc-pareto-chart";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
 function defaultPeriod() {
@@ -136,6 +137,12 @@ export default function AnalyticsPage() {
               sub={`ABC: ${summary.class_a_count} A · ${summary.class_b_count} B · ${summary.class_c_count} C`}
             />
           </div>
+
+          {(data?.products ?? []).length > 0 ? (
+            <Card title="Gráfico Pareto — curva ABC">
+              <AbcParetoChart products={data.products} metric={metric} />
+            </Card>
+          ) : null}
 
           <Card title="Curva ABC — ranking de produtos">
             {(data?.products ?? []).length === 0 ? (
