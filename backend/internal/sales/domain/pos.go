@@ -16,10 +16,11 @@ type POSCheckoutInput struct {
 
 // POSPixInitInput creates a confirmed store order and returns a PIX charge (QR + copia e cola).
 type POSPixInitInput struct {
-	CustomerID  *uuid.UUID  `json:"customer_id,omitempty"`
-	WarehouseID uuid.UUID   `json:"warehouse_id"`
-	Items       []LineInput `json:"items"`
-	DiscountPct float64     `json:"discount_pct"`
+	CustomerID   *uuid.UUID  `json:"customer_id,omitempty"`
+	WarehouseID  uuid.UUID   `json:"warehouse_id"`
+	Items        []LineInput `json:"items"`
+	DiscountPct  float64     `json:"discount_pct"`
+	BuyerProfile string      `json:"buyer_profile,omitempty"` // walkin, paraguayan, foreigner
 }
 
 type POSPixInitResponse struct {

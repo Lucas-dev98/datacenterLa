@@ -5,7 +5,7 @@ import {
   getRefreshToken,
   saveTokens,
 } from "./auth";
-import type { ApiError, TokenPair } from "./types";
+import type { ApiError, InventoryUnitReceive, TokenPair } from "./types";
 
 export class ApiClientError extends Error {
   code: string;
@@ -47,7 +47,8 @@ async function refreshAccessToken(): Promise<boolean> {
 
 async function authFetch(path: string, init: RequestInit = {}, retry = true): Promise<Response> {
   const headers = new Headers(init.headers);
-  if (!headers.has("Content-Type") && init.body && !(init.body instanceof Blob)) {
+  const isForm = typeof FormData !== "undefined" && init.body instanceof FormData;
+  if (!headers.has("Content-Type") && init.body && !isForm && !(init.body instanceof Blob)) {
     headers.set("Content-Type", "application/json");
   }
   const token = getAccessToken();
@@ -77,6 +78,73 @@ export async function api<T>(
   if (!res.ok) throw await parseError(res);
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+export async function apiText(path: string, init: RequestInit = {}): Promise<string> {
+  const res = await authFetch(path, init);
+  if (!res.ok) throw await parseError(res);
+  return res.text();
+}
+
+export async function shipOrderWithPhotos(orderId: string, form: FormData): Promise<void> {
+  const res = await authFetch(`/api/v1/sales/orders/${orderId}/ship`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) throw await parseError(res);
+}
+
+export async function receiveIntakeWithPhotos(form: FormData): Promise<{ units: InventoryUnitReceive[] }> {
+  const res = await authFetch("/api/v1/stock/receive/intake", {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) throw await parseError(res);
+  return (await res.json()) as { units: InventoryUnitReceive[] };
+}
+
+export async function createRMAWithPhotos(form: FormData): Promise<unknown> {
+  const res = await authFetch("/api/v1/sales/rma", {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) throw await parseError(res);
+  return res.json();
+}
+
+export async function createCustomerReturnWithPhotos(form: FormData): Promise<unknown> {
+  const res = await authFetch("/api/v1/sales/returns", {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) throw await parseError(res);
+  return res.json();
+}
+
+export function rmaTestPhotoUrl(caseId: string, photoId: string): string {
+  return `${API_URL}/api/v1/sales/rma/${caseId}/test-photos/${photoId}/file`;
+}
+
+export function blobObjectUrl(blob: Blob): string {
+  return URL.createObjectURL(blob);
+}
+
+export function printHTML(html: string): boolean {
+  if (typeof window === "undefined" || !html.trim()) return false;
+
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const popup = window.open(url, "_blank");
+
+  if (!popup) {
+    URL.revokeObjectURL(url);
+    return false;
+  }
+
+  const revoke = () => URL.revokeObjectURL(url);
+  popup.addEventListener("load", revoke, { once: true });
+  window.setTimeout(revoke, 60_000);
+  return true;
 }
 
 export async function apiBlob(path: string, init: RequestInit = {}): Promise<Blob> {

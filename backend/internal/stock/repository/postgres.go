@@ -153,13 +153,13 @@ func (r *Postgres) CreateUnit(ctx context.Context, tx pgx.Tx, unit *domain.Inven
 	err := tx.QueryRow(ctx, `
 		INSERT INTO inventory_units (
 			public_code, sku_id, warehouse_id, status, purchase_id, unit_cost_usd,
-			received_at, serial_number, notes
+			received_at, serial_number, notes, intake_batch_id
 		) VALUES (
-			generate_unit_public_code(), $1, $2, $3, $4, $5, $6, $7, $8
+			generate_unit_public_code(), $1, $2, $3, $4, $5, $6, $7, $8, $9
 		)
 		RETURNING id, public_code, version, created_at, updated_at
 	`, unit.SKUID, unit.WarehouseID, unit.Status, unit.PurchaseID, unit.UnitCostUSD,
-		unit.ReceivedAt, unit.SerialNumber, unit.Notes,
+		unit.ReceivedAt, unit.SerialNumber, unit.Notes, unit.IntakeBatchID,
 	).Scan(&unit.ID, &unit.UnitCode, &unit.Version, &unit.CreatedAt, &unit.UpdatedAt)
 	return err
 }
@@ -385,6 +385,140 @@ func scanUnits(rows pgx.Rows) ([]domain.InventoryUnit, error) {
 		out = append(out, u)
 	}
 	return out, rows.Err()
+}
+
+func (r *Postgres) ListBalances(ctx context.Context, warehouseID uuid.UUID, query string, limit, offset int) ([]domain.BalanceListItem, int, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	query = strings.TrimSpace(strings.ToLower(query))
+
+	var filter string
+	var args []any
+	args = append(args, warehouseID)
+	if query != "" {
+		filter = ` AND (LOWER(s.code) LIKE $2 OR LOWER(s.name) LIKE $2 OR LOWER(p.name) LIKE $2)`
+		args = append(args, "%"+query+"%")
+	}
+
+	countSQL := `
+		SELECT COUNT(*)
+		FROM stock_balances b
+		JOIN skus s ON s.id = b.sku_id
+		JOIN products p ON p.id = s.product_id
+		WHERE b.warehouse_id = $1` + filter
+	var total int
+	if err := r.pool.QueryRow(ctx, countSQL, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	listArgs := append(args, limit, offset)
+	limitIdx := len(listArgs) - 1
+	offsetIdx := len(listArgs)
+	listSQL := fmt.Sprintf(`
+		SELECT b.sku_id, s.code, s.name, b.warehouse_id, b.qty_physical, b.qty_reserved, b.qty_available
+		FROM stock_balances b
+		JOIN skus s ON s.id = b.sku_id
+		JOIN products p ON p.id = s.product_id
+		WHERE b.warehouse_id = $1%s
+		ORDER BY s.code
+		LIMIT $%d OFFSET $%d
+	`, filter, limitIdx, offsetIdx)
+
+	rows, err := r.pool.Query(ctx, listSQL, listArgs...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var out []domain.BalanceListItem
+	for rows.Next() {
+		var item domain.BalanceListItem
+		if err := rows.Scan(
+			&item.SKUID, &item.SKUCode, &item.SKUName, &item.WarehouseID,
+			&item.QtyPhysical, &item.QtyReserved, &item.QtyAvailable,
+		); err != nil {
+			return nil, 0, err
+		}
+		out = append(out, item)
+	}
+	return out, total, rows.Err()
+}
+
+func (r *Postgres) ListLowStockSKUs(ctx context.Context, threshold, limit, offset int, query string) ([]domain.LowStockSKU, int, error) {
+	if threshold <= 0 {
+		threshold = 2
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	query = strings.TrimSpace(strings.ToLower(query))
+
+	var filter string
+	args := []any{threshold}
+	if query != "" {
+		filter = ` AND (LOWER(s.code) LIKE $2 OR LOWER(s.name) LIKE $2 OR LOWER(p.name) LIKE $2)`
+		args = append(args, "%"+query+"%")
+	}
+
+	countSQL := fmt.Sprintf(`
+		SELECT COUNT(*)::int FROM (
+			SELECT s.id
+			FROM skus s
+			JOIN products p ON p.id = s.product_id
+			LEFT JOIN stock_balances b ON b.sku_id = s.id
+			WHERE s.is_active = true%s
+			GROUP BY s.id
+			HAVING COALESCE(SUM(b.qty_available), 0) <= $1
+		) low_stock
+	`, filter)
+	var total int
+	if err := r.pool.QueryRow(ctx, countSQL, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	listArgs := append(args, limit, offset)
+	limitIdx := len(listArgs) - 1
+	offsetIdx := len(listArgs)
+	listSQL := fmt.Sprintf(`
+		SELECT s.id, s.code, s.name,
+			COALESCE(SUM(b.qty_physical), 0)::INT,
+			COALESCE(SUM(b.qty_reserved), 0)::INT,
+			COALESCE(SUM(b.qty_available), 0)::INT
+		FROM skus s
+		JOIN products p ON p.id = s.product_id
+		LEFT JOIN stock_balances b ON b.sku_id = s.id
+		WHERE s.is_active = true%s
+		GROUP BY s.id, s.code, s.name
+		HAVING COALESCE(SUM(b.qty_available), 0) <= $1
+		ORDER BY COALESCE(SUM(b.qty_available), 0) ASC, s.code
+		LIMIT $%d OFFSET $%d
+	`, filter, limitIdx, offsetIdx)
+
+	rows, err := r.pool.Query(ctx, listSQL, listArgs...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var out []domain.LowStockSKU
+	for rows.Next() {
+		var item domain.LowStockSKU
+		if err := rows.Scan(
+			&item.SKUID, &item.SKUCode, &item.SKUName,
+			&item.QtyPhysical, &item.QtyReserved, &item.QtyAvailable,
+		); err != nil {
+			return nil, 0, err
+		}
+		out = append(out, item)
+	}
+	return out, total, rows.Err()
 }
 
 func scanBalance(row pgx.Row) (*domain.StockBalance, error) {

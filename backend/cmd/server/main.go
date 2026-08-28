@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	authdomain "github.com/datacenterla/platform/internal/auth/domain"
 	authhandler "github.com/datacenterla/platform/internal/auth/handler"
 	authjwt "github.com/datacenterla/platform/internal/auth/jwt"
 	authmiddleware "github.com/datacenterla/platform/internal/auth/middleware"
@@ -17,18 +18,19 @@ import (
 	authservice "github.com/datacenterla/platform/internal/auth/service"
 	"github.com/datacenterla/platform/internal/config"
 	"github.com/datacenterla/platform/internal/db"
-	cphandler "github.com/datacenterla/platform/internal/integrations/comprasparaguai/handler"
 	cpdomain "github.com/datacenterla/platform/internal/integrations/comprasparaguai/domain"
+	cphandler "github.com/datacenterla/platform/internal/integrations/comprasparaguai/handler"
 	cprepo "github.com/datacenterla/platform/internal/integrations/comprasparaguai/repository"
 	cpservice "github.com/datacenterla/platform/internal/integrations/comprasparaguai/service"
 	labelshandler "github.com/datacenterla/platform/internal/labels/handler"
-	payhandler "github.com/datacenterla/platform/internal/payments/handler"
 	paygateway "github.com/datacenterla/platform/internal/payments/gateway"
+	payhandler "github.com/datacenterla/platform/internal/payments/handler"
 	payrepo "github.com/datacenterla/platform/internal/payments/repository"
 	payservice "github.com/datacenterla/platform/internal/payments/service"
 	pimhandler "github.com/datacenterla/platform/internal/pim/handler"
 	pimrepo "github.com/datacenterla/platform/internal/pim/repository"
 	pimservice "github.com/datacenterla/platform/internal/pim/service"
+	"github.com/datacenterla/platform/internal/platform/worker"
 	pricinghandler "github.com/datacenterla/platform/internal/pricing/handler"
 	pricingrepo "github.com/datacenterla/platform/internal/pricing/repository"
 	pricingservice "github.com/datacenterla/platform/internal/pricing/service"
@@ -46,11 +48,9 @@ import (
 	stockhandler "github.com/datacenterla/platform/internal/stock/handler"
 	stockrepo "github.com/datacenterla/platform/internal/stock/repository"
 	stockservice "github.com/datacenterla/platform/internal/stock/service"
-	"github.com/datacenterla/platform/internal/platform/worker"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 )
 
@@ -226,12 +226,11 @@ func main() {
 }
 
 func runReservationExpiry(svc *stockservice.Service) {
-	systemUser := uuidMust("00000000-0000-0000-0000-000000000002")
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 	for range ticker.C {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		n, err := svc.ExpireReservations(ctx, systemUser, 100)
+		n, err := svc.ExpireReservations(ctx, authdomain.SystemUserID, 100)
 		cancel()
 		if err != nil {
 			log.Printf("expire reservations: %v", err)
@@ -241,12 +240,4 @@ func runReservationExpiry(svc *stockservice.Service) {
 			log.Printf("expired %d reservations", n)
 		}
 	}
-}
-
-func uuidMust(s string) uuid.UUID {
-	id, err := uuid.Parse(s)
-	if err != nil {
-		panic(err)
-	}
-	return id
 }

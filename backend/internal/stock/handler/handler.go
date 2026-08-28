@@ -2,7 +2,9 @@ package handler
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -50,9 +52,17 @@ func (h *Handler) Routes() chi.Router {
 	r.With(perm("inventory.adjust")).Post("/adjustments/{id}/approve", h.approveAdjustment)
 	r.With(perm("inventory.adjust")).Post("/adjustments/{id}/apply", h.applyAdjustment)
 	r.With(invRead).Get("/availability", h.getAvailability)
+	r.With(invRead).Get("/balances", h.listBalances)
+	r.With(invRead).Get("/low-stock", h.listLowStock)
+	r.With(invRead).Get("/movements", h.listMovements)
+	r.With(invRead).Get("/units/next-codes", h.listNextUnitCodes)
 	r.With(invRead).Get("/units/code/{unit_code}/label", h.getUnitLabel)
 	r.With(invRead).Get("/units/code/{unit_code}", h.getUnit)
 	r.With(invRecv).Post("/receive", h.receive)
+	r.With(invRecv).Post("/receive/intake", h.receiveIntake)
+	r.With(invRead).Get("/intake-batches/{batch_id}/photos", h.listIntakeBatchPhotos)
+	r.With(invRead).Get("/intake-batches/{batch_id}/photos/{photo_id}/file", h.getIntakeBatchPhotoFile)
+	r.With(invRead).Get("/units/{unit_id}/intake-photo/file", h.getUnitIntakePhotoFile)
 	r.With(invRead).Get("/intake/queue", h.listIntakeQueue)
 	r.With(invRecv).Post("/intake/advance", h.advanceIntake)
 	r.With(invRecv).Post("/intake/complete", h.completeIntake)
@@ -89,6 +99,96 @@ func (h *Handler) getAvailability(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, avail)
 }
 
+func (h *Handler) listBalances(w http.ResponseWriter, r *http.Request) {
+	warehouseID, err := uuid.Parse(r.URL.Query().Get("warehouse_id"))
+	if err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	limit := 50
+	offset := 0
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+	items, total, err := h.svc.ListBalances(r.Context(), warehouseID, r.URL.Query().Get("q"), limit, offset)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, map[string]any{"items": items, "total": total})
+}
+
+func (h *Handler) listLowStock(w http.ResponseWriter, r *http.Request) {
+	threshold := 2
+	limit := 100
+	offset := 0
+	if v := r.URL.Query().Get("threshold"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			threshold = n
+		}
+	}
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+	items, total, err := h.svc.ListLowStockSKUs(r.Context(), threshold, limit, offset, r.URL.Query().Get("q"))
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, map[string]any{
+		"items":     items,
+		"total":     total,
+		"threshold": threshold,
+	})
+}
+
+func (h *Handler) listMovements(w http.ResponseWriter, r *http.Request) {
+	warehouseID, err := uuid.Parse(r.URL.Query().Get("warehouse_id"))
+	if err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	limit := 50
+	offset := 0
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+	items, total, err := h.svc.ListMovements(
+		r.Context(),
+		warehouseID,
+		r.URL.Query().Get("q"),
+		r.URL.Query().Get("movement_type"),
+		limit,
+		offset,
+	)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, map[string]any{"items": items, "total": total})
+}
+
 func (h *Handler) getUnitLabel(w http.ResponseWriter, r *http.Request) {
 	label, err := h.svc.GetUnitLabel(r.Context(), chi.URLParam(r, "unit_code"))
 	if err != nil {
@@ -107,7 +207,7 @@ func (h *Handler) getUnitLabel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getUnit(w http.ResponseWriter, r *http.Request) {
-	unit, err := h.svc.GetUnitByCode(r.Context(), chi.URLParam(r, "unit_code"))
+	unit, err := h.svc.GetUnitDetailByCode(r.Context(), chi.URLParam(r, "unit_code"))
 	if err != nil {
 		response.Error(w, err)
 		return
@@ -138,6 +238,148 @@ func (h *Handler) receive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.JSON(w, http.StatusCreated, map[string]any{"units": units})
+}
+
+type receiveIntakePayload struct {
+	WarehouseID uuid.UUID `json:"warehouse_id"`
+	PurchaseID  *uuid.UUID `json:"purchase_id"`
+	Items       []receiveIntakeItemPayload `json:"items"`
+}
+
+type receiveIntakeItemPayload struct {
+	SKUID       uuid.UUID  `json:"sku_id"`
+	Quantity    int        `json:"quantity"`
+	UnitCostUSD *float64   `json:"unit_cost_usd,omitempty"`
+	PurchaseID  *uuid.UUID `json:"purchase_id,omitempty"`
+}
+
+func (h *Handler) listNextUnitCodes(w http.ResponseWriter, r *http.Request) {
+	count := 1
+	if v := r.URL.Query().Get("count"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			count = n
+		}
+	}
+	codes, err := h.svc.ListNextUnitCodes(r.Context(), count)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, map[string]any{"codes": codes})
+}
+
+func (h *Handler) receiveIntake(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	raw := strings.TrimSpace(r.FormValue("payload"))
+	if raw == "" {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	var payload receiveIntakePayload
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+
+	var items []service.ReceiveIntakeItemInput
+	for _, item := range payload.Items {
+		if item.SKUID == uuid.Nil || item.Quantity <= 0 {
+			response.Error(w, domain.ErrInvalidInput)
+			return
+		}
+		items = append(items, service.ReceiveIntakeItemInput{
+			SKUID:       item.SKUID,
+			Quantity:    item.Quantity,
+			UnitCostUSD: item.UnitCostUSD,
+			PurchaseID:  item.PurchaseID,
+		})
+	}
+
+	var batchPhotos []domain.IntakePhotoUpload
+	for i := 0; i < 5; i++ {
+		key := "batch_photo_" + strconv.Itoa(i)
+		file, hdr, err := r.FormFile(key)
+		if err != nil {
+			continue
+		}
+		body, err := io.ReadAll(io.LimitReader(file, 8<<20))
+		file.Close()
+		if err != nil || len(body) == 0 {
+			response.Error(w, domain.ErrInvalidInput)
+			return
+		}
+		batchPhotos = append(batchPhotos, domain.IntakePhotoUpload{
+			Body: body,
+			Ext:  service.PhotoExtFromUpload(hdr.Filename, hdr.Header.Get("Content-Type")),
+		})
+	}
+
+	units, err := h.svc.ReceiveWithIntake(r.Context(), service.ReceiveIntakeInput{
+		WarehouseID: payload.WarehouseID,
+		PurchaseID:  payload.PurchaseID,
+		Items:       items,
+		BatchPhotos: batchPhotos,
+		CreatedBy:   userID(r),
+	})
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusCreated, map[string]any{"units": units})
+}
+
+func (h *Handler) getUnitIntakePhotoFile(w http.ResponseWriter, r *http.Request) {
+	unitID, err := uuid.Parse(chi.URLParam(r, "unit_id"))
+	if err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	body, contentType, err := h.svc.GetUnitIntakePhotoFile(r.Context(), unitID)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	_, _ = w.Write(body)
+}
+
+func (h *Handler) listIntakeBatchPhotos(w http.ResponseWriter, r *http.Request) {
+	batchID, err := uuid.Parse(chi.URLParam(r, "batch_id"))
+	if err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	photos, err := h.svc.ListIntakeBatchPhotos(r.Context(), batchID)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, map[string]any{"items": photos})
+}
+
+func (h *Handler) getIntakeBatchPhotoFile(w http.ResponseWriter, r *http.Request) {
+	batchID, err := uuid.Parse(chi.URLParam(r, "batch_id"))
+	if err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	photoID, err := uuid.Parse(chi.URLParam(r, "photo_id"))
+	if err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	body, contentType, err := h.svc.GetIntakeBatchPhotoFile(r.Context(), batchID, photoID)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	_, _ = w.Write(body)
 }
 
 func (h *Handler) listIntakeQueue(w http.ResponseWriter, r *http.Request) {

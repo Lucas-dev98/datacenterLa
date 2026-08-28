@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
@@ -130,6 +131,11 @@ export default function InventarioPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <header>
+        <p className="text-xs font-medium uppercase tracking-wider text-blue-600">
+          <Link href="/estoque" className="hover:underline">
+            Estoque
+          </Link>
+        </p>
         <h1 className="text-2xl font-semibold text-slate-900">Inventário e ajustes</h1>
         <p className="mt-1 text-sm text-slate-600">Contagem física com aprovação e ajustes auditados</p>
       </header>

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	pimdomain "github.com/datacenterla/platform/internal/pim/domain"
+	pricingdomain "github.com/datacenterla/platform/internal/pricing/domain"
 	authdomain "github.com/datacenterla/platform/internal/auth/domain"
 	cpdomain "github.com/datacenterla/platform/internal/integrations/comprasparaguai/domain"
 	purchdomain "github.com/datacenterla/platform/internal/purchases/domain"
@@ -48,6 +49,8 @@ func mapError(err error) (int, ErrorBody) {
 		return http.StatusBadRequest, ErrorBody{Code: "INVALID_INPUT", Message: err.Error()}
 	case errors.Is(err, pimdomain.ErrNotFound):
 		return http.StatusNotFound, ErrorBody{Code: "NOT_FOUND", Message: err.Error()}
+	case errors.Is(err, pricingdomain.ErrNotFound):
+		return http.StatusNotFound, ErrorBody{Code: "PRICE_NOT_FOUND", Message: "Preço não cadastrado para este SKU — configure em Preços"}
 	case errors.Is(err, pimdomain.ErrDuplicate):
 		return http.StatusConflict, ErrorBody{Code: "DUPLICATE", Message: err.Error()}
 	case errors.Is(err, pimdomain.ErrHasDependents):
@@ -70,10 +73,18 @@ func mapError(err error) (int, ErrorBody) {
 		return http.StatusNotFound, ErrorBody{Code: "NOT_FOUND", Message: err.Error()}
 	case errors.Is(err, salesdomain.ErrInvalidState):
 		return http.StatusConflict, ErrorBody{Code: "INVALID_STATE", Message: err.Error()}
+	case errors.Is(err, salesdomain.ErrWarrantyExpired):
+		return http.StatusConflict, ErrorBody{Code: "WARRANTY_EXPIRED", Message: err.Error()}
+	case errors.Is(err, salesdomain.ErrReturnWindowExpired):
+		return http.StatusConflict, ErrorBody{Code: "RETURN_WINDOW_EXPIRED", Message: err.Error()}
+	case errors.Is(err, salesdomain.ErrNoEligibleUnits):
+		return http.StatusConflict, ErrorBody{Code: "NO_ELIGIBLE_UNITS", Message: err.Error()}
 	case errors.Is(err, salesdomain.ErrInsufficientCredit):
 		return http.StatusConflict, ErrorBody{Code: "INSUFFICIENT_CREDIT", Message: err.Error()}
 	case errors.Is(err, salesdomain.ErrInvalidInput):
 		return http.StatusBadRequest, ErrorBody{Code: "INVALID_INPUT", Message: err.Error()}
+	case errors.Is(err, pricingdomain.ErrInvalidInput):
+		return http.StatusBadRequest, ErrorBody{Code: "INVALID_PRICE", Message: "Preço inválido ou canal sem valor configurado para este SKU"}
 	case errors.Is(err, salesdomain.ErrEmptyCart):
 		return http.StatusBadRequest, ErrorBody{Code: "EMPTY_CART", Message: err.Error()}
 	case errors.Is(err, shopdomain.ErrUnauthorized):

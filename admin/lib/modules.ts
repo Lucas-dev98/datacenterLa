@@ -59,10 +59,13 @@ export const adminModules: AdminModule[] = [
     hubHref: "/estoque",
     hubPermission: "inventory.read",
     items: [
-      { href: "/estoque", label: "Posição", permission: "inventory.read" },
-      { href: "/estoque/recebimento", label: "Recebimento", permission: "inventory.receive" },
-      { href: "/estoque/saude", label: "Saúde", permission: "inventory.read" },
+      { href: "/estoque/entrada", label: "Entrada", anyPermission: ["inventory.receive", "inventory.read"] },
+      { href: "/estoque/posicao", label: "Posição", permission: "inventory.read" },
+      { href: "/estoque/movimentacoes", label: "Movimentações", permission: "inventory.read" },
+      { href: "/estoque/saida", label: "Saída", anyPermission: ["inventory.read", "sales.orders.write", "sales.orders.confirm"] },
+      { href: "/estoque/cadastro", label: "Cadastro", anyPermission: ["inventory.read", "pim.products.read"] },
       { href: "/estoque/inventario", label: "Inventário", permission: "inventory.count" },
+      { href: "/estoque/saude", label: "Saúde", permission: "inventory.read" },
     ],
   },
   {
@@ -76,6 +79,7 @@ export const adminModules: AdminModule[] = [
       "crm.customers.write",
       "crm.leads.write",
       "sales.rma.write",
+      "sales.returns.write",
     ],
     items: [
       { href: "/cotacoes", label: "Cotações", permission: "sales.quotes.write" },
@@ -83,20 +87,21 @@ export const adminModules: AdminModule[] = [
       { href: "/pedidos", label: "Pedidos", permission: "sales.orders.write" },
       { href: "/clientes", label: "Clientes", permission: "crm.customers.write" },
       { href: "/crm/leads", label: "Leads CRM", permission: "crm.leads.write" },
-      { href: "/rma", label: "Devoluções / RMA", permission: "sales.rma.write" },
+      { href: "/devolucoes", label: "Devoluções", permission: "sales.returns.write" },
+      { href: "/rma", label: "RMA / Garantia", permission: "sales.rma.write" },
     ],
   },
   {
     id: "expedicao",
     label: "Expedição",
-    hubHref: "/expedicao",
-    hubPermission: "sales.orders.write",
+    hubHref: "/estoque/saida/expedicao",
+    hubAnyPermission: ["sales.orders.write", "sales.orders.confirm"],
     items: [
       {
-        href: "/expedicao",
+        href: "/estoque/saida/expedicao",
         label: "Fila de expedição",
         description: "Separar e expedir pedidos de todos os canais",
-        permission: "sales.orders.write",
+        permission: "sales.orders.confirm",
       },
     ],
   },
@@ -109,6 +114,12 @@ export const adminModules: AdminModule[] = [
       {
         href: "/financeiro",
         label: "Contas e margens",
+        permission: "finance.receivables.read",
+      },
+      {
+        href: "/financeiro/analytics",
+        label: "KPIs e Curva ABC",
+        description: "Ranking de produtos, margem e classificação Pareto",
         permission: "finance.receivables.read",
       },
       {

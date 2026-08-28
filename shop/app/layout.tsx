@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import "./globals.css";
 
@@ -14,8 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Data Center LA — Loja",
-  description: "Hardware enterprise — catálogo e checkout",
+  title: "DATACENTER L.A. — Hardware para datacenters",
+  description:
+    "Servidores, storages, switches e componentes enterprise com sourcing global e entrega em toda a América Latina.",
 };
 
 export default function RootLayout({
@@ -24,10 +26,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
-      <body className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-slate-50 antialiased`}>
+    <html lang="pt-BR" suppressHydrationWarning>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-black antialiased`}
+        suppressHydrationWarning
+      >
         <SiteHeader />
-        <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+        <main id="conteudo">{children}</main>
+        <SiteFooter />
       </body>
     </html>
   );

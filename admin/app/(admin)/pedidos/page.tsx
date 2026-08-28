@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import type { OrderListItem } from "@/lib/types";
 import { orderChannelLabel } from "@/lib/order-channels";
 import { Alert, Card, Select, Table } from "@/components/ui";
 
 export default function PedidosPage() {
+  const searchParams = useSearchParams();
   const [items, setItems] = useState<OrderListItem[]>([]);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(() => searchParams.get("status") ?? "");
   const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);

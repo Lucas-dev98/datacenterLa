@@ -282,10 +282,10 @@ func (r *Postgres) GetSKU(ctx context.Context, id uuid.UUID) (*domain.SKU, error
 
 func (r *Postgres) GetSKUByCode(ctx context.Context, code string) (*domain.SKU, error) {
 	normalized := strings.TrimSpace(code)
-	if len(normalized) < 6 {
+	if isAllDigits(normalized) && len(normalized) < 6 {
 		normalized = strings.Repeat("0", 6-len(normalized)) + normalized
 	}
-	return scanSKU(r.pool.QueryRow(ctx, skuSelect+" WHERE s.code = $1", normalized))
+	return scanSKU(r.pool.QueryRow(ctx, skuSelect+" WHERE btrim(s.code::text) = $1", normalized))
 }
 
 func (r *Postgres) ListSKUs(ctx context.Context, f domain.ListFilter) ([]domain.SKU, int, error) {
@@ -302,8 +302,21 @@ func (r *Postgres) ListSKUs(ctx context.Context, f domain.ListFilter) ([]domain.
 	if offset < 0 {
 		offset = 0
 	}
+	order := " ORDER BY s.created_at DESC"
+	if q := strings.TrimSpace(f.Query); q != "" {
+		args = append(args, strings.TrimSpace(q), foldSearch(q)+"%")
+		exactIdx := len(args) - 1
+		prefixIdx := len(args)
+		order = fmt.Sprintf(` ORDER BY
+			CASE
+				WHEN btrim(s.code::text) = $%d THEN 0
+				WHEN %s LIKE $%d THEN 1
+				ELSE 2
+			END,
+			s.name ASC`, exactIdx, foldedSQL("btrim(s.code::text)"), prefixIdx)
+	}
 	args = append(args, limit, offset)
-	q := skuSelect + where + fmt.Sprintf(" ORDER BY s.created_at DESC LIMIT $%d OFFSET $%d", len(args)-1, len(args))
+	q := skuSelect + where + order + fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)-1, len(args))
 	rows, err := r.pool.Query(ctx, q, args...)
 	if err != nil {
 		return nil, 0, err
@@ -417,8 +430,56 @@ func skuFilters(f domain.ListFilter) (string, []any) {
 		conds = append(conds, "s.is_active = true")
 	}
 	if q := strings.TrimSpace(f.Query); q != "" {
-		conds = append(conds, fmt.Sprintf("(s.code ILIKE $%d OR s.name ILIKE $%d)", n, n))
-		args = append(args, "%"+q+"%")
+		for _, word := range searchWords(q) {
+			pattern := "%" + word + "%"
+			conds = append(conds, fmt.Sprintf(`(
+				%s LIKE $%d OR
+				%s LIKE $%d OR
+				%s LIKE $%d OR
+				EXISTS (
+					SELECT 1 FROM products p
+					LEFT JOIN categories c ON c.id = p.category_id
+					LEFT JOIN categories parent ON parent.id = c.parent_id
+					WHERE p.id = s.product_id AND (
+						%s LIKE $%d OR
+						%s LIKE $%d OR
+						%s LIKE $%d OR
+						%s LIKE $%d OR
+						%s LIKE $%d OR
+						%s LIKE $%d OR
+						%s LIKE $%d OR
+						%s LIKE $%d OR
+						%s LIKE $%d OR
+						%s LIKE $%d
+					)
+				) OR
+				EXISTS (
+					SELECT 1 FROM inventory_units u
+					WHERE u.sku_id = s.id AND (
+						%s LIKE $%d OR
+						%s LIKE $%d
+					)
+				)
+			)`,
+				foldedSQL("btrim(s.code::text)"), n,
+				foldedSQL("s.name"), n,
+				foldedSQL("COALESCE(s.description, '')"), n,
+				foldedSQL("p.name"), n,
+				foldedSQL("COALESCE(p.description, '')"), n,
+				foldedSQL("COALESCE(p.generated_description, '')"), n,
+				foldedSQL("COALESCE(p.brand, '')"), n,
+				foldedSQL("COALESCE(p.manufacturer, '')"), n,
+				foldedSQL("COALESCE(p.name_es, '')"), n,
+				foldedSQL("COALESCE(c.name, '')"), n,
+				foldedSQL("COALESCE(c.code, '')"), n,
+				foldedSQL("COALESCE(parent.name, '')"), n,
+				foldedSQL("COALESCE(parent.code, '')"), n,
+				foldedSQL("u.public_code"), n,
+				foldedSQL("COALESCE(u.serial_number, '')"), n,
+			))
+			args = append(args, pattern)
+			n++
+		}
 	}
 	if len(conds) == 0 {
 		return "", args

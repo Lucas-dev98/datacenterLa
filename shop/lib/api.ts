@@ -1,5 +1,6 @@
 import { API_URL, DEFAULT_WAREHOUSE_ID } from "./config";
 import { getShopToken } from "./auth";
+import { notifyCartChanged } from "./cart-events";
 import type { ApiError, Cart, CatalogProduct, EcommerceCategory, Order, PublicOrder } from "./types";
 
 export class ApiClientError extends Error {
@@ -136,7 +137,7 @@ export async function addToCart(
   quantity: number,
   warehouseId = DEFAULT_WAREHOUSE_ID,
 ): Promise<Cart> {
-  return api<Cart>("/api/v1/ecommerce/cart/items", {
+  const cart = await api<Cart>("/api/v1/ecommerce/cart/items", {
     method: "POST",
     body: JSON.stringify({
       session_id: sessionId,
@@ -145,6 +146,8 @@ export async function addToCart(
       quantity,
     }),
   });
+  notifyCartChanged();
+  return cart;
 }
 
 export async function updateCartItem(
@@ -153,7 +156,7 @@ export async function updateCartItem(
   quantity: number,
   warehouseId = DEFAULT_WAREHOUSE_ID,
 ): Promise<Cart> {
-  return api<Cart>("/api/v1/ecommerce/cart/items", {
+  const cart = await api<Cart>("/api/v1/ecommerce/cart/items", {
     method: "PUT",
     body: JSON.stringify({
       session_id: sessionId,
@@ -162,6 +165,8 @@ export async function updateCartItem(
       quantity,
     }),
   });
+  notifyCartChanged();
+  return cart;
 }
 
 export type CheckoutPayload = {
@@ -213,4 +218,19 @@ export async function confirmPaymentIntent(intentId: string, sessionId?: string)
 export async function fetchProduct(skuId: string, warehouseId = DEFAULT_WAREHOUSE_ID): Promise<CatalogProduct> {
   const params = new URLSearchParams({ warehouse_id: warehouseId });
   return api<CatalogProduct>(`/api/v1/ecommerce/catalog/${skuId}?${params}`);
+}
+
+export type QuotePayload = {
+  name: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  message?: string;
+};
+
+export async function submitQuote(payload: QuotePayload): Promise<void> {
+  await api("/api/v1/ecommerce/quote", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,16 +33,19 @@ func (r *Postgres) CreateCustomer(ctx context.Context, in domain.CreateCustomerI
 	}
 	var c domain.Customer
 	err := r.pool.QueryRow(ctx, `
-		INSERT INTO customers (type, name, email, phone, document_id, credit_limit_usd, payment_terms_days)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id, type, name, email, phone, document_id, credit_limit_usd, payment_terms_days, is_active, created_at
+		INSERT INTO customers (type, name, email, phone, document_id, residency, nationality, document_type, credit_limit_usd, payment_terms_days)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		RETURNING id, type, name, email, phone, document_id, residency, nationality, document_type, document_scan_path,
+		          credit_limit_usd, payment_terms_days, is_active, created_at
 	`, customerType, strings.TrimSpace(in.Name), in.Email, in.Phone, in.DocumentID,
-		in.CreditLimitUSD, in.PaymentTermsDays,
+		in.Residency, in.Nationality, in.DocumentType, in.CreditLimitUSD, in.PaymentTermsDays,
 	).Scan(&c.ID, &c.Type, &c.Name, &c.Email, &c.Phone, &c.DocumentID,
+		&c.Residency, &c.Nationality, &c.DocumentType, &c.DocumentScanPath,
 		&c.CreditLimitUSD, &c.PaymentTermsDays, &c.IsActive, &c.CreatedAt)
 	if isUniqueViolation(err) {
 		return nil, domain.ErrInvalidInput
 	}
+	c.HasDocumentScan = c.DocumentScanPath != nil && strings.TrimSpace(*c.DocumentScanPath) != ""
 	return &c, err
 }
 
@@ -68,6 +73,146 @@ func (r *Postgres) ListCustomers(ctx context.Context, activeOnly bool) ([]domain
 	}
 	defer rows.Close()
 	return scanCustomers(rows)
+}
+
+func digitsOnly(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func appendOrderSearchArgs(query string, args *[]any) (likeIdx, digitsIdx, digitLikeIdx, unitCodeIdx int) {
+	like := "%" + query + "%"
+	digits := digitsOnly(query)
+	digitLike := "%" + digits + "%"
+	unitCode := strings.ToUpper(strings.TrimSpace(query))
+	*args = append(*args, like, digits, digitLike, unitCode)
+	n := len(*args)
+	return n - 3, n - 2, n - 1, n
+}
+
+func orderSearchWhere(orderAlias, customerAlias string, likeIdx, digitsIdx, digitLikeIdx, unitCodeIdx int) string {
+	return fmt.Sprintf(`(
+		%sorder_number ILIKE $%d
+		OR %sname ILIKE $%d
+		OR COALESCE(%sbuyer_name,'') ILIKE $%d
+		OR COALESCE(%sdocument_id,'') ILIKE $%d
+		OR COALESCE(%sbuyer_document_id,'') ILIKE $%d
+		OR ($%d <> '' AND regexp_replace(COALESCE(%sdocument_id,''), '[^0-9A-Za-z]', '', 'g') ILIKE $%d)
+		OR ($%d <> '' AND regexp_replace(COALESCE(%sbuyer_document_id,''), '[^0-9A-Za-z]', '', 'g') ILIKE $%d)
+		OR EXISTS (
+			SELECT 1 FROM inventory_units u
+			WHERE u.order_id = %sid
+			  AND (u.public_code ILIKE $%d OR ($%d <> '' AND u.public_code = $%d))
+		)
+	)`,
+		orderAlias, likeIdx, customerAlias, likeIdx,
+		orderAlias, likeIdx,
+		customerAlias, likeIdx,
+		orderAlias, likeIdx,
+		digitsIdx, customerAlias, digitLikeIdx,
+		digitsIdx, orderAlias, digitLikeIdx,
+		orderAlias, likeIdx, unitCodeIdx, unitCodeIdx,
+	)
+}
+
+func shiftSQLPlaceholders(sql string, offset int) string {
+	if offset == 0 {
+		return sql
+	}
+	re := regexp.MustCompile(`\$(\d+)`)
+	return re.ReplaceAllStringFunc(sql, func(m string) string {
+		n, _ := strconv.Atoi(m[1:])
+		return fmt.Sprintf("$%d", n+offset)
+	})
+}
+
+func (r *Postgres) SearchCustomers(ctx context.Context, query string, limit int) ([]domain.Customer, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return []domain.Customer{}, nil
+	}
+	if limit <= 0 || limit > 50 {
+		limit = 30
+	}
+	like := "%" + query + "%"
+	digits := digitsOnly(query)
+	digitLike := "%" + digits + "%"
+	rows, err := r.pool.Query(ctx, customerSelect+`
+		WHERE is_active = true
+		  AND (
+		    name ILIKE $1
+		    OR COALESCE(document_id,'') ILIKE $1
+		    OR COALESCE(phone,'') ILIKE $1
+		    OR ($2 <> '' AND regexp_replace(COALESCE(document_id,''), '[^0-9A-Za-z]', '', 'g') ILIKE $3)
+		  )
+		ORDER BY
+		  CASE
+		    WHEN $2 <> '' AND regexp_replace(COALESCE(document_id,''), '[^0-9A-Za-z]', '', 'g') = $2 THEN 0
+		    WHEN COALESCE(document_id,'') ILIKE $4 THEN 1
+		    ELSE 2
+		  END,
+		  name
+		LIMIT $5
+	`, like, digits, digitLike, query+"%", limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanCustomers(rows)
+}
+
+func (r *Postgres) SetCustomerDocumentScan(ctx context.Context, id uuid.UUID, path string) error {
+	tag, err := r.pool.Exec(ctx, `UPDATE customers SET document_scan_path = $2, updated_at = now() WHERE id = $1`, id, path)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *Postgres) SetOrderBuyer(ctx context.Context, orderID uuid.UUID, c *domain.Customer) error {
+	if c == nil {
+		return nil
+	}
+	_, err := r.pool.Exec(ctx, `
+		UPDATE orders SET
+			buyer_name = $2,
+			buyer_residency = $3,
+			buyer_nationality = $4,
+			buyer_document_type = $5,
+			buyer_document_id = $6,
+			updated_at = now()
+		WHERE id = $1
+	`, orderID, c.Name, c.Residency, c.Nationality, c.DocumentType, c.DocumentID)
+	return err
+}
+
+func (r *Postgres) SetOrderBuyerSnapshot(ctx context.Context, orderID uuid.UUID, snap *domain.OrderBuyer) error {
+	if snap == nil {
+		return nil
+	}
+	name := ""
+	if snap.Name != nil {
+		name = *snap.Name
+	}
+	_, err := r.pool.Exec(ctx, `
+		UPDATE orders SET
+			buyer_name = NULLIF($2, ''),
+			buyer_residency = $3,
+			buyer_nationality = $4,
+			buyer_document_type = $5,
+			buyer_document_id = $6,
+			updated_at = now()
+		WHERE id = $1
+	`, orderID, name, snap.Residency, snap.Nationality, snap.DocumentType, snap.DocumentID)
+	return err
 }
 
 // --- Quotes ---
@@ -187,8 +332,8 @@ func (r *Postgres) AddQuoteItems(ctx context.Context, quoteID uuid.UUID, items [
 
 func (r *Postgres) UpdateQuoteStatus(ctx context.Context, id uuid.UUID, status string) error {
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE quotes SET status = $2, updated_at = now(),
-			sent_at = CASE WHEN $2 = 'sent' THEN now() ELSE sent_at END
+		UPDATE quotes SET status = $2::quote_status, updated_at = now(),
+			sent_at = CASE WHEN $2::text = 'sent' THEN now() ELSE sent_at END
 		WHERE id = $1
 	`, id, status)
 	if err != nil {
@@ -256,19 +401,28 @@ func (r *Postgres) GetOrder(ctx context.Context, id uuid.UUID) (*domain.Order, e
 		return nil, err
 	}
 	o.Items = items
+	if o.Status == "shipped" || o.Status == "delivered" {
+		photos, err := r.listOrderShipPhotos(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		o.ShipPhotos = photos
+	}
 	return o, nil
 }
 
-func (r *Postgres) ListOrders(ctx context.Context, limit, offset int, status, channel string) ([]domain.OrderListItem, int, error) {
+func (r *Postgres) ListOrders(ctx context.Context, limit, offset int, status, channel, query string) ([]domain.OrderListItem, int, error) {
 	if limit <= 0 {
 		limit = 20
 	}
 	if offset < 0 {
 		offset = 0
 	}
+	query = strings.TrimSpace(query)
 
 	var conditions []string
 	var filterArgs []any
+	var searchLikeIdx, searchUnitIdx int
 	if status != "" {
 		filterArgs = append(filterArgs, status)
 		conditions = append(conditions, fmt.Sprintf("o.status = $%d", len(filterArgs)))
@@ -277,32 +431,51 @@ func (r *Postgres) ListOrders(ctx context.Context, limit, offset int, status, ch
 		filterArgs = append(filterArgs, channel)
 		conditions = append(conditions, fmt.Sprintf("o.channel = $%d::sales_channel", len(filterArgs)))
 	}
+	if query != "" {
+		var digitsIdx, digitLikeIdx int
+		searchLikeIdx, digitsIdx, digitLikeIdx, searchUnitIdx = appendOrderSearchArgs(query, &filterArgs)
+		conditions = append(conditions, orderSearchWhere("o.", "c.", searchLikeIdx, digitsIdx, digitLikeIdx, searchUnitIdx))
+	}
 	where := ""
 	if len(conditions) > 0 {
 		where = " WHERE " + strings.Join(conditions, " AND ")
 	}
 
 	var total int
-	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM orders o`+where, filterArgs...).Scan(&total); err != nil {
+	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM orders o JOIN customers c ON c.id = o.customer_id`+where, filterArgs...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
 	listArgs := append([]any{limit, offset}, filterArgs...)
-	filterOffset := 2
+	const filterOffset = 2
 	filterSQL := ""
 	if len(conditions) > 0 {
-		var parts []string
-		for i := range conditions {
-			parts = append(parts, strings.Replace(conditions[i], fmt.Sprintf("$%d", i+1), fmt.Sprintf("$%d", filterOffset+i+1), 1))
-		}
-		filterSQL = " WHERE " + strings.Join(parts, " AND ")
+		filterSQL = " WHERE " + shiftSQLPlaceholders(strings.Join(conditions, " AND "), filterOffset)
 	}
 
-	q := `
-		SELECT o.id, o.order_number, o.customer_id, c.name, o.status, o.channel, o.total_usd, o.quote_id, o.created_at
+	unitMatchSelect := "NULL::text, NULL::uuid"
+	if query != "" {
+		likeIdx := filterOffset + searchLikeIdx
+		unitCodeIdx := filterOffset + searchUnitIdx
+		unitMatchSelect = fmt.Sprintf(`(
+			SELECT u.public_code FROM inventory_units u
+			WHERE u.order_id = o.id
+			  AND (u.public_code ILIKE $%d OR ($%d <> '' AND u.public_code = $%d))
+			LIMIT 1
+		), (
+			SELECT u.order_item_id FROM inventory_units u
+			WHERE u.order_id = o.id
+			  AND (u.public_code ILIKE $%d OR ($%d <> '' AND u.public_code = $%d))
+			LIMIT 1
+		)`, likeIdx, unitCodeIdx, unitCodeIdx, likeIdx, unitCodeIdx, unitCodeIdx)
+	}
+
+	q := fmt.Sprintf(`
+		SELECT o.id, o.order_number, o.customer_id, c.name, o.status, o.channel, o.total_usd, o.quote_id, o.created_at,
+		       %s
 		FROM orders o
 		JOIN customers c ON c.id = o.customer_id
-	` + filterSQL + `
+	`, unitMatchSelect) + filterSQL + `
 		ORDER BY o.created_at DESC
 		LIMIT $1 OFFSET $2
 	`
@@ -315,10 +488,15 @@ func (r *Postgres) ListOrders(ctx context.Context, limit, offset int, status, ch
 	var out []domain.OrderListItem
 	for rows.Next() {
 		var item domain.OrderListItem
+		var matchedUnit *string
+		var matchedItemID *uuid.UUID
 		if err := rows.Scan(&item.ID, &item.OrderNumber, &item.CustomerID, &item.CustomerName,
-			&item.Status, &item.Channel, &item.TotalUSD, &item.QuoteID, &item.CreatedAt); err != nil {
+			&item.Status, &item.Channel, &item.TotalUSD, &item.QuoteID, &item.CreatedAt,
+			&matchedUnit, &matchedItemID); err != nil {
 			return nil, 0, err
 		}
+		item.MatchedUnitCode = matchedUnit
+		item.MatchedOrderItemID = matchedItemID
 		out = append(out, item)
 	}
 	return out, total, rows.Err()
@@ -414,6 +592,29 @@ func (r *Postgres) SetOrderShipped(ctx context.Context, id uuid.UUID, at time.Ti
 	return nil
 }
 
+func (r *Postgres) ListUnpaidEcommerceOrderIDs(ctx context.Context, customerID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id FROM orders
+		WHERE customer_id = $1
+		  AND channel = 'ecommerce'
+		  AND status IN ('draft', 'confirmed')
+		ORDER BY created_at
+	`, customerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (r *Postgres) SetOrderCancelled(ctx context.Context, id uuid.UUID, at time.Time) error {
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE orders SET status = 'cancelled', cancelled_at = $2, updated_at = now() WHERE id = $1
@@ -474,6 +675,37 @@ func (r *Postgres) SumCompletedPayments(ctx context.Context, orderID uuid.UUID) 
 		WHERE order_id = $1 AND status = 'completed'
 	`, orderID).Scan(&total)
 	return total, err
+}
+
+func (r *Postgres) ListPaymentsByOrderID(ctx context.Context, orderID uuid.UUID) ([]domain.PaymentRecord, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, amount_usd, method, reference, status
+		FROM payments
+		WHERE order_id = $1
+		ORDER BY created_at
+	`, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.PaymentRecord
+	for rows.Next() {
+		var p domain.PaymentRecord
+		if err := rows.Scan(&p.ID, &p.AmountUSD, &p.Method, &p.Reference, &p.Status); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+func (r *Postgres) GetSellerName(ctx context.Context, userID uuid.UUID) (string, error) {
+	var name string
+	err := r.pool.QueryRow(ctx, `SELECT full_name FROM users WHERE id = $1`, userID).Scan(&name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return name, err
 }
 
 // --- Receivables ---
@@ -613,20 +845,35 @@ func (r *Postgres) GetDashboardStats(ctx context.Context) (*domain.DashboardStat
 	err := r.pool.QueryRow(ctx, `
 		SELECT
 			(SELECT COUNT(*) FROM orders WHERE status = 'draft'),
-			(SELECT COUNT(*) FROM orders WHERE status IN ('confirmed', 'paid')),
-			(SELECT COUNT(*) FROM quotes WHERE status IN ('sent', 'approved')),
+			(SELECT COUNT(*) FROM orders WHERE status IN ('confirmed', 'paid', 'picking')),
+			(SELECT COUNT(*) FROM quotes WHERE status IN ('sent', 'viewed', 'negotiating', 'approved')),
 			(SELECT COUNT(*) FROM accounts_receivable WHERE status IN ('open', 'partial')),
 			(SELECT COALESCE(SUM(amount_usd - paid_usd), 0) FROM accounts_receivable WHERE status IN ('open', 'partial')),
-			(SELECT COUNT(DISTINCT s.id) FROM skus s
-			 JOIN stock_balances b ON b.sku_id = s.id
-			 WHERE s.is_active = true AND b.qty_available <= 2),
-			(SELECT COUNT(*) FROM skus WHERE is_active = true)
+			(SELECT COUNT(*)::int FROM (
+				SELECT s.id
+				FROM skus s
+				LEFT JOIN stock_balances b ON b.sku_id = s.id
+				WHERE s.is_active = true
+				GROUP BY s.id
+				HAVING COALESCE(SUM(b.qty_available), 0) <= 2
+			) low_stock),
+			(SELECT COUNT(*) FROM skus WHERE is_active = true),
+			(SELECT COALESCE(SUM(o.total_usd), 0) FROM orders o
+			 WHERE o.status IN ('shipped', 'delivered')
+			   AND o.shipped_at >= date_trunc('month', CURRENT_TIMESTAMP)
+			   AND o.shipped_at < date_trunc('month', CURRENT_TIMESTAMP) + interval '1 month'),
+			(SELECT COUNT(*) FROM orders o
+			 WHERE o.status IN ('shipped', 'delivered')
+			   AND o.shipped_at >= date_trunc('month', CURRENT_TIMESTAMP)
+			   AND o.shipped_at < date_trunc('month', CURRENT_TIMESTAMP) + interval '1 month')
 	`).Scan(&s.OrdersDraft, &s.OrdersPendingShip, &s.QuotesOpen,
-		&s.ReceivablesOpen, &s.ReceivablesOutstandingUSD, &s.SkusLowStock, &s.ActiveSKUs)
+		&s.ReceivablesOpen, &s.ReceivablesOutstandingUSD, &s.SkusLowStock, &s.ActiveSKUs,
+		&s.SalesMonthUSD, &s.SalesMonthOrders)
 	if err != nil {
 		return nil, err
 	}
 	s.ReceivablesOutstandingUSD = roundUSD(s.ReceivablesOutstandingUSD)
+	s.SalesMonthUSD = roundUSD(s.SalesMonthUSD)
 	return &s, nil
 }
 
@@ -638,8 +885,10 @@ func (r *Postgres) ListPendingOrders(ctx context.Context, limit int) ([]domain.P
 		SELECT o.id, o.order_number, c.name, o.status, o.total_usd, o.created_at
 		FROM orders o
 		JOIN customers c ON c.id = o.customer_id
-		WHERE o.status IN ('draft', 'confirmed', 'paid')
-		ORDER BY o.created_at DESC
+		WHERE o.status IN ('confirmed', 'paid', 'picking')
+		ORDER BY
+			CASE o.status WHEN 'picking' THEN 1 WHEN 'paid' THEN 2 WHEN 'confirmed' THEN 3 END,
+			o.created_at ASC
 		LIMIT $1
 	`, limit)
 	if err != nil {
@@ -923,7 +1172,8 @@ func (r *Postgres) ListPublicOrdersByEmail(ctx context.Context, email string) ([
 }
 
 const customerSelect = `
-	SELECT id, type, name, email, phone, document_id, credit_limit_usd, payment_terms_days, is_active, created_at
+	SELECT id, type, name, email, phone, document_id, residency, nationality, document_type, document_scan_path,
+	       credit_limit_usd, payment_terms_days, is_active, created_at
 	FROM customers
 `
 
@@ -935,7 +1185,8 @@ const quoteSelect = `
 
 const orderSelect = `
 	SELECT id, order_number, customer_id, quote_id, seller_id, channel, status, warehouse_id,
-	       discount_pct, subtotal_usd, total_usd, confirmed_at, paid_at, created_at
+	       discount_pct, subtotal_usd, total_usd, confirmed_at, paid_at, created_at,
+	       buyer_name, buyer_residency, buyer_nationality, buyer_document_type, buyer_document_id
 	FROM orders
 `
 
@@ -962,7 +1213,7 @@ func (r *Postgres) listQuoteItems(ctx context.Context, quoteID uuid.UUID) ([]dom
 
 func (r *Postgres) listOrderItems(ctx context.Context, orderID uuid.UUID) ([]domain.OrderItem, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT oi.id, oi.sku_id, s.code, oi.quantity, oi.unit_price_usd, oi.discount_pct, oi.line_total_usd
+		SELECT oi.id, oi.sku_id, s.code, s.name, oi.quantity, oi.unit_price_usd, oi.discount_pct, oi.line_total_usd
 		FROM order_items oi
 		JOIN skus s ON s.id = oi.sku_id
 		WHERE oi.order_id = $1 ORDER BY oi.created_at
@@ -974,13 +1225,70 @@ func (r *Postgres) listOrderItems(ctx context.Context, orderID uuid.UUID) ([]dom
 	var items []domain.OrderItem
 	for rows.Next() {
 		var item domain.OrderItem
-		if err := rows.Scan(&item.ID, &item.SKUID, &item.SKUCode, &item.Quantity, &item.UnitPriceUSD,
+		if err := rows.Scan(&item.ID, &item.SKUID, &item.SKUCode, &item.SKUName, &item.Quantity, &item.UnitPriceUSD,
 			&item.DiscountPct, &item.LineTotalUSD); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
 	}
 	return items, rows.Err()
+}
+
+func (r *Postgres) AddOrderShipPhoto(ctx context.Context, orderID, orderItemID, skuID uuid.UUID, path string, createdBy uuid.UUID) (*domain.OrderShipPhoto, error) {
+	var p domain.OrderShipPhoto
+	err := r.pool.QueryRow(ctx, `
+		INSERT INTO order_ship_photos (order_id, order_item_id, sku_id, file_path, created_by)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, order_id, order_item_id, sku_id, file_path, created_at
+	`, orderID, orderItemID, skuID, path, createdBy).Scan(
+		&p.ID, &p.OrderID, &p.OrderItemID, &p.SKUID, &p.FilePath, &p.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+func (r *Postgres) listOrderShipPhotos(ctx context.Context, orderID uuid.UUID) ([]domain.OrderShipPhoto, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT osp.id, osp.order_id, osp.order_item_id, osp.sku_id, s.code, s.name, osp.file_path, osp.created_at
+		FROM order_ship_photos osp
+		JOIN skus s ON s.id = osp.sku_id
+		WHERE osp.order_id = $1
+		ORDER BY osp.created_at
+	`, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.OrderShipPhoto
+	for rows.Next() {
+		var p domain.OrderShipPhoto
+		if err := rows.Scan(&p.ID, &p.OrderID, &p.OrderItemID, &p.SKUID, &p.SKUCode, &p.SKUName, &p.FilePath, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+func (r *Postgres) GetOrderShipPhoto(ctx context.Context, orderID, photoID uuid.UUID) (*domain.OrderShipPhoto, error) {
+	var p domain.OrderShipPhoto
+	err := r.pool.QueryRow(ctx, `
+		SELECT osp.id, osp.order_id, osp.order_item_id, osp.sku_id, s.code, s.name, osp.file_path, osp.created_at
+		FROM order_ship_photos osp
+		JOIN skus s ON s.id = osp.sku_id
+		WHERE osp.order_id = $1 AND osp.id = $2
+	`, orderID, photoID).Scan(
+		&p.ID, &p.OrderID, &p.OrderItemID, &p.SKUID, &p.SKUCode, &p.SKUName, &p.FilePath, &p.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return &p, nil
 }
 
 func quoteTotal(items []domain.QuoteItem, headerDiscountPct float64) float64 {
@@ -1001,22 +1309,26 @@ func roundUSD(v float64) float64 {
 func scanCustomer(row pgx.Row) (*domain.Customer, error) {
 	var c domain.Customer
 	err := row.Scan(&c.ID, &c.Type, &c.Name, &c.Email, &c.Phone, &c.DocumentID,
+		&c.Residency, &c.Nationality, &c.DocumentType, &c.DocumentScanPath,
 		&c.CreditLimitUSD, &c.PaymentTermsDays, &c.IsActive, &c.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrNotFound
 	}
-	return &c, err
+	if err != nil {
+		return nil, err
+	}
+	c.HasDocumentScan = c.DocumentScanPath != nil && strings.TrimSpace(*c.DocumentScanPath) != ""
+	return &c, nil
 }
 
 func scanCustomers(rows pgx.Rows) ([]domain.Customer, error) {
 	var out []domain.Customer
 	for rows.Next() {
-		var c domain.Customer
-		if err := rows.Scan(&c.ID, &c.Type, &c.Name, &c.Email, &c.Phone, &c.DocumentID,
-			&c.CreditLimitUSD, &c.PaymentTermsDays, &c.IsActive, &c.CreatedAt); err != nil {
+		c, err := scanCustomer(rows)
+		if err != nil {
 			return nil, err
 		}
-		out = append(out, c)
+		out = append(out, *c)
 	}
 	return out, rows.Err()
 }
@@ -1034,7 +1346,8 @@ func scanQuote(row pgx.Row) (*domain.Quote, error) {
 func scanOrder(row pgx.Row) (*domain.Order, error) {
 	var o domain.Order
 	err := row.Scan(&o.ID, &o.OrderNumber, &o.CustomerID, &o.QuoteID, &o.SellerID, &o.Channel, &o.Status,
-		&o.WarehouseID, &o.DiscountPct, &o.SubtotalUSD, &o.TotalUSD, &o.ConfirmedAt, &o.PaidAt, &o.CreatedAt)
+		&o.WarehouseID, &o.DiscountPct, &o.SubtotalUSD, &o.TotalUSD, &o.ConfirmedAt, &o.PaidAt, &o.CreatedAt,
+		&o.BuyerName, &o.BuyerResidency, &o.BuyerNationality, &o.BuyerDocumentType, &o.BuyerDocumentID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrNotFound
 	}

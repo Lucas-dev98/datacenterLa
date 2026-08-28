@@ -7,10 +7,11 @@ import (
 	"os"
 	"strings"
 
+	authdomain "github.com/datacenterla/platform/internal/auth/domain"
 	authmiddleware "github.com/datacenterla/platform/internal/auth/middleware"
-	"github.com/datacenterla/platform/internal/platform/http/response"
 	paydomain "github.com/datacenterla/platform/internal/payments/domain"
 	"github.com/datacenterla/platform/internal/payments/service"
+	"github.com/datacenterla/platform/internal/platform/http/response"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -85,8 +86,7 @@ func (h *Handler) confirmIntentPublic(w http.ResponseWriter, r *http.Request) {
 		SessionID string `json:"session_id"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
-	systemUser := uuid.MustParse("00000000-0000-0000-0000-000000000002")
-	pi, err := h.svc.ConfirmIntentForSession(r.Context(), id, systemUser, strings.TrimSpace(body.SessionID))
+	pi, err := h.svc.ConfirmIntentForSession(r.Context(), id, authdomain.SystemUserID, strings.TrimSpace(body.SessionID))
 	if err != nil {
 		response.Error(w, err)
 		return
@@ -105,8 +105,7 @@ func (h *Handler) stripeWebhook(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, paydomain.ErrInvalidInput)
 		return
 	}
-	systemUser := uuid.MustParse("00000000-0000-0000-0000-000000000002")
-	if err := h.svc.HandleStripeWebhook(r.Context(), payload, sig, systemUser); err != nil {
+	if err := h.svc.HandleStripeWebhook(r.Context(), payload, sig, authdomain.SystemUserID); err != nil {
 		response.Error(w, err)
 		return
 	}

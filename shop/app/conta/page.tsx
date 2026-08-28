@@ -10,6 +10,7 @@ import {
   saveShopSession,
 } from "@/lib/auth";
 import type { PublicOrder } from "@/lib/types";
+import { ShopShell } from "@/components/shop-shell";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 
 const TIMELINE: { status: string; label: string }[] = [
@@ -223,6 +224,7 @@ export default function ContaPage() {
 
   if (!loggedIn) {
     return (
+      <ShopShell crumbs={[{ label: "Pedidos" }]}>
       <div className="mx-auto max-w-lg space-y-6">
         <header>
           <h1 className="text-2xl font-semibold text-slate-900">Meus pedidos</h1>
@@ -280,10 +282,12 @@ export default function ContaPage() {
         {info ? <Alert tone="info">{info}</Alert> : null}
         {error ? <Alert tone="error">{error}</Alert> : null}
       </div>
+      </ShopShell>
     );
   }
 
   return (
+    <ShopShell crumbs={[{ label: "Pedidos" }]}>
     <div className="mx-auto max-w-lg space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -341,5 +345,6 @@ export default function ContaPage() {
 
       {order ? <OrderDetail order={order} /> : null}
     </div>
+    </ShopShell>
   );
 }

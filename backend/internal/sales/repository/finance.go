@@ -29,13 +29,13 @@ func (r *Postgres) GetFinanceSummary(ctx context.Context) (*domain.FinanceSummar
 	err := r.pool.QueryRow(ctx, `
 		SELECT
 			COALESCE((
-				SELECT SUM(o.total_usd) FROM orders o WHERE o.status IN ('shipped', 'delivered', 'paid')
+				SELECT SUM(o.total_usd) FROM orders o WHERE o.status IN ('shipped', 'delivered')
 			), 0),
 			COALESCE((
 				SELECT SUM(iu.unit_cost_usd)
 				FROM inventory_units iu
 				JOIN orders o ON o.id = iu.order_id
-				WHERE o.status IN ('shipped', 'delivered', 'paid') AND iu.unit_cost_usd IS NOT NULL
+				WHERE o.status IN ('shipped', 'delivered') AND iu.unit_cost_usd IS NOT NULL
 			), 0),
 			COALESCE((
 				SELECT SUM(amount_usd - paid_usd) FROM accounts_receivable WHERE status IN ('open', 'partial')
@@ -71,7 +71,7 @@ func (r *Postgres) ListOrderMargins(ctx context.Context, limit int) ([]domain.Or
 		FROM orders o
 		JOIN customers c ON c.id = o.customer_id
 		LEFT JOIN inventory_units iu ON iu.order_id = o.id AND iu.unit_cost_usd IS NOT NULL
-		WHERE o.status IN ('shipped', 'delivered', 'paid')
+		WHERE o.status IN ('shipped', 'delivered')
 		GROUP BY o.id, o.order_number, o.channel, c.name, o.total_usd, o.status, o.created_at
 		ORDER BY o.created_at DESC
 		LIMIT $1

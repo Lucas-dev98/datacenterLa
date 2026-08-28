@@ -13,7 +13,15 @@ func (r *Postgres) ListIntakeQueue(ctx context.Context, warehouseID *uuid.UUID, 
 	}
 	rows, err := r.pool.Query(ctx, `
 		SELECT u.id, u.public_code, u.sku_id, s.code, s.name, u.warehouse_id, u.status,
-		       u.purchase_id, po.po_number, u.unit_cost_usd, u.received_at
+		       u.purchase_id, po.po_number, u.unit_cost_usd, u.received_at, u.serial_number,
+		       u.intake_batch_id,
+		       COALESCE((
+		         SELECT COUNT(*)::int FROM stock_intake_batch_photos bp WHERE bp.batch_id = u.intake_batch_id
+		       ), 0) AS batch_photo_count,
+		       (
+		         EXISTS(SELECT 1 FROM stock_intake_batch_photos bp WHERE bp.batch_id = u.intake_batch_id)
+		         OR EXISTS(SELECT 1 FROM inventory_unit_intake_photos up WHERE up.inventory_unit_id = u.id)
+		       ) AS has_intake_photo
 		FROM inventory_units u
 		JOIN skus s ON s.id = u.sku_id
 		LEFT JOIN purchase_orders po ON po.id = u.purchase_id
@@ -31,7 +39,8 @@ func (r *Postgres) ListIntakeQueue(ctx context.Context, warehouseID *uuid.UUID, 
 		var item domain.IntakeQueueItem
 		if err := rows.Scan(&item.ID, &item.UnitCode, &item.SKUID, &item.SKUCode, &item.SKUName,
 			&item.WarehouseID, &item.Status, &item.PurchaseID, &item.PONumber,
-			&item.UnitCostUSD, &item.ReceivedAt); err != nil {
+			&item.UnitCostUSD, &item.ReceivedAt, &item.SerialNumber,
+			&item.IntakeBatchID, &item.BatchPhotoCount, &item.HasIntakePhoto); err != nil {
 			return nil, err
 		}
 		item.NextAction = nextAction(item.Status)

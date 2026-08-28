@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Alert, Button, Card, Table } from "@/components/ui";
@@ -89,6 +90,11 @@ export default function EstoqueSaudePage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
+          <p className="text-xs font-medium uppercase tracking-wider text-blue-600">
+            <Link href="/estoque" className="hover:underline">
+              Estoque
+            </Link>
+          </p>
           <h1 className="text-2xl font-semibold text-slate-900">Saúde do estoque</h1>
           <p className="mt-1 text-sm text-slate-600">KPIs, reservas expirando e inconsistências</p>
         </div>
@@ -107,9 +113,22 @@ export default function EstoqueSaudePage() {
             <Stat label="Disponíveis" value={stats.available_units} />
             <Stat label="Reservadas" value={stats.reserved_units} />
             <Stat label="Issues abertas" value={stats.open_issues} />
-            <Stat label="Reservas ≤24h" value={stats.expiring_reservations} />
+            <Stat label="Reservas ≤48h" value={stats.expiring_reservations} />
             <Stat label="SKUs baixo" value={stats.low_stock_skus} />
           </div>
+
+          {Object.keys(stats.units_by_status ?? {}).length > 0 ? (
+            <Card title="Unidades por status">
+              <div className="flex flex-wrap gap-3">
+                {Object.entries(stats.units_by_status).map(([status, count]) => (
+                  <div key={status} className="rounded-lg bg-slate-100 px-3 py-2 text-sm">
+                    <span className="font-medium text-slate-900">{count}</span>
+                    <span className="ml-2 text-slate-600">{status}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
 
           <Card title="Reservas expirando (48h)">
             {expiring.length === 0 ? (

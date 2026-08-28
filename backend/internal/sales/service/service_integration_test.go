@@ -263,11 +263,16 @@ func TestRMARestockFlow(t *testing.T) {
 
 	rma, err := salesSvc.CreateRMA(ctx, salesdomain.CreateRMAInput{
 		OrderID:     order.ID,
-		Reason:      "defeito",
+		Reason:      "defeito confirmado no teste",
+		TestNotes:   "teste em bancada: falha ao inicializar",
 		RequestedBy: testUserID,
 		Items: []salesdomain.CreateRMAItemInput{{
 			SKUID:    testSKUID,
 			Quantity: 1,
+		}},
+		TestPhotos: []salesdomain.RMATestPhotoUpload{{
+			Body: []byte{0xFF, 0xD8, 0xFF, 0xD9},
+			Ext:  "jpg",
 		}},
 	})
 	if err != nil {
@@ -285,7 +290,7 @@ func TestRMARestockFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("receive: %v", err)
 	}
-	rma, err = salesSvc.ResolveRMA(ctx, rma.ID, "restock", testUserID)
+	rma, err = salesSvc.ResolveRMA(ctx, rma.ID, "scrap", testUserID)
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
@@ -297,8 +302,8 @@ func TestRMARestockFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("availability after rma: %v", err)
 	}
-	if afterAvail.QtyAvailable != beforeAvail.QtyAvailable+1 {
-		t.Fatalf("expected available +1 after restock, before=%d after=%d", beforeAvail.QtyAvailable, afterAvail.QtyAvailable)
+	if afterAvail.QtyAvailable != beforeAvail.QtyAvailable {
+		t.Fatalf("expected available unchanged after scrap, before=%d after=%d", beforeAvail.QtyAvailable, afterAvail.QtyAvailable)
 	}
 }
 

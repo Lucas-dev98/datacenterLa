@@ -103,8 +103,69 @@ export type InventoryUnit = {
   id: string;
   unit_code: string;
   sku_id: string;
-  Status?: string;
   status?: string;
+  Status?: string;
+  unit_cost_usd?: number;
+  order_id?: string;
+};
+
+export type InventoryUnitDetail = {
+  id: string;
+  unit_code: string;
+  sku_id: string;
+  sku_code: string;
+  sku_name: string;
+  product_id: string;
+  product_name: string;
+  product_description?: string;
+  brand?: string;
+  category_name?: string;
+  status: string;
+  warehouse_id: string;
+  unit_cost_usd?: number;
+  received_at?: string;
+  available_at?: string;
+  sold_at?: string;
+  order_id?: string;
+  purchase_id?: string;
+  po_number?: string;
+  serial_number?: string;
+};
+
+export type InventoryUnitReceive = {
+  id: string;
+  unit_code: string;
+  sku_id: string;
+  status: string;
+  serial_number?: string;
+};
+
+export type StockBalanceRow = {
+  sku_id: string;
+  sku_code: string;
+  sku_name: string;
+  warehouse_id: string;
+  qty_physical: number;
+  qty_reserved: number;
+  qty_available: number;
+};
+
+export type StockMovementRow = {
+  id: string;
+  movement_type: string;
+  sku_id: string;
+  sku_code: string;
+  sku_name: string;
+  warehouse_id: string;
+  inventory_unit_id?: string;
+  unit_code?: string;
+  quantity: number;
+  status_before?: string;
+  status_after?: string;
+  reference_type?: string;
+  reference_id?: string;
+  reason?: string;
+  created_at: string;
 };
 
 export type IntakeQueueItem = {
@@ -119,7 +180,18 @@ export type IntakeQueueItem = {
   po_number?: string;
   unit_cost_usd?: number;
   received_at?: string;
+  serial_number?: string;
+  has_intake_photo?: boolean;
   next_action: string;
+  intake_batch_id?: string;
+  batch_photo_count?: number;
+};
+
+export type IntakeBatchPhoto = {
+  id: string;
+  batch_id: string;
+  sort_order: number;
+  created_at: string;
 };
 
 export type Customer = {
@@ -127,8 +199,15 @@ export type Customer = {
   type: string;
   name: string;
   email?: string;
+  phone?: string;
+  document_id?: string;
+  residency?: string;
+  nationality?: string;
+  document_type?: string;
+  has_document_scan?: boolean;
   credit_limit_usd: number;
   payment_terms_days?: number;
+  is_active?: boolean;
 };
 
 export type QuoteItem = {
@@ -167,9 +246,20 @@ export type OrderItem = {
   id: string;
   sku_id: string;
   sku_code?: string;
+  sku_name?: string;
   quantity: number;
   unit_price_usd: number;
   line_total_usd: number;
+};
+
+export type OrderShipPhoto = {
+  id: string;
+  order_id: string;
+  order_item_id: string;
+  sku_id: string;
+  sku_code?: string;
+  sku_name?: string;
+  created_at: string;
 };
 
 export type Order = {
@@ -184,6 +274,7 @@ export type Order = {
   subtotal_usd: number;
   total_usd: number;
   items?: OrderItem[];
+  ship_photos?: OrderShipPhoto[];
   confirmed_at?: string;
   paid_at?: string;
   created_at: string;
@@ -198,6 +289,8 @@ export type OrderListItem = {
   channel: string;
   total_usd: number;
   quote_id?: string;
+  matched_unit_code?: string;
+  matched_order_item_id?: string;
   created_at: string;
 };
 
@@ -249,6 +342,8 @@ export type DashboardStats = {
   receivables_outstanding_usd: number;
   skus_low_stock: number;
   active_skus: number;
+  sales_month_usd: number;
+  sales_month_orders: number;
 };
 
 export type PendingOrderSummary = {
@@ -261,15 +356,54 @@ export type PendingOrderSummary = {
 };
 
 export type LowStockSKU = {
+  sku_id?: string;
   sku_code: string;
-  name: string;
+  name?: string;
+  sku_name?: string;
   qty_available: number;
+  qty_physical?: number;
+  qty_reserved?: number;
 };
 
 export type DashboardData = {
   stats: DashboardStats;
   pending_orders: PendingOrderSummary[];
   low_stock_skus: LowStockSKU[];
+};
+
+export type AnalyticsSummary = {
+  revenue_usd: number;
+  cogs_usd: number;
+  gross_margin_usd: number;
+  gross_margin_pct: number;
+  units_sold: number;
+  orders_count: number;
+  skus_sold: number;
+  class_a_count: number;
+  class_b_count: number;
+  class_c_count: number;
+};
+
+export type ProductAnalyticsRow = {
+  sku_id: string;
+  sku_code: string;
+  sku_name: string;
+  qty_sold: number;
+  revenue_usd: number;
+  cogs_usd: number;
+  margin_usd: number;
+  margin_pct: number;
+  share_pct: number;
+  cumulative_pct: number;
+  abc_class: string;
+};
+
+export type AnalyticsDashboard = {
+  period: { from: string; to: string };
+  metric: string;
+  channel?: string;
+  summary: AnalyticsSummary;
+  products: ProductAnalyticsRow[];
 };
 
 export type ReceivableListItem = {

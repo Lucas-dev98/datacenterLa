@@ -2,14 +2,24 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useAuth } from "@/components/auth-provider";
 import { api } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
 import type { DashboardData } from "@/lib/types";
 import { Alert, Card, Table } from "@/components/ui";
 
+const EXPEDITION_STATUS: Record<string, string> = {
+  confirmed: "Confirmado",
+  paid: "Pago",
+  picking: "Em separação",
+};
+
 export default function DashboardPage() {
+  const { user } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const canSeeFinance = hasPermission(user, "finance.receivables.read");
 
   useEffect(() => {
     void api<DashboardData>("/api/v1/sales/dashboard")
@@ -21,6 +31,7 @@ export default function DashboardPage() {
   if (loading) return <p className="text-slate-500">Carregando…</p>;
 
   const stats = data?.stats;
+  const monthLabel = new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -35,31 +46,49 @@ export default function DashboardPage() {
 
       {stats ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Pedidos rascunho" value={stats.orders_draft} href="/pedidos" />
-          <StatCard label="Aguardando expedição" value={stats.orders_pending_ship} href="/expedicao" accent />
-          <StatCard label="Cotações abertas" value={stats.quotes_open} href="/cotacoes" />
           <StatCard
-            label="A receber (USD)"
-            value={`$${stats.receivables_outstanding_usd.toFixed(2)}`}
-            sub={`${stats.receivables_open} título(s)`}
-            href="/financeiro"
+            label="Vendas do mês"
+            value={`$${stats.sales_month_usd.toFixed(2)}`}
+            sub={`${stats.sales_month_orders} pedido(s) expedido(s) · ${monthLabel}`}
+            href="/financeiro/analytics"
+            accent
           />
-          <StatCard label="SKUs estoque baixo" value={stats.skus_low_stock} href="/estoque" warn={stats.skus_low_stock > 0} />
+          <StatCard label="Pedidos rascunho" value={stats.orders_draft} href="/pedidos?status=draft" />
+          <StatCard
+            label="Aguardando expedição"
+            value={stats.orders_pending_ship}
+            href="/estoque/saida/expedicao"
+          />
+          <StatCard label="Cotações abertas" value={stats.quotes_open} href="/cotacoes" />
+          {canSeeFinance ? (
+            <StatCard
+              label="A receber (USD)"
+              value={`$${stats.receivables_outstanding_usd.toFixed(2)}`}
+              sub={`${stats.receivables_open} título(s)`}
+              href="/financeiro"
+            />
+          ) : null}
+          <StatCard
+            label="SKUs estoque baixo"
+            value={stats.skus_low_stock}
+            href="/estoque/posicao?estoque_baixo=1"
+            warn={stats.skus_low_stock > 0}
+          />
           <StatCard label="SKUs ativos" value={stats.active_skus} href="/produtos" />
         </div>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Pedidos pendentes">
+        <Card title="Fila de expedição">
           {(data?.pending_orders ?? []).length === 0 ? (
-            <p className="text-sm text-slate-500">Nenhum pedido pendente.</p>
+            <p className="text-sm text-slate-500">Nenhum pedido aguardando expedição.</p>
           ) : (
             <Table
               headers={["Pedido", "Cliente", "Status", "Total", ""]}
               rows={(data?.pending_orders ?? []).map((o) => [
                 <span key="n" className="font-mono text-sm">{o.order_number}</span>,
                 o.customer_name,
-                o.status,
+                EXPEDITION_STATUS[o.status] ?? o.status,
                 `$${o.total_usd.toFixed(2)}`,
                 <Link key="l" href={`/pedidos/${o.id}`} className="text-blue-600 hover:underline">
                   Ver
@@ -69,18 +98,34 @@ export default function DashboardPage() {
           )}
         </Card>
 
-        <Card title="Estoque baixo (≤ 2 un.)">
+        <Card title="Estoque baixo (≤ 2 un. total)">
           {(data?.low_stock_skus ?? []).length === 0 ? (
             <p className="text-sm text-slate-500">Nenhum SKU com estoque crítico.</p>
           ) : (
-            <Table
-              headers={["SKU", "Produto", "Disponível"]}
-              rows={(data?.low_stock_skus ?? []).map((s) => [
-                <span key="c" className="font-mono">{s.sku_code}</span>,
-                s.name,
-                s.qty_available,
-              ])}
-            />
+            <>
+              <Table
+                headers={["SKU", "Produto", "Disponível"]}
+                rows={(data?.low_stock_skus ?? []).map((s) => [
+                  <span key="c" className="font-mono">{s.sku_code}</span>,
+                  s.name,
+                  s.qty_available,
+                ])}
+              />
+              {stats && stats.skus_low_stock > (data?.low_stock_skus ?? []).length ? (
+                <p className="mt-3 text-xs text-slate-500">
+                  Mostrando {(data?.low_stock_skus ?? []).length} de {stats.skus_low_stock}.{" "}
+                  <Link href="/estoque/posicao?estoque_baixo=1" className="text-blue-600 hover:underline">
+                    Ver todos
+                  </Link>
+                </p>
+              ) : (
+                <p className="mt-3 text-xs text-slate-500">
+                  <Link href="/estoque/posicao?estoque_baixo=1" className="text-blue-600 hover:underline">
+                    Ver lista completa
+                  </Link>
+                </p>
+              )}
+            </>
           )}
         </Card>
       </div>

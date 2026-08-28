@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Comprovante {{.OrderNumber}}</title>
+<style>
+  @page { margin: 8mm; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Courier New", Courier, monospace;
+    color: #111;
+    background: #fff;
+  }
+  .ticket {
+    max-width: 80mm;
+    margin: 0 auto;
+    padding: 8px 4px 24px;
+  }
+  h1 { font-size: 15px; margin: 0; text-align: center; }
+  .sub { text-align: center; font-size: 11px; margin: 2px 0 10px; }
+  hr { border: none; border-top: 1px dashed #333; margin: 8px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.items { table-layout: fixed; }
+  table.items col.col-item { width: auto; }
+  table.items col.col-qty { width: 2.4em; }
+  table.items col.col-usd { width: 4.8em; }
+  th { text-align: left; border-bottom: 1px solid #333; padding: 2px 0; }
+  td { padding: 3px 0; vertical-align: top; }
+  .num { text-align: right; white-space: nowrap; }
+  th.qty, td.qty { padding-right: 10px; }
+  th.usd, td.usd { padding-left: 6px; }
+  td.item-desc { padding-right: 6px; word-break: break-word; }
+  .muted { font-size: 10px; color: #333; }
+  .tot { font-weight: 700; font-size: 13px; }
+  .foot { text-align: center; font-size: 11px; margin-top: 12px; }
+  @media print {
+    .noprint { display: none !important; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+  .actions { text-align: center; margin: 12px 0; }
+  .actions button {
+    font: 14px sans-serif;
+    padding: 8px 16px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <div class="actions noprint">
+    <button type="button" onclick="window.print()">Imprimir comprovante</button>
+  </div>
+  <div class="ticket">
+    <h1>{{.StoreName}}</h1>
+    <p class="sub">{{.StoreCity}}<br>COMPROVANTE DE VENDA</p>
+    <hr>
+    <p>
+      Pedido: <strong>{{.OrderNumber}}</strong><br>
+      Data: {{.IssuedAtLocal}}<br>
+      {{if .SellerName}}Atendente: {{.SellerName}}<br>{{end}}
+    </p>
+    <hr>
+    <p>
+      Cliente: <strong>{{.CustomerName}}</strong><br>
+      {{if .BuyerKindLabel}}<span class="muted">{{.BuyerKindLabel}}</span><br>{{end}}
+      Perfil: {{.ResidencyLabel}}{{if .Nationality}} ({{.Nationality}}){{end}}<br>
+      {{if .DocumentID}}{{.DocumentTypeLabel}}: {{.DocumentID}}{{else if .HasDocument}}{{else}}Documento: não informado{{end}}
+    </p>
+    <hr>
+    <table class="items">
+      <colgroup>
+        <col class="col-item">
+        <col class="col-qty">
+        <col class="col-usd">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th class="num qty">Qtd</th>
+          <th class="num usd">USD</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Items}}
+        <tr>
+          <td class="item-desc">{{.SKUCode}}<br><span class="muted">{{.Description}}</span></td>
+          <td class="num qty">{{.Quantity}}</td>
+          <td class="num usd">{{usd .LineTotalUSD}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    <hr>
+    <p>Subtotal USD {{usd .SubtotalUSD}}</p>
+    {{if .ShowIVA}}
+    <p class="muted">Inclui IVA 10% · base USD {{usd .SubtotalNetUSD}} + IVA {{usd .IVAAmountUSD}}</p>
+    {{end}}
+    {{if .DiscountPct}}<p>Desconto {{usd .DiscountPct}}%</p>{{end}}
+    <p class="tot">TOTAL USD {{usd .TotalUSD}}</p>
+    {{if gt .FX.PYG 0.0}}<p>TOTAL ₲ {{pyg .FX.PYG}}</p>{{end}}
+    {{if gt .FX.BRL 0.0}}<p>TOTAL R$ {{brl .FX.BRL}}</p>{{end}}
+    {{if gt .FX.ARS 0.0}}<p>TOTAL AR$ {{pyg .FX.ARS}}</p>{{end}}
+    <hr>
+    {{range .Payments}}
+    <p>Pago: {{pay .Method}} · USD {{usd .AmountUSD}}{{if .Reference}}<br>Ref: {{.Reference}}{{end}}</p>
+    {{else}}
+    <p>Pagamento: pendente</p>
+    {{end}}
+    <hr>
+    <p class="foot">Obrigado / Gracias<br>Conserve este comprovante</p>
+  </div>
+</body>
+</html>

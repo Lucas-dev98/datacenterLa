@@ -49,14 +49,24 @@ func Authenticate(jwtMgr *jwt.Manager) func(http.Handler) http.Handler {
 }
 
 func RequirePermission(perm string) func(http.Handler) http.Handler {
+	return RequireAnyPermission(perm)
+}
+
+func RequireAnyPermission(perms ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			uc, ok := UserFromContext(r.Context())
-			if !ok || !uc.Permissions[perm] {
+			if !ok {
 				response.Error(w, authdomain.ErrForbidden)
 				return
 			}
-			next.ServeHTTP(w, r)
+			for _, perm := range perms {
+				if uc.Permissions[perm] {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+			response.Error(w, authdomain.ErrForbidden)
 		})
 	}
 }

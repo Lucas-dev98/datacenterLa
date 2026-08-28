@@ -17,8 +17,15 @@ func (r *Postgres) GetHealthDashboard(ctx context.Context) (*domain.HealthDashbo
 			(SELECT COUNT(*)::int FROM inventory_units WHERE status = 'available'),
 			(SELECT COUNT(*)::int FROM inventory_units WHERE status = 'reserved'),
 			(SELECT COUNT(*)::int FROM stock_health_issues WHERE status = 'open'),
-			(SELECT COUNT(*)::int FROM stock_reservations WHERE status = 'active' AND expires_at <= now() + interval '24 hours'),
-			(SELECT COUNT(*)::int FROM stock_balances WHERE qty_available <= 2 AND qty_physical > 0)
+			(SELECT COUNT(*)::int FROM stock_reservations WHERE status = 'active' AND expires_at <= now() + interval '48 hours'),
+			(SELECT COUNT(*)::int FROM (
+				SELECT s.id
+				FROM skus s
+				LEFT JOIN stock_balances b ON b.sku_id = s.id
+				WHERE s.is_active = true
+				GROUP BY s.id
+				HAVING COALESCE(SUM(b.qty_available), 0) <= 2
+			) low_stock)
 	`).Scan(&d.TotalUnits, &d.AvailableUnits, &d.ReservedUnits, &d.OpenIssues,
 		&d.ExpiringReservations, &d.LowStockSKUs)
 	if err != nil {

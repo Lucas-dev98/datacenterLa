@@ -351,7 +351,7 @@ func (r *Postgres) RefreshPOStatus(ctx context.Context, poID uuid.UUID) error {
 	}
 	_, err = r.pool.Exec(ctx, `
 		UPDATE purchase_orders SET status = $2::purchase_order_status,
-			received_at = CASE WHEN $2 = 'received' THEN now() ELSE received_at END,
+			received_at = CASE WHEN $2::text = 'received' THEN now() ELSE received_at END,
 			updated_at = now()
 		WHERE id = $1 AND status IN ('ordered', 'partial', 'received')
 	`, poID, status)

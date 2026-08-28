@@ -13,6 +13,8 @@ var (
 	ErrInvalidState       = errors.New("invalid state")
 	ErrInsufficientCredit = errors.New("insufficient credit")
 	ErrEmptyCart          = errors.New("carrinho vazio")
+	ErrWarrantyExpired    = errors.New("prazo de garantia expirado")
+	ErrNoEligibleUnits    = errors.New("nenhuma unidade vendida elegível neste pedido — a peça pode já ter sido devolvida e reintegrada ao estoque")
 )
 
 type Customer struct {
@@ -22,10 +24,15 @@ type Customer struct {
 	Email            *string   `json:"email,omitempty"`
 	Phone            *string   `json:"phone,omitempty"`
 	DocumentID       *string   `json:"document_id,omitempty"`
+	Residency        *string   `json:"residency,omitempty"`
+	Nationality      *string   `json:"nationality,omitempty"`
+	DocumentType     *string   `json:"document_type,omitempty"`
+	HasDocumentScan  bool      `json:"has_document_scan"`
 	CreditLimitUSD   float64   `json:"credit_limit_usd"`
 	PaymentTermsDays int       `json:"payment_terms_days"`
 	IsActive         bool      `json:"is_active"`
 	CreatedAt        time.Time `json:"created_at"`
+	DocumentScanPath *string   `json:"-"`
 }
 
 type CreateCustomerInput struct {
@@ -34,6 +41,9 @@ type CreateCustomerInput struct {
 	Email            *string `json:"email,omitempty"`
 	Phone            *string `json:"phone,omitempty"`
 	DocumentID       *string `json:"document_id,omitempty"`
+	Residency        *string `json:"residency,omitempty"`
+	Nationality      *string `json:"nationality,omitempty"`
+	DocumentType     *string `json:"document_type,omitempty"`
 	CreditLimitUSD   float64 `json:"credit_limit_usd"`
 	PaymentTermsDays int     `json:"payment_terms_days"`
 }
@@ -74,15 +84,17 @@ type QuoteItem struct {
 }
 
 type OrderListItem struct {
-	ID           uuid.UUID `json:"id"`
-	OrderNumber  string    `json:"order_number"`
-	CustomerID   uuid.UUID `json:"customer_id"`
-	CustomerName string    `json:"customer_name"`
-	Status       string    `json:"status"`
-	Channel      string    `json:"channel"`
-	TotalUSD     float64   `json:"total_usd"`
-	QuoteID      *uuid.UUID `json:"quote_id,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID                 uuid.UUID  `json:"id"`
+	OrderNumber        string     `json:"order_number"`
+	CustomerID         uuid.UUID  `json:"customer_id"`
+	CustomerName       string     `json:"customer_name"`
+	Status             string     `json:"status"`
+	Channel            string     `json:"channel"`
+	TotalUSD           float64    `json:"total_usd"`
+	QuoteID            *uuid.UUID `json:"quote_id,omitempty"`
+	MatchedUnitCode    *string    `json:"matched_unit_code,omitempty"`
+	MatchedOrderItemID *uuid.UUID `json:"matched_order_item_id,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
 }
 
 type Order struct {
@@ -97,20 +109,59 @@ type Order struct {
 	DiscountPct float64     `json:"discount_pct"`
 	SubtotalUSD float64     `json:"subtotal_usd"`
 	TotalUSD    float64     `json:"total_usd"`
-	Items       []OrderItem `json:"items,omitempty"`
-	ConfirmedAt *time.Time  `json:"confirmed_at,omitempty"`
+	Items       []OrderItem      `json:"items,omitempty"`
+	ShipPhotos  []OrderShipPhoto `json:"ship_photos,omitempty"`
+	ConfirmedAt *time.Time       `json:"confirmed_at,omitempty"`
 	PaidAt      *time.Time  `json:"paid_at,omitempty"`
 	CreatedAt   time.Time   `json:"created_at"`
+	BuyerName         *string `json:"buyer_name,omitempty"`
+	BuyerResidency    *string `json:"buyer_residency,omitempty"`
+	BuyerNationality  *string `json:"buyer_nationality,omitempty"`
+	BuyerDocumentType *string `json:"buyer_document_type,omitempty"`
+	BuyerDocumentID   *string `json:"buyer_document_id,omitempty"`
 }
 
 type OrderItem struct {
 	ID           uuid.UUID `json:"id"`
 	SKUID        uuid.UUID `json:"sku_id"`
 	SKUCode      string    `json:"sku_code,omitempty"`
+	SKUName      string    `json:"sku_name,omitempty"`
 	Quantity     int       `json:"quantity"`
 	UnitPriceUSD float64   `json:"unit_price_usd"`
 	DiscountPct  float64   `json:"discount_pct"`
 	LineTotalUSD float64   `json:"line_total_usd"`
+}
+
+type OrderShipPhoto struct {
+	ID          uuid.UUID `json:"id"`
+	OrderID     uuid.UUID `json:"order_id"`
+	OrderItemID uuid.UUID `json:"order_item_id"`
+	SKUID       uuid.UUID `json:"sku_id"`
+	SKUCode     string    `json:"sku_code,omitempty"`
+	SKUName     string    `json:"sku_name,omitempty"`
+	FilePath    string    `json:"-"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type ShipPhotoUpload struct {
+	Body []byte
+	Ext  string
+}
+
+type OrderBuyer struct {
+	Name         *string `json:"buyer_name,omitempty"`
+	Residency    *string `json:"buyer_residency,omitempty"`
+	Nationality  *string `json:"buyer_nationality,omitempty"`
+	DocumentType *string `json:"buyer_document_type,omitempty"`
+	DocumentID   *string `json:"buyer_document_id,omitempty"`
+}
+
+type PaymentRecord struct {
+	ID        uuid.UUID `json:"id"`
+	AmountUSD float64   `json:"amount_usd"`
+	Method    string    `json:"method"`
+	Reference *string   `json:"reference,omitempty"`
+	Status    string    `json:"status"`
 }
 
 type LineInput struct {
@@ -128,13 +179,14 @@ type CreateQuoteInput struct {
 }
 
 type CreateOrderInput struct {
-	CustomerID  uuid.UUID   `json:"customer_id"`
-	SellerID    *uuid.UUID  `json:"-"`
-	QuoteID     *uuid.UUID  `json:"quote_id,omitempty"`
-	Channel     string      `json:"channel"`
-	WarehouseID uuid.UUID   `json:"warehouse_id"`
-	DiscountPct float64     `json:"discount_pct"`
-	Items       []LineInput `json:"items"`
+	CustomerID   uuid.UUID   `json:"customer_id"`
+	SellerID     *uuid.UUID  `json:"-"`
+	QuoteID      *uuid.UUID  `json:"quote_id,omitempty"`
+	Channel      string      `json:"channel"`
+	WarehouseID  uuid.UUID   `json:"warehouse_id"`
+	DiscountPct  float64     `json:"discount_pct"`
+	Items        []LineInput `json:"items"`
+	BuyerProfile string      `json:"buyer_profile,omitempty"` // store PDV: walkin, paraguayan, foreigner
 }
 
 type PaymentInput struct {
@@ -160,13 +212,15 @@ type ReceivableListItem struct {
 }
 
 type DashboardStats struct {
-	OrdersDraft           int     `json:"orders_draft"`
-	OrdersPendingShip     int     `json:"orders_pending_ship"`
-	QuotesOpen            int     `json:"quotes_open"`
-	ReceivablesOpen       int     `json:"receivables_open"`
+	OrdersDraft               int     `json:"orders_draft"`
+	OrdersPendingShip         int     `json:"orders_pending_ship"`
+	QuotesOpen                int     `json:"quotes_open"`
+	ReceivablesOpen           int     `json:"receivables_open"`
 	ReceivablesOutstandingUSD float64 `json:"receivables_outstanding_usd"`
-	SkusLowStock          int     `json:"skus_low_stock"`
-	ActiveSKUs            int     `json:"active_skus"`
+	SkusLowStock              int     `json:"skus_low_stock"`
+	ActiveSKUs                int     `json:"active_skus"`
+	SalesMonthUSD             float64 `json:"sales_month_usd"`
+	SalesMonthOrders          int     `json:"sales_month_orders"`
 }
 
 type PendingOrderSummary struct {

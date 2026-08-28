@@ -51,8 +51,8 @@ export function Button({
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" }) {
   const styles =
     variant === "primary"
-      ? "bg-blue-600 text-white hover:bg-blue-700"
-      : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50";
+      ? "bg-neutral-900 text-white hover:bg-neutral-800"
+      : "border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50";
   return (
     <button
       {...props}

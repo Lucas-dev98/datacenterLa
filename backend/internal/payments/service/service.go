@@ -16,6 +16,7 @@ import (
 type OrderPayer interface {
 	RecordPayment(ctx context.Context, orderID uuid.UUID, in salesdomain.PaymentInput, recordedBy uuid.UUID) (*salesdomain.Order, error)
 	GetOrder(ctx context.Context, id uuid.UUID) (*salesdomain.Order, error)
+	CancelOrder(ctx context.Context, orderID uuid.UUID, cancelledBy uuid.UUID) (*salesdomain.Order, error)
 }
 
 type CartClearer interface {
@@ -23,10 +24,10 @@ type CartClearer interface {
 }
 
 type Service struct {
-	repo *repository.Postgres
+	repo  *repository.Postgres
 	sales OrderPayer
 	cart  CartClearer
-	gw   gateway.Gateway
+	gw    gateway.Gateway
 }
 
 func New(repo *repository.Postgres, sales OrderPayer, gw gateway.Gateway) *Service {
@@ -43,8 +44,8 @@ func NewWithCart(repo *repository.Postgres, sales OrderPayer, cart CartClearer, 
 }
 
 type PublicConfig struct {
-	Provider              string `json:"provider"`
-	StripePublishableKey  string `json:"stripe_publishable_key,omitempty"`
+	Provider             string `json:"provider"`
+	StripePublishableKey string `json:"stripe_publishable_key,omitempty"`
 }
 
 func (s *Service) PublicConfig() PublicConfig {
@@ -139,6 +140,7 @@ func (s *Service) completeIntent(ctx context.Context, pi *domain.PaymentIntent, 
 		Reference: &ref,
 	}, recordedBy); err != nil {
 		_ = s.repo.MarkIntentFailed(ctx, pi.ID)
+		_, _ = s.sales.CancelOrder(ctx, pi.OrderID, recordedBy)
 		return nil, err
 	}
 	if err := s.repo.MarkIntentCompleted(ctx, pi.ID, ref); err != nil {

@@ -92,7 +92,11 @@ export function Sidebar() {
         <p className="truncate font-medium">{user?.full_name ?? "—"}</p>
         <p className="truncate text-xs text-slate-400">{user?.email}</p>
         {user?.roles?.length ? (
-          <p className="mt-1 truncate text-xs text-slate-500">{user.roles.join(", ")}</p>
+          <p className="mt-1 truncate text-xs text-slate-500">
+            {user.roles
+              .map((r) => (typeof r === "string" ? r : r.name || r.code))
+              .join(", ")}
+          </p>
         ) : null}
         <button
           type="button"

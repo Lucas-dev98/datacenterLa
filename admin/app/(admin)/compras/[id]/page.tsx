@@ -214,7 +214,7 @@ export default function CompraDetailPage() {
           <form className="space-y-4" onSubmit={receivePartial}>
             <p className="text-sm text-slate-600">
               Unidades entram como <strong>received</strong>. Conclua inspeção e liberação em{" "}
-              <Link href="/estoque/recebimento" className="text-blue-600 hover:underline">Recebimento</Link>.
+              <Link href="/estoque/entrada/recebimento" className="text-blue-600 hover:underline">Recebimento</Link>.
             </p>
             <div className="space-y-3">
               {(po.items ?? [])
@@ -255,7 +255,7 @@ export default function CompraDetailPage() {
       ) : po.status === "received" ? (
         <Alert tone="success">
           PO recebida.{" "}
-          <Link href="/estoque/recebimento" className="font-medium text-blue-700 hover:underline">Ir para Recebimento</Link>
+          <Link href="/estoque/entrada/recebimento" className="font-medium text-blue-700 hover:underline">Ir para Recebimento</Link>
           {" "}para inspeção e liberação das unidades.
         </Alert>
       ) : null}

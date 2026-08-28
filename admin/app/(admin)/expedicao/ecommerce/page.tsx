@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function LegacyExpedicaoEcommerceRedirect() {
-  redirect("/expedicao");
+export default function ExpedicaoLegacyRedirect() {
+  redirect("/estoque/saida/expedicao");
 }

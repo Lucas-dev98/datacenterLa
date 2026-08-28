@@ -3,13 +3,15 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, apiText, printHTML } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
 import { useAuth } from "@/components/auth-provider";
 import { orderChannelLabel } from "@/lib/order-channels";
 import type { Customer, Order, PaymentIntent } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 import { StripePaymentForm } from "@/components/stripe-payment-form";
+import { ShipExpeditionModal } from "@/components/ship-expedition-modal";
+import { OrderShipPhotosGallery } from "@/components/order-ship-photos-gallery";
 
 export default function PedidoDetailPage() {
   const params = useParams<{ id: string }>();
@@ -25,6 +27,7 @@ export default function PedidoDetailPage() {
   const [gatewayLoading, setGatewayLoading] = useState(false);
   const [paymentConfig, setPaymentConfig] = useState<{ provider: string; stripe_publishable_key?: string } | null>(null);
   const [gatewayIntent, setGatewayIntent] = useState<PaymentIntent | null>(null);
+  const [shipModalOpen, setShipModalOpen] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -131,16 +134,10 @@ export default function PedidoDetailPage() {
     setInfo("Pagamento via Stripe confirmado — pedido atualizado");
   }
 
-  async function shipOrder() {
-    setInfo("");
-    setError("");
-    try {
-      await api(`/api/v1/sales/orders/${params.id}/ship`, { method: "POST" });
-      await load();
-      setInfo("Pedido expedido — estoque baixado");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao expedir");
-    }
+  async function onShipped() {
+    setShipModalOpen(false);
+    await load();
+    setInfo("Pedido expedido — estoque baixado");
   }
 
   async function cancelOrder() {
@@ -189,6 +186,19 @@ export default function PedidoDetailPage() {
           <strong>USD {order.total_usd.toFixed(2)}</strong>
           {customer ? <> · Cliente: <strong>{customer.name}</strong></> : null}
         </p>
+        <div className="mt-3">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              void apiText(`/api/v1/sales/orders/${order.id}/receipt`)
+                .then(printHTML)
+                .catch((err) => setError(err instanceof Error ? err.message : "Erro no comprovante"));
+            }}
+          >
+            Imprimir comprovante
+          </Button>
+        </div>
         {order.quote_id ? (
           <p className="mt-1 text-xs text-slate-500">
             Origem:{" "}
@@ -289,12 +299,16 @@ export default function PedidoDetailPage() {
       {(order.status === "confirmed" || order.status === "paid") && canShip ? (
         <Card title="Expedição">
           <p className="mb-4 text-sm text-slate-600">
-            Inicia separação e baixa estoque (pick + ship).
+            Fotografe cada item antes de liberar a expedição e baixar o estoque.
           </p>
-          <Button type="button" onClick={() => void shipOrder()}>
+          <Button type="button" onClick={() => setShipModalOpen(true)}>
             Expedir pedido
           </Button>
         </Card>
+      ) : null}
+
+      {order.ship_photos && order.ship_photos.length > 0 ? (
+        <OrderShipPhotosGallery orderId={order.id} photos={order.ship_photos} />
       ) : null}
 
       {canCancel ? (
@@ -321,6 +335,15 @@ export default function PedidoDetailPage() {
         <p className="text-xs text-slate-500">
           Pago em {new Date(order.paid_at).toLocaleString("pt-BR")}
         </p>
+      ) : null}
+
+      {shipModalOpen ? (
+        <ShipExpeditionModal
+          orderId={order.id}
+          orderNumber={order.order_number}
+          onClose={() => setShipModalOpen(false)}
+          onShipped={() => void onShipped()}
+        />
       ) : null}
     </div>
   );

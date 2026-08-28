@@ -87,10 +87,6 @@ export default function FinanceiroPage() {
   }, [status]);
 
   const outstanding = items.reduce((sum, r) => sum + (r.amount_usd - r.paid_usd), 0);
-  const payablesOutstanding = payables.reduce(
-    (sum, p) => sum + (p.amount_usd - p.amount_paid_usd),
-    0,
-  );
 
   function openReceivablePayment(r: ReceivableListItem) {
     setPayingPayableId(null);
@@ -174,9 +170,13 @@ export default function FinanceiroPage() {
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Financeiro</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Contas a receber · {total} título(s)
-          {payables.length ? ` · a pagar pendente: USD ${payablesOutstanding.toFixed(2)}` : ""}
+          Contas a receber · {total} título(s) nesta lista
+          {summary ? ` · AR total: USD ${summary.receivables_open_usd.toFixed(2)}` : ""}
+          {summary ? ` · AP total: USD ${summary.payables_open_usd.toFixed(2)}` : ""}
         </p>
+        <Link href="/financeiro/analytics" className="mt-2 inline-block text-sm text-blue-600 hover:underline">
+          KPIs e Curva ABC →
+        </Link>
       </header>
 
       {info ? <Alert tone="success">{info}</Alert> : null}
@@ -186,7 +186,7 @@ export default function FinanceiroPage() {
         <Card title="Resumo — margem bruta">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <p className="text-xs uppercase text-slate-500">Receita (expedida/paga)</p>
+              <p className="text-xs uppercase text-slate-500">Receita (expedida)</p>
               <p className="text-lg font-semibold">${summary.revenue_usd.toFixed(2)}</p>
             </div>
             <div>

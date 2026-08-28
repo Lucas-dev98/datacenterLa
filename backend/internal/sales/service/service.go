@@ -9,10 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/datacenterla/platform/internal/platform/notify"
+	docstorage "github.com/datacenterla/platform/internal/platform/storage"
+	pricingservice "github.com/datacenterla/platform/internal/pricing/service"
 	"github.com/datacenterla/platform/internal/sales/domain"
 	"github.com/datacenterla/platform/internal/sales/repository"
-	"github.com/datacenterla/platform/internal/platform/notify"
-	pricingservice "github.com/datacenterla/platform/internal/pricing/service"
 	stockdomain "github.com/datacenterla/platform/internal/stock/domain"
 	stockservice "github.com/datacenterla/platform/internal/stock/service"
 	"github.com/google/uuid"
@@ -29,14 +30,14 @@ func New(repo *repository.Postgres, pricing *pricingservice.Service, stock *stoc
 }
 
 type CheckoutInput struct {
-	SessionID   string               `json:"session_id"`
-	Name        string               `json:"name"`
-	Email       *string              `json:"email,omitempty"`
-	Phone       *string              `json:"phone,omitempty"`
-	DocumentID  *string              `json:"document_id,omitempty"`
-	WarehouseID uuid.UUID            `json:"warehouse_id"`
-	Payment     domain.PaymentInput  `json:"payment"`
-	CreatedBy   uuid.UUID            `json:"-"`
+	SessionID   string              `json:"session_id"`
+	Name        string              `json:"name"`
+	Email       *string             `json:"email,omitempty"`
+	Phone       *string             `json:"phone,omitempty"`
+	DocumentID  *string             `json:"document_id,omitempty"`
+	WarehouseID uuid.UUID           `json:"warehouse_id"`
+	Payment     domain.PaymentInput `json:"payment"`
+	CreatedBy   uuid.UUID           `json:"-"`
 }
 
 // --- Customers ---
@@ -48,7 +49,84 @@ func (s *Service) CreateCustomer(ctx context.Context, in domain.CreateCustomerIn
 	if in.Type == "" {
 		in.Type = "b2b"
 	}
+	normalizeIdentity(&in)
 	return s.repo.CreateCustomer(ctx, in)
+}
+
+func (s *Service) CreatePOSCustomer(ctx context.Context, in domain.CreateCustomerInput) (*domain.Customer, error) {
+	if in.Type == "" {
+		in.Type = "b2c"
+	}
+	in.CreditLimitUSD = 0
+	in.PaymentTermsDays = 0
+	if strings.TrimSpace(in.Name) == "" {
+		return nil, domain.ErrInvalidInput
+	}
+	if in.Residency == nil || strings.TrimSpace(*in.Residency) == "" {
+		return nil, domain.ErrInvalidInput
+	}
+	normalizeIdentity(&in)
+	if in.DocumentType != nil && *in.DocumentType == "ruc_pj" {
+		in.Type = "b2b"
+	}
+	return s.repo.CreateCustomer(ctx, in)
+}
+
+func normalizeIdentity(in *domain.CreateCustomerInput) {
+	if in.Residency != nil {
+		v := strings.ToLower(strings.TrimSpace(*in.Residency))
+		if v == "paraguayan" || v == "foreigner" {
+			in.Residency = &v
+		} else {
+			in.Residency = nil
+		}
+	}
+	if in.Nationality != nil {
+		v := strings.ToUpper(strings.TrimSpace(*in.Nationality))
+		if len(v) > 2 {
+			v = v[:2]
+		}
+		if v == "" {
+			in.Nationality = nil
+		} else {
+			in.Nationality = &v
+		}
+	}
+	if in.DocumentType != nil {
+		v := strings.ToLower(strings.TrimSpace(*in.DocumentType))
+		switch v {
+		case "ci_py", "cpf", "rg", "passport", "dni", "other", "ruc_pf", "ruc_pj", "ruc":
+			in.DocumentType = &v
+		default:
+			in.DocumentType = nil
+		}
+	}
+	if in.DocumentID != nil {
+		v := strings.TrimSpace(*in.DocumentID)
+		if v == "" {
+			in.DocumentID = nil
+		} else {
+			in.DocumentID = &v
+		}
+	}
+}
+
+func (s *Service) SearchCustomers(ctx context.Context, query string) ([]domain.Customer, error) {
+	return s.repo.SearchCustomers(ctx, query, 30)
+}
+
+func (s *Service) SaveCustomerDocument(ctx context.Context, id uuid.UUID, ext string, body []byte) (*domain.Customer, error) {
+	if _, err := s.repo.GetCustomer(ctx, id); err != nil {
+		return nil, err
+	}
+	path, err := docstorage.SaveCustomerDocument(id, ext, body)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.SetCustomerDocumentScan(ctx, id, path); err != nil {
+		return nil, err
+	}
+	return s.repo.GetCustomer(ctx, id)
 }
 
 func (s *Service) GetCustomer(ctx context.Context, id uuid.UUID) (*domain.Customer, error) {
@@ -63,8 +141,8 @@ func (s *Service) ListQuotes(ctx context.Context, limit, offset int, status stri
 	return s.repo.ListQuotes(ctx, limit, offset, status)
 }
 
-func (s *Service) ListOrders(ctx context.Context, limit, offset int, status, channel string) ([]domain.OrderListItem, int, error) {
-	return s.repo.ListOrders(ctx, limit, offset, status, channel)
+func (s *Service) ListOrders(ctx context.Context, limit, offset int, status, channel, query string) ([]domain.OrderListItem, int, error) {
+	return s.repo.ListOrders(ctx, limit, offset, status, channel, query)
 }
 
 func (s *Service) ListReceivables(ctx context.Context, limit, offset int, status string) ([]domain.ReceivableListItem, int, error) {
@@ -117,14 +195,14 @@ func (s *Service) GetDashboard(ctx context.Context) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	lowStock, err := s.repo.ListLowStockSKUs(ctx, 2, 10)
+	lowStock, err := s.repo.ListLowStockSKUs(ctx, 2, 50)
 	if err != nil {
 		return nil, err
 	}
 	return map[string]any{
-		"stats":           stats,
-		"pending_orders":  pending,
-		"low_stock_skus":  lowStock,
+		"stats":          stats,
+		"pending_orders": pending,
+		"low_stock_skus": lowStock,
 	}, nil
 }
 
@@ -259,7 +337,11 @@ func (s *Service) CreateOrder(ctx context.Context, in domain.CreateOrderInput) (
 			return nil, err
 		}
 		priceChannel := pricingChannel(customer.Type, in.Channel)
-		items, err := s.buildOrderItems(ctx, in.Items, 0, priceChannel)
+		applyIVA := customerAppliesIVA(customer)
+		if profile := strings.TrimSpace(in.BuyerProfile); profile != "" {
+			applyIVA = posBuyerProfileAppliesIVA(profile)
+		}
+		items, err := s.buildOrderItems(ctx, in.Items, 0, priceChannel, applyIVA)
 		if err != nil {
 			return nil, err
 		}
@@ -276,6 +358,13 @@ func (s *Service) CreateOrder(ctx context.Context, in domain.CreateOrderInput) (
 	subtotal, total := orderTotals(orderItems, in.DiscountPct)
 	if err := s.repo.SetOrderTotals(ctx, o.ID, subtotal, total); err != nil {
 		return nil, err
+	}
+	if profile := strings.TrimSpace(in.BuyerProfile); profile != "" {
+		if cust, err := s.repo.GetCustomer(ctx, in.CustomerID); err == nil {
+			_ = s.repo.SetOrderBuyerSnapshot(ctx, o.ID, posBuyerSnapshot(profile, cust))
+		}
+	} else if cust, err := s.repo.GetCustomer(ctx, in.CustomerID); err == nil {
+		_ = s.repo.SetOrderBuyer(ctx, o.ID, cust)
 	}
 	return s.repo.GetOrder(ctx, o.ID)
 }
@@ -647,12 +736,15 @@ func (s *Service) CheckoutWithoutPayment(ctx context.Context, in CheckoutInput) 
 	if len(cart.Items) == 0 {
 		return nil, domain.ErrEmptyCart
 	}
-	if err := s.validateCheckoutStock(ctx, cart.Items, in.WarehouseID); err != nil {
-		return nil, err
-	}
 
 	customer, err := s.resolveCheckoutCustomer(ctx, in)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.cancelUnpaidEcommerceOrders(ctx, customer.ID, in.CreatedBy); err != nil {
+		return nil, err
+	}
+	if err := s.validateCheckoutStock(ctx, cart.Items, in.WarehouseID); err != nil {
 		return nil, err
 	}
 
@@ -661,8 +753,10 @@ func (s *Service) CheckoutWithoutPayment(ctx context.Context, in CheckoutInput) 
 		lineInputs[i] = domain.LineInput{SKUID: item.SKUID, Quantity: item.Quantity}
 	}
 
+	sellerID := in.CreatedBy
 	order, err := s.CreateOrder(ctx, domain.CreateOrderInput{
 		CustomerID:  customer.ID,
+		SellerID:    &sellerID,
 		Channel:     "ecommerce",
 		WarehouseID: in.WarehouseID,
 		Items:       lineInputs,
@@ -677,6 +771,19 @@ func (s *Service) CheckoutWithoutPayment(ctx context.Context, in CheckoutInput) 
 		return nil, err
 	}
 	return order, nil
+}
+
+func (s *Service) cancelUnpaidEcommerceOrders(ctx context.Context, customerID, cancelledBy uuid.UUID) error {
+	ids, err := s.repo.ListUnpaidEcommerceOrderIDs(ctx, customerID)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if _, err := s.CancelOrder(ctx, id, cancelledBy); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) ClearCartForSession(ctx context.Context, sessionID string) error {
@@ -751,7 +858,7 @@ func (s *Service) buildQuoteItems(ctx context.Context, lines []domain.LineInput,
 	return items, nil
 }
 
-func (s *Service) buildOrderItems(ctx context.Context, lines []domain.LineInput, lineDiscountPct float64, priceChannel string) ([]domain.OrderItem, error) {
+func (s *Service) buildOrderItems(ctx context.Context, lines []domain.LineInput, lineDiscountPct float64, priceChannel string, applyIVA bool) ([]domain.OrderItem, error) {
 	items := make([]domain.OrderItem, len(lines))
 	for i, line := range lines {
 		if line.SKUID == uuid.Nil || line.Quantity <= 0 {
@@ -761,16 +868,24 @@ func (s *Service) buildOrderItems(ctx context.Context, lines []domain.LineInput,
 		if err != nil {
 			return nil, err
 		}
-		lineTotal := lineTotal(price.BasePriceUSD, line.Quantity, lineDiscountPct)
+		unitPrice := price.BasePriceUSD
+		if applyIVA {
+			unitPrice = price.PriceWithIVA
+		}
+		lineTotal := lineTotal(unitPrice, line.Quantity, lineDiscountPct)
 		items[i] = domain.OrderItem{
 			SKUID:        line.SKUID,
 			Quantity:     line.Quantity,
-			UnitPriceUSD: price.BasePriceUSD,
+			UnitPriceUSD: unitPrice,
 			DiscountPct:  lineDiscountPct,
 			LineTotalUSD: lineTotal,
 		}
 	}
 	return items, nil
+}
+
+func customerAppliesIVA(c *domain.Customer) bool {
+	return c.Residency != nil && strings.EqualFold(*c.Residency, "paraguayan")
 }
 
 func lineTotal(unitPrice float64, qty int, discountPct float64) float64 {

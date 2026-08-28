@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/datacenterla/platform/internal/stock/domain"
@@ -40,14 +42,28 @@ func (s *Service) Receive(ctx context.Context, in ReceiveInput) ([]domain.Invent
 				return domain.ErrInvalidInput
 			}
 			for i := 0; i < item.Quantity; i++ {
+				var serial *string
+				if len(item.Units) > i && strings.TrimSpace(item.Units[i].SerialNumber) != "" {
+					normalized, err := normalizeHexSerial(item.Units[i].SerialNumber)
+					if err != nil {
+						return err
+					}
+					serial = &normalized
+				} else if item.SerialNumber != nil && *item.SerialNumber != "" && item.Quantity == 1 {
+					normalized, err := normalizeHexSerial(*item.SerialNumber)
+					if err != nil {
+						return err
+					}
+					serial = &normalized
+				}
 				unit := domain.InventoryUnit{
-					SKUID:       item.SKUID,
-					WarehouseID: in.WarehouseID,
-					Status:      domain.StatusReceived,
-					PurchaseID:  coalescePurchase(in.PurchaseID, item.PurchaseID),
-					UnitCostUSD: item.UnitCostUSD,
-					ReceivedAt:  &now,
-					SerialNumber: item.SerialNumber,
+					SKUID:        item.SKUID,
+					WarehouseID:  in.WarehouseID,
+					Status:       domain.StatusReceived,
+					PurchaseID:   coalescePurchase(in.PurchaseID, item.PurchaseID),
+					UnitCostUSD:  item.UnitCostUSD,
+					ReceivedAt:   &now,
+					SerialNumber: serial,
 				}
 				if err := s.repo.CreateUnit(ctx, tx, &unit); err != nil {
 					return err
@@ -462,8 +478,36 @@ func (s *Service) GetAvailability(ctx context.Context, skuID, warehouseID uuid.U
 	}, nil
 }
 
+func (s *Service) ListBalances(ctx context.Context, warehouseID uuid.UUID, query string, limit, offset int) ([]domain.BalanceListItem, int, error) {
+	if warehouseID == uuid.Nil {
+		return nil, 0, domain.ErrInvalidInput
+	}
+	return s.repo.ListBalances(ctx, warehouseID, query, limit, offset)
+}
+
+func (s *Service) ListLowStockSKUs(ctx context.Context, threshold, limit, offset int, query string) ([]domain.LowStockSKU, int, error) {
+	return s.repo.ListLowStockSKUs(ctx, threshold, limit, offset, query)
+}
+
+func (s *Service) ListMovements(ctx context.Context, warehouseID uuid.UUID, query, movementType string, limit, offset int) ([]domain.MovementListItem, int, error) {
+	if warehouseID == uuid.Nil {
+		return nil, 0, domain.ErrInvalidInput
+	}
+	return s.repo.ListMovements(ctx, repository.ListMovementsParams{
+		WarehouseID:  warehouseID,
+		Query:        query,
+		MovementType: movementType,
+		Limit:        limit,
+		Offset:       offset,
+	})
+}
+
 func (s *Service) GetUnitByCode(ctx context.Context, code string) (*domain.InventoryUnit, error) {
 	return s.repo.GetUnitByCode(ctx, code)
+}
+
+func (s *Service) GetUnitDetailByCode(ctx context.Context, code string) (*domain.UnitDetail, error) {
+	return s.repo.GetUnitDetailByCode(ctx, code)
 }
 
 func (s *Service) getUnitForUpdate(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*domain.InventoryUnit, error) {
@@ -524,4 +568,17 @@ func coalescePurchase(a, b *uuid.UUID) *uuid.UUID {
 		return b
 	}
 	return a
+}
+
+func normalizeHexSerial(s string) (string, error) {
+	normalized := strings.ToUpper(strings.TrimSpace(s))
+	normalized = strings.ReplaceAll(normalized, " ", "")
+	normalized = strings.ReplaceAll(normalized, "-", "")
+	if normalized == "" {
+		return "", domain.ErrInvalidInput
+	}
+	if !regexp.MustCompile(`^[0-9A-F]{4,32}$`).MatchString(normalized) {
+		return "", domain.NewRuleViolation("INVALID_SERIAL", "identificador hexadecimal inválido")
+	}
+	return normalized, nil
 }

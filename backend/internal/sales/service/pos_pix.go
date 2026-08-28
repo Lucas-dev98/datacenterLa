@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 
 	pixpkg "github.com/datacenterla/platform/internal/payments/pix"
 	pricingdomain "github.com/datacenterla/platform/internal/pricing/domain"
@@ -13,6 +14,14 @@ import (
 
 func (s *Service) POSPixInit(ctx context.Context, in domain.POSPixInitInput, sellerID uuid.UUID) (*domain.POSPixInitResponse, error) {
 	if in.WarehouseID == uuid.Nil || len(in.Items) == 0 {
+		return nil, domain.ErrInvalidInput
+	}
+
+	profile := strings.ToLower(strings.TrimSpace(in.BuyerProfile))
+	if profile == "" {
+		profile = "walkin"
+	}
+	if profile != "walkin" && (in.CustomerID == nil || *in.CustomerID == uuid.Nil || *in.CustomerID == domain.WalkInCustomerID) {
 		return nil, domain.ErrInvalidInput
 	}
 
@@ -26,12 +35,13 @@ func (s *Service) POSPixInit(ctx context.Context, in domain.POSPixInitInput, sel
 
 	sellerIDPtr := &sellerID
 	order, err := s.CreateOrder(ctx, domain.CreateOrderInput{
-		CustomerID:  customerID,
-		SellerID:    sellerIDPtr,
-		Channel:     "store",
-		WarehouseID: in.WarehouseID,
-		DiscountPct: in.DiscountPct,
-		Items:       in.Items,
+		CustomerID:   customerID,
+		SellerID:     sellerIDPtr,
+		Channel:      "store",
+		WarehouseID:  in.WarehouseID,
+		DiscountPct:  in.DiscountPct,
+		Items:        in.Items,
+		BuyerProfile: profile,
 	})
 	if err != nil {
 		return nil, err

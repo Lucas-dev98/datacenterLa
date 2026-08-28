@@ -13,6 +13,7 @@ import {
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
 import { getSessionId } from "@/lib/session";
 import type { Cart, Order } from "@/lib/types";
+import { ShopShell } from "@/components/shop-shell";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 import { StripePaymentForm } from "@/components/stripe-payment-form";
 
@@ -98,6 +99,7 @@ export default function CheckoutPage() {
 
   if (order && !pendingIntent) {
     return (
+      <ShopShell crumbs={[{ href: "/cart", label: "Carrinho" }, { label: "Pedido" }]}>
       <div className="mx-auto max-w-lg space-y-4">
         <Alert tone="success">
           Pedido <strong>{order.order_number}</strong> pago com sucesso
@@ -111,16 +113,25 @@ export default function CheckoutPage() {
           Você receberá um código no e-mail do checkout para acessar seus pedidos com segurança.
         </p>
       </div>
+      </ShopShell>
     );
   }
 
-  if (loading) return <p className="text-sm text-slate-500">Carregando…</p>;
+  if (loading) {
+    return (
+      <ShopShell crumbs={[{ href: "/cart", label: "Carrinho" }, { label: "Checkout" }]}>
+        <p className="text-sm text-neutral-500">Carregando…</p>
+      </ShopShell>
+    );
+  }
 
   return (
+    <ShopShell crumbs={[{ href: "/cart", label: "Carrinho" }, { label: "Checkout" }]}>
     <div className="mx-auto max-w-lg space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Checkout</h1>
-        <p className="text-sm text-slate-600">
+        <p className="text-[11px] uppercase tracking-[0.16em] text-neutral-400">Passo 2 de 2</p>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">Checkout</h1>
+        <p className="mt-1 text-sm text-slate-600">
           {provider === "stripe"
             ? "Pagamento seguro com Stripe"
             : "Pagamento seguro (gateway mock em dev)"}
@@ -167,5 +178,6 @@ export default function CheckoutPage() {
         </Card>
       )}
     </div>
+    </ShopShell>
   );
 }

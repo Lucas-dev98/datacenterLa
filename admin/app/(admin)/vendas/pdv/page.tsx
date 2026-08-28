@@ -2,12 +2,16 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { api, apiText, printHTML } from "@/lib/api";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
 import type { Customer, ExchangeRatesToday, Order, ResolvedPrice, SKU } from "@/lib/types";
-import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
+import { Alert, Button, Card, Field, Input } from "@/components/ui";
 import { PDVExchangeRatesPanel } from "@/components/pdv-exchange-rates";
 import { PDVPixModal, type POSPixInitResponse } from "@/components/pdv-pix-modal";
+import { PDVCustomerModal } from "@/components/pdv-customer-modal";
+import { customerMatchesQuery, customerProfileLabel, digitsOnly, documentTypeLabel } from "@/lib/customer-profile";
+import { paraguayanBuyerKindLabel } from "@/lib/paraguay-documents";
+import { PARAGUAY_IVA_LABEL, paraguayIVAFromNet } from "@/lib/paraguay-tax";
 
 type Availability = {
   sku_id: string;
@@ -18,18 +22,18 @@ type CartLine = {
   sku_id: string;
   code: string;
   name: string;
-  unit_price_usd: number;
+  base_price_usd: number;
+  price_with_iva_usd: number;
   price_pyg?: number;
+  price_with_iva_pyg?: number;
   qty_available: number;
   quantity: number;
 };
 
-const PAYMENT_METHODS = [
-  { value: "cash", label: "Dinheiro" },
-  { value: "card", label: "Cartão" },
-  { value: "pix", label: "PIX" },
-  { value: "transfer", label: "Transferência" },
-] as const;
+function lineUnitUsd(line: CartLine, withIVA: boolean) {
+  return withIVA ? line.price_with_iva_usd : line.base_price_usd;
+}
+
 
 export default function PDVPage() {
   const searchRef = useRef<HTMLInputElement>(null);
@@ -40,8 +44,6 @@ export default function PDVPage() {
   const [walkIn, setWalkIn] = useState<Customer | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("cash");
-  const [paymentRef, setPaymentRef] = useState("");
   const [shipImmediately, setShipImmediately] = useState(true);
   const [discountPct, setDiscountPct] = useState("0");
   const [error, setError] = useState("");
@@ -51,27 +53,42 @@ export default function PDVPage() {
   const [exchangeRates, setExchangeRates] = useState<ExchangeRatesToday | null>(null);
   const [ratesLoading, setRatesLoading] = useState(true);
   const [pixSession, setPixSession] = useState<POSPixInitResponse | null>(null);
+  const [customerModal, setCustomerModal] = useState(false);
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [printing, setPrinting] = useState(false);
+  const [profile, setProfile] = useState<"walkin" | "paraguayan" | "foreigner">("walkin");
+  const [lastCustomer, setLastCustomer] = useState<Customer | null>(null);
+  const [customerSearching, setCustomerSearching] = useState(false);
+  const [receiptHtml, setReceiptHtml] = useState("");
+  const autoPrintReceiptRef = useRef(false);
 
   useEffect(() => {
     void Promise.all([
       api<Customer>("/api/v1/sales/pos/walk-in-customer"),
-      api<{ items: Customer[] }>("/api/v1/sales/customers?active_only=true"),
       api<ExchangeRatesToday>("/api/v1/sales/pos/exchange-rates"),
     ])
-      .then(([walkInCustomer, custRes, rates]) => {
+      .then(([walkInCustomer, rates]) => {
         setWalkIn(walkInCustomer);
         setCustomerId(walkInCustomer.id);
-        setCustomers(custRes.items ?? []);
         setExchangeRates(rates);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Erro ao iniciar PDV"))
       .finally(() => setRatesLoading(false));
   }, []);
 
-  const subtotal = useMemo(
-    () => cart.reduce((sum, line) => sum + line.unit_price_usd * line.quantity, 0),
+  const chargesIVA = profile === "paraguayan";
+
+  const subtotalNet = useMemo(
+    () => cart.reduce((sum, line) => sum + line.base_price_usd * line.quantity, 0),
     [cart],
   );
+
+  const ivaAmount = useMemo(
+    () => (chargesIVA ? paraguayIVAFromNet(subtotalNet) : 0),
+    [chargesIVA, subtotalNet],
+  );
+
+  const subtotal = useMemo(() => subtotalNet + ivaAmount, [subtotalNet, ivaAmount]);
 
   const discount = parseFloat(discountPct) || 0;
   const total = useMemo(() => subtotal * (1 - discount / 100), [subtotal, discount]);
@@ -92,8 +109,10 @@ export default function PDVPage() {
         sku_id: sku.id,
         code: sku.code,
         name: sku.name,
-        unit_price_usd: price.base_price_usd,
+        base_price_usd: price.base_price_usd,
+        price_with_iva_usd: price.price_with_iva_usd,
         price_pyg: price.price_pyg,
+        price_with_iva_pyg: price.price_with_iva_pyg,
         qty_available: avail.qty_available,
         quantity: 1,
       };
@@ -138,17 +157,42 @@ export default function PDVPage() {
       setSearching(true);
       setError("");
       try {
-        const byCode = await api<SKU>(`/api/v1/pim/skus/code/${encodeURIComponent(term)}`).catch(
-          () => null,
-        );
-        if (byCode?.is_active) {
-          setSearchResults([byCode]);
-          return;
+        const seen = new Set<string>();
+        const out: SKU[] = [];
+        const push = (sku: SKU | null | undefined) => {
+          if (!sku?.id || !sku.is_active || seen.has(sku.id)) return;
+          seen.add(sku.id);
+          out.push(sku);
+        };
+
+        if (/^AAA\d+$/i.test(term)) {
+          const unit = await api<{ sku_id: string; sku_code: string; sku_name: string }>(
+            `/api/v1/stock/units/code/${encodeURIComponent(term.toUpperCase())}`,
+          ).catch(() => null);
+          if (unit?.sku_id) {
+            push({
+              id: unit.sku_id,
+              code: unit.sku_code,
+              name: unit.sku_name,
+              is_active: true,
+              publish_compras_paraguai: false,
+              publish_ecommerce: false,
+            });
+          }
         }
+
+        if (/^\d{1,6}$/.test(term)) {
+          const byCode = await api<SKU>(`/api/v1/pim/skus/code/${encodeURIComponent(term)}`).catch(
+            () => null,
+          );
+          push(byCode);
+        }
+
         const res = await api<{ items: SKU[] }>(
-          `/api/v1/pim/skus?q=${encodeURIComponent(term)}&active_only=true&limit=15`,
+          `/api/v1/pim/skus?q=${encodeURIComponent(term)}&active_only=true&limit=25`,
         );
-        setSearchResults(res.items ?? []);
+        for (const sku of res.items ?? []) push(sku);
+        setSearchResults(out);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Erro na busca");
       } finally {
@@ -179,6 +223,129 @@ export default function PDVPage() {
     setCart((prev) => prev.filter((l) => l.sku_id !== skuId));
   }
 
+  const applyCustomer = useCallback((c: Customer) => {
+    setCustomerId(c.id);
+    setLastCustomer(c);
+    if (c.residency === "paraguayan") setProfile("paraguayan");
+    else if (c.residency === "foreigner") setProfile("foreigner");
+  }, []);
+
+  const searchCustomers = useCallback(
+    async (q: string) => {
+      const term = q.trim();
+      if (!term) {
+        setCustomers([]);
+        setCustomerSearching(false);
+        return;
+      }
+      try {
+        const res = await api<{ items: Customer[] }>(
+          `/api/v1/sales/pos/customers?q=${encodeURIComponent(term)}`,
+        );
+        const items = (res.items ?? []).filter((c) => c.id !== walkIn?.id && customerMatchesQuery(c, term));
+        setCustomers(items);
+        const qDigits = digitsOnly(term);
+        const exact = items.filter((c) => digitsOnly(c.document_id) && digitsOnly(c.document_id) === qDigits);
+        if (qDigits.length >= 5 && exact.length >= 1) {
+          applyCustomer(exact[0]);
+        } else if (items.length === 1 && term.length >= 3) {
+          applyCustomer(items[0]);
+        }
+      } catch {
+        /* keep current list */
+      } finally {
+        setCustomerSearching(false);
+      }
+    },
+    [walkIn?.id, applyCustomer],
+  );
+
+  useEffect(() => {
+    if (!customerQuery.trim()) {
+      setCustomerSearching(false);
+      setCustomers([]);
+      return;
+    }
+    setCustomerSearching(true);
+    const t = setTimeout(() => void searchCustomers(customerQuery), 200);
+    return () => clearTimeout(t);
+  }, [customerQuery, searchCustomers]);
+
+  const selectedCustomer = useMemo(() => {
+    if (customerId && customerId === walkIn?.id) return walkIn;
+    return customers.find((c) => c.id === customerId) ?? lastCustomer ?? walkIn;
+  }, [customers, customerId, walkIn, lastCustomer]);
+
+  const identifiedHits = useMemo(
+    () => customers.filter((c) => c.id !== walkIn?.id && customerMatchesQuery(c, customerQuery)),
+    [customers, customerQuery, walkIn?.id],
+  );
+
+  const queryLockedToSelected = Boolean(
+    selectedCustomer &&
+      selectedCustomer.id !== walkIn?.id &&
+      ((digitsOnly(customerQuery).length >= 5 &&
+        digitsOnly(selectedCustomer.document_id) === digitsOnly(customerQuery)) ||
+        selectedCustomer.name.toLowerCase() === customerQuery.trim().toLowerCase()),
+  );
+
+  const profileFallback =
+    profile === "paraguayan" ? "Paraguaio" : profile === "foreigner" ? "Estrangeiro" : undefined;
+
+  async function loadReceiptHtml(orderId: string) {
+    const html = await apiText(`/api/v1/sales/pos/orders/${orderId}/receipt`);
+    if (!html.trim()) {
+      throw new Error("Comprovante vazio");
+    }
+    setReceiptHtml(html);
+    return html;
+  }
+
+  useEffect(() => {
+    if (!lastOrder) {
+      setReceiptHtml("");
+      autoPrintReceiptRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    void loadReceiptHtml(lastOrder.id)
+      .then((html) => {
+        if (cancelled) return;
+        if (autoPrintReceiptRef.current) {
+          autoPrintReceiptRef.current = false;
+          if (!printHTML(html)) {
+            setInfo(
+              (prev) =>
+                `${prev}${prev ? " · " : ""}Comprovante abaixo — use Imprimir comprovante ou o botão no preview.`,
+            );
+          }
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Erro ao carregar comprovante");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [lastOrder?.id]);
+
+  async function printReceipt(orderId?: string) {
+    setPrinting(true);
+    setError("");
+    try {
+      const html = receiptHtml || (await loadReceiptHtml(orderId ?? lastOrder!.id));
+      if (!printHTML(html)) {
+        setError("Pop-up bloqueado — use o preview abaixo e o botão Imprimir comprovante.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao abrir comprovante");
+    } finally {
+      setPrinting(false);
+    }
+  }
+
   const brlRate = useMemo(
     () => exchangeRates?.rates?.find((q) => q.to_currency === "BRL")?.rate ?? null,
     [exchangeRates],
@@ -188,9 +355,14 @@ export default function PDVPage() {
   function resetSale() {
     setCart([]);
     setLastOrder(null);
-    setPaymentRef("");
+    setLastCustomer(null);
+    setReceiptHtml("");
     setDiscountPct("0");
     setCustomerId(walkIn?.id ?? "");
+    setCustomerQuery("");
+    setProfile("walkin");
+    setQuery("");
+    setSearchResults([]);
     setInfo("");
     setError("");
     setPixSession(null);
@@ -206,53 +378,34 @@ export default function PDVPage() {
     }
   }
 
+  const effectiveCustomerId =
+    profile === "walkin" ? walkIn?.id : customerId;
+
   async function finalizeSale(e: FormEvent) {
     e.preventDefault();
     if (cart.length === 0) {
       setError("Adicione pelo menos um produto");
       return;
     }
+    if (profile !== "walkin" && (!customerId || customerId === walkIn?.id)) {
+      setError("Selecione ou cadastre o cliente (paraguaio ou estrangeiro) antes de finalizar");
+      return;
+    }
     setSubmitting(true);
     setError("");
     setInfo("");
     try {
-      if (paymentMethod === "pix") {
-        const pix = await api<POSPixInitResponse>("/api/v1/sales/pos/pix/init", {
-          method: "POST",
-          body: JSON.stringify({
-            customer_id: customerId || undefined,
-            warehouse_id: DEFAULT_WAREHOUSE_ID,
-            items: cart.map((l) => ({ sku_id: l.sku_id, quantity: l.quantity })),
-            discount_pct: discount,
-          }),
-        });
-        setPixSession(pix);
-        setCart([]);
-        return;
-      }
-
-      const order = await api<Order>("/api/v1/sales/pos/checkout", {
+      const pix = await api<POSPixInitResponse>("/api/v1/sales/pos/pix/init", {
         method: "POST",
         body: JSON.stringify({
-          customer_id: customerId || undefined,
+          customer_id: effectiveCustomerId || undefined,
+          buyer_profile: profile,
           warehouse_id: DEFAULT_WAREHOUSE_ID,
           items: cart.map((l) => ({ sku_id: l.sku_id, quantity: l.quantity })),
-          payment: {
-            amount_usd: total,
-            method: paymentMethod,
-            reference: paymentRef.trim() || undefined,
-          },
-          ship_immediately: shipImmediately,
           discount_pct: discount,
         }),
       });
-      setLastOrder(order);
-      setCart([]);
-      setInfo(
-        shipImmediately
-          ? `Venda ${order.order_number} concluída — cliente retira na hora`
-          : `Venda ${order.order_number} registrada — pedido na fila de expedição`,
-      );
+      setPixSession(pix);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao finalizar venda");
     } finally {
@@ -262,8 +415,10 @@ export default function PDVPage() {
 
   function onPixConfirmed(order: Order) {
     setPixSession(null);
+    autoPrintReceiptRef.current = true;
     setLastOrder(order);
-    setPaymentRef("");
+    setLastCustomer(profile === "walkin" ? null : selectedCustomer ?? null);
+    setCart([]);
     setInfo(
       shipImmediately
         ? `Venda ${order.order_number} concluída via PIX — cliente retira na hora`
@@ -290,33 +445,215 @@ export default function PDVPage() {
             Venda balcão com preço B2C, pagamento e baixa de estoque.
           </p>
         </div>
-        {lastOrder ? (
-          <div className="flex gap-2">
-            <Link href={`/pedidos/${lastOrder.id}`}>
-              <Button type="button" variant="secondary">
-                Ver pedido {lastOrder.order_number}
-              </Button>
-            </Link>
-            <Button type="button" onClick={resetSale}>
-              Nova venda
-            </Button>
-          </div>
-        ) : null}
+        {lastOrder ? null : (
+          <p className="text-sm text-slate-500">
+            1. Cliente · 2. Produtos · 3. Pagamento · 4. Comprovante
+          </p>
+        )}
       </header>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
+      {info && !lastOrder ? <Alert tone="success">{info}</Alert> : null}
 
+      {lastOrder ? (
+        <Card>
+          <div className="space-y-4 text-center sm:text-left">
+            <p className="text-sm font-medium uppercase tracking-wider text-emerald-700">Venda concluída</p>
+            <h2 className="text-2xl font-semibold text-slate-900">{lastOrder.order_number}</h2>
+            <p className="text-slate-600">
+              {lastCustomer ? (
+                <>
+                  {lastCustomer.name}
+                  {" · "}
+                  {customerProfileLabel(lastCustomer, walkIn?.id, profileFallback)}
+                  {lastCustomer.document_id
+                    ? ` · ${documentTypeLabel(lastCustomer.document_type)} ${lastCustomer.document_id}`
+                    : ""}
+                </>
+              ) : (
+                "Consumidor final"
+              )}
+            </p>
+            <p className="text-lg font-semibold text-slate-900">
+              Total US$ {lastOrder.total_usd.toFixed(2)}
+              {lastOrder.total_usd && brlRate
+                ? ` · R$ ${(lastOrder.total_usd * brlRate).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : ""}
+            </p>
+            <p className="text-sm text-slate-500">{info}</p>
+            <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
+              <Button type="button" disabled={printing || !receiptHtml} onClick={() => void printReceipt()}>
+                {printing ? "Abrindo…" : "Imprimir comprovante"}
+              </Button>
+              <Link href={`/pedidos/${lastOrder.id}`}>
+                <Button type="button" variant="secondary">
+                  Ver pedido
+                </Button>
+              </Link>
+              <Button type="button" variant="secondary" onClick={resetSale}>
+                Nova venda
+              </Button>
+            </div>
+            {receiptHtml ? (
+              <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                <iframe
+                  title={`Comprovante ${lastOrder.order_number}`}
+                  srcDoc={receiptHtml}
+                  className="h-[28rem] w-full bg-white"
+                  sandbox="allow-same-origin allow-modals allow-scripts"
+                />
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">Carregando comprovante…</p>
+            )}
+          </div>
+        </Card>
+      ) : (
+      <>
       <PDVExchangeRatesPanel data={exchangeRates} loading={ratesLoading} totalUsd={total} />
+
+      <Card title="1. Cliente">
+        <div className="grid gap-4 md:grid-cols-[minmax(0,18rem)_1fr] md:items-start">
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              className={`rounded-xl border-2 px-2 py-3 text-center text-xs font-semibold sm:text-sm ${
+                profile === "paraguayan"
+                  ? "border-blue-600 bg-blue-50 text-blue-900"
+                  : "border-slate-200 bg-white text-slate-700"
+              }`}
+              onClick={() => {
+                setProfile("paraguayan");
+                if (customerId === walkIn?.id) setCustomerId("");
+              }}
+            >
+              Paraguaio
+            </button>
+            <button
+              type="button"
+              className={`rounded-xl border-2 px-2 py-3 text-center text-xs font-semibold sm:text-sm ${
+                profile === "foreigner"
+                  ? "border-amber-500 bg-amber-50 text-amber-900"
+                  : "border-slate-200 bg-white text-slate-700"
+              }`}
+              onClick={() => {
+                setProfile("foreigner");
+                if (customerId === walkIn?.id) setCustomerId("");
+              }}
+            >
+              Estrangeiro
+            </button>
+            <button
+              type="button"
+              className={`rounded-xl border-2 px-2 py-3 text-center text-xs font-semibold sm:text-sm ${
+                profile === "walkin"
+                  ? "border-slate-700 bg-slate-100 text-slate-900"
+                  : "border-slate-200 bg-white text-slate-700"
+              }`}
+              onClick={() => {
+                setProfile("walkin");
+                setCustomerId(walkIn?.id ?? "");
+                setCustomerQuery("");
+                setCustomers([]);
+                setLastCustomer(null);
+              }}
+            >
+              Consumidor final
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {profile !== "walkin" ? (
+              <>
+                <Field
+                  label={profile === "paraguayan" ? "C.I., RUC ou nome" : "CPF, RG, passaporte ou nome"}
+                  hint={
+                    profile === "paraguayan"
+                      ? "Pessoa física: C.I. (consumidor final) ou RUC pessoal. Empresa: RUC com razão social."
+                      : profile === "foreigner"
+                        ? "Brasileiro: no cadastro, anexe a foto do documento se for cliente novo"
+                        : undefined
+                  }
+                >
+                  <Input
+                    value={customerQuery}
+                    autoFocus
+                    placeholder="Digite ou leia o documento…"
+                    onChange={(e) => setCustomerQuery(e.target.value)}
+                  />
+                </Field>
+                {identifiedHits.length > 0 && !queryLockedToSelected ? (
+                  <div className="max-h-40 space-y-1 overflow-y-auto">
+                    {identifiedHits.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className={`flex w-full flex-col rounded-lg border px-3 py-2 text-left text-sm ${
+                          c.id === customerId
+                            ? "border-blue-400 bg-blue-50"
+                            : "border-slate-200 hover:border-blue-300"
+                        }`}
+                        onClick={() => {
+                          applyCustomer(c);
+                          setCustomerQuery(c.document_id || c.name);
+                        }}
+                      >
+                        <span className="font-medium">{c.name}</span>
+                        <span className="text-xs text-slate-500">
+                          {customerProfileLabel(c, walkIn?.id, profileFallback)}
+                          {c.document_id ? ` · ${documentTypeLabel(c.document_type)} ${c.document_id}` : ""}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : customerSearching ? (
+                  <p className="text-sm text-slate-500">Buscando…</p>
+                ) : customerQuery.trim() && !queryLockedToSelected ? (
+                  <p className="text-sm text-slate-500">Nenhum cadastro com esse documento.</p>
+                ) : null}
+                {selectedCustomer && selectedCustomer.id !== walkIn?.id ? (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                    <p className="font-medium">
+                      {profile === "paraguayan" && selectedCustomer.document_type === "ci_py"
+                        ? `${selectedCustomer.name} · comprovante como Consumidor Final`
+                        : selectedCustomer.name}
+                    </p>
+                    <p>
+                      {customerProfileLabel(selectedCustomer, walkIn?.id, profileFallback)}
+                      {selectedCustomer.document_id
+                        ? ` · ${documentTypeLabel(selectedCustomer.document_type)} ${selectedCustomer.document_id}`
+                        : ""}
+                      {selectedCustomer.has_document_scan ? " · documento escaneado" : ""}
+                    </p>
+                    {profile === "paraguayan" && selectedCustomer.document_type ? (
+                      <p className="mt-1 text-xs text-emerald-800">
+                        {paraguayanBuyerKindLabel(selectedCustomer.document_type)}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <Button type="button" className="w-full sm:w-auto" onClick={() => setCustomerModal(true)}>
+                    {customerQuery.trim() ? "Cadastrar este cliente" : "Cadastrar cliente"}
+                  </Button>
+                )}
+              </>
+            ) : (
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                Venda sem identificação — o comprovante sai como consumidor final.
+              </p>
+            )}
+          </div>
+        </div>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="space-y-4 lg:col-span-3">
-          <Card title="Buscar produto">
+          <Card title="2. Produtos">
             <form onSubmit={onSearchSubmit}>
               <Input
                 inputRef={searchRef}
-                autoFocus
-                placeholder="Código, nome ou leitor de código de barras…"
+                autoFocus={profile === "walkin"}
+                placeholder="SKU, nome, marca, categoria ou código da peça…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -360,8 +697,11 @@ export default function PDVPage() {
                       <p className="font-mono text-sm font-medium">{line.code}</p>
                       <p className="truncate text-sm text-slate-600">{line.name}</p>
                       <p className="text-xs text-slate-500">
-                        USD {line.unit_price_usd.toFixed(2)}
-                        {line.price_pyg ? ` · ₲ ${Math.round(line.price_pyg).toLocaleString("es-PY")}` : ""}
+                        USD {lineUnitUsd(line, chargesIVA).toFixed(2)}
+                        {chargesIVA ? " c/ IVA" : ""}
+                        {(chargesIVA ? line.price_with_iva_pyg : line.price_pyg)
+                          ? ` · ₲ ${Math.round(chargesIVA ? line.price_with_iva_pyg! : line.price_pyg!).toLocaleString("es-PY")}`
+                          : ""}
                         {" · "}disp. {line.qty_available}
                       </p>
                     </div>
@@ -374,7 +714,7 @@ export default function PDVPage() {
                       onChange={(e) => updateQty(line.sku_id, parseInt(e.target.value, 10) || 1)}
                     />
                     <p className="w-24 text-right font-medium">
-                      ${(line.unit_price_usd * line.quantity).toFixed(2)}
+                      ${(lineUnitUsd(line, chargesIVA) * line.quantity).toFixed(2)}
                     </p>
                     <button
                       type="button"
@@ -390,53 +730,31 @@ export default function PDVPage() {
           </Card>
         </div>
 
-        <div className="space-y-4 lg:col-span-2">
-          <Card title="Cliente">
-            <Field label="Cliente da venda">
-              <Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                {walkIn ? (
-                  <option value={walkIn.id}>
-                    {walkIn.name} (padrão balcão)
-                  </option>
-                ) : null}
-                {customers
-                  .filter((c) => c.id !== walkIn?.id)
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.type})
-                    </option>
-                  ))}
-              </Select>
-            </Field>
-          </Card>
-
-          <Card title="Pagamento">
+        <div className="lg:sticky lg:top-4 lg:col-span-2 lg:self-start">
+          <Card title="3. Pagamento">
             <form className="space-y-4" onSubmit={finalizeSale}>
-              <Field label="Forma de pagamento">
-                <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-                  {PAYMENT_METHODS.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              {paymentMethod === "pix" ? (
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900">
-                  <p className="font-medium">PIX — QR Code dinâmico</p>
-                  <p className="mt-1 text-emerald-800">
-                    O valor em reais usa a cotação do dia
-                    {totalBRL != null
-                      ? `: R$ ${totalBRL.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-                      : ""}
-                    . Após o cliente pagar, confirme o recebimento no modal.
-                  </p>
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                {profile === "walkin" || !selectedCustomer || selectedCustomer.id === walkIn?.id
+                  ? profile === "walkin"
+                    ? "Consumidor final"
+                    : "Identifique o cliente para finalizar"
+                  : `${selectedCustomer.name} · ${customerProfileLabel(selectedCustomer, walkIn?.id, profileFallback)}`}
+              </p>
+              {chargesIVA ? (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                  Cliente paraguaio — preços incluem IVA ({PARAGUAY_IVA_LABEL}).
                 </div>
-              ) : (
-                <Field label="Referência (opcional)" hint="NSU, comprovante, etc.">
-                  <Input value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} />
-                </Field>
-              )}
+              ) : null}
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900">
+                <p className="font-medium">PIX — QR Code dinâmico</p>
+                <p className="mt-1 text-emerald-800">
+                  O valor em reais usa a cotação do dia
+                  {totalBRL != null
+                    ? `: R$ ${totalBRL.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    : ""}
+                  . Após o cliente pagar, confirme o recebimento no modal.
+                </p>
+              </div>
               <Field label="Desconto %">
                 <Input
                   type="number"
@@ -457,8 +775,20 @@ export default function PDVPage() {
               </label>
 
               <div className="rounded-lg bg-slate-50 p-4">
+                {chargesIVA ? (
+                  <div className="mb-2 flex justify-between text-sm text-slate-600">
+                    <span>Subtotal s/ IVA</span>
+                    <span>${subtotalNet.toFixed(2)}</span>
+                  </div>
+                ) : null}
+                {chargesIVA ? (
+                  <div className="mb-2 flex justify-between text-sm text-slate-600">
+                    <span>IVA ({PARAGUAY_IVA_LABEL})</span>
+                    <span>${ivaAmount.toFixed(2)}</span>
+                  </div>
+                ) : null}
                 <div className="flex justify-between text-sm text-slate-600">
-                  <span>Subtotal</span>
+                  <span>{chargesIVA ? "Subtotal c/ IVA" : "Subtotal"}</span>
                   <span>${subtotal.toFixed(2)}</span>
                 </div>
                 {discount > 0 ? (
@@ -471,21 +801,38 @@ export default function PDVPage() {
                   <span>Total</span>
                   <span>${total.toFixed(2)}</span>
                 </div>
+                {total > 0 && exchangeRates?.rates ? (
+                  <div className="mt-2 space-y-0.5 text-xs text-slate-500">
+                    {exchangeRates.rates
+                      .filter((q) => q.to_currency !== "USD")
+                      .map((q) => (
+                        <div key={q.to_currency} className="flex justify-between">
+                          <span>{q.to_currency}</span>
+                          <span>
+                            {q.symbol}{" "}
+                            {q.to_currency === "BRL"
+                              ? (total * q.rate).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                              : Math.round(total * q.rate).toLocaleString("es-PY")}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                ) : null}
               </div>
 
-              <Button type="submit" disabled={submitting || cart.length === 0 || pixSession != null} className="w-full">
+              <Button type="submit" disabled={submitting || cart.length === 0 || pixSession != null || (profile !== "walkin" && (!customerId || customerId === walkIn?.id))} className="w-full">
                 {submitting
                   ? "Processando…"
-                  : paymentMethod === "pix"
-                    ? totalBRL != null
-                      ? `Gerar QR PIX · R$ ${totalBRL.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-                      : "Gerar QR PIX"
-                    : `Finalizar venda · $${total.toFixed(2)}`}
+                  : totalBRL != null
+                    ? `Gerar QR PIX · R$ ${totalBRL.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    : "Gerar QR PIX"}
               </Button>
             </form>
           </Card>
         </div>
       </div>
+      </>
+      )}
 
       {pixSession ? (
         <PDVPixModal
@@ -493,6 +840,19 @@ export default function PDVPage() {
           shipImmediately={shipImmediately}
           onConfirmed={onPixConfirmed}
           onCancelled={onPixCancelled}
+        />
+      ) : null}
+      {customerModal ? (
+        <PDVCustomerModal
+          initialResidency={profile === "walkin" ? "" : profile}
+          initialDocument={customerQuery}
+          onClose={() => setCustomerModal(false)}
+          onCreated={(customer) => {
+            applyCustomer(customer);
+            setCustomers((prev) => [customer, ...prev.filter((c) => c.id !== customer.id)]);
+            setCustomerQuery(customer.document_id ?? customer.name);
+            setCustomerModal(false);
+          }}
         />
       ) : null}
     </div>

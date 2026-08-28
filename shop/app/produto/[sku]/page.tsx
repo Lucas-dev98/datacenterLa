@@ -4,9 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { addToCart, fetchProduct } from "@/lib/api";
+import { formatPyg, formatUsd } from "@/lib/format";
+import { productDisplayImage } from "@/lib/product-image";
 import { getSessionId } from "@/lib/session";
 import type { CatalogProduct } from "@/lib/types";
-import { Alert, Button, Card } from "@/components/ui";
+import { ShopShell } from "@/components/shop-shell";
+import { MediaFrame } from "@/components/media-frame";
+import { Alert, Button } from "@/components/ui";
 
 export default function ProductPage() {
   const params = useParams<{ sku: string }>();
@@ -31,49 +35,85 @@ export default function ProductPage() {
     if (!product) return;
     try {
       await addToCart(getSessionId(), product.sku_id, 1);
-      setInfo("Adicionado ao carrinho");
+      setInfo("Adicionado ao carrinho.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
     }
   }
 
-  if (loading) return <p className="text-sm text-slate-500">Carregando…</p>;
-  if (!product) return <Alert tone="error">{error}</Alert>;
+  if (loading) {
+    return (
+      <ShopShell crumbs={[{ href: "/loja", label: "Loja" }, { label: "…" }]}>
+        <p className="text-sm text-neutral-500">Carregando produto…</p>
+      </ShopShell>
+    );
+  }
+  if (!product) {
+    return (
+      <ShopShell crumbs={[{ href: "/loja", label: "Loja" }, { label: "Produto" }]}>
+        <Alert tone="error">{error}</Alert>
+      </ShopShell>
+    );
+  }
+
+  const inStock = product.available > 0;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <Link href="/" className="text-sm text-blue-600 hover:underline">← Catálogo</Link>
+    <ShopShell
+      crumbs={[
+        { href: "/loja", label: "Loja" },
+        { label: product.name },
+      ]}
+    >
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
-      <Card>
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="flex aspect-square items-center justify-center rounded-lg bg-slate-100">
-            {product.image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={product.image_url} alt={product.name} className="max-h-full max-w-full object-contain" />
-            ) : (
-              <span className="text-sm text-slate-400">Sem imagem</span>
-            )}
+      {info ? (
+        <Alert tone="success">
+          {info}{" "}
+          <Link href="/cart" className="font-medium underline">
+            Ver carrinho
+          </Link>
+        </Alert>
+      ) : null}
+
+      <div className="mt-4 grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+        <MediaFrame
+          src={productDisplayImage(product.category_name, product.name, product.image_url)}
+          alt={product.name}
+          ratio="4/3"
+          className="ring-1 ring-neutral-200"
+        />
+        <div className="flex flex-col">
+          {product.category_name ? (
+            <p className="text-[11px] uppercase tracking-[0.16em] text-neutral-400">{product.category_name}</p>
+          ) : null}
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">{product.name}</h1>
+          <p className="mt-2 font-mono text-xs text-neutral-500">SKU {product.sku_code}</p>
+          {product.description ? <p className="mt-5 text-sm leading-relaxed text-neutral-600">{product.description}</p> : null}
+
+          <div className="mt-8 border-t border-neutral-200 pt-6">
+            <p className="text-3xl font-semibold">{formatUsd(product.price_usd)}</p>
+            <p className="mt-1 text-sm text-neutral-500">
+              Com IVA {formatUsd(product.price_with_iva_usd)}
+              {product.price_pyg ? ` · ref. ${formatPyg(product.price_pyg)}` : ""}
+            </p>
+            <p className={`mt-3 text-sm ${inStock ? "text-emerald-700" : "text-neutral-500"}`}>
+              {inStock ? `${product.available} unidade(s) pronta(s) para envio` : "Sem estoque no momento — solicite cotação"}
+            </p>
           </div>
-          <div className="space-y-3">
-            {product.category_name ? <p className="text-xs uppercase text-slate-400">{product.category_name}</p> : null}
-            <p className="font-mono text-xs text-slate-500">{product.sku_code}</p>
-            <h1 className="text-2xl font-semibold">{product.name}</h1>
-            {product.description ? <p className="text-slate-600">{product.description}</p> : null}
-            <p className="text-2xl font-semibold">${product.price_usd.toFixed(2)}</p>
-            {product.price_pyg ? (
-              <p className="text-sm text-slate-600">
-                Ref. {new Intl.NumberFormat("es-PY", { style: "currency", currency: "PYG", maximumFractionDigits: 0 }).format(product.price_pyg)}
-                {product.price_with_iva_pyg ? (
-                  <> · c/ IVA {new Intl.NumberFormat("es-PY", { style: "currency", currency: "PYG", maximumFractionDigits: 0 }).format(product.price_with_iva_pyg)}</>
-                ) : null}
-              </p>
-            ) : null}
-            <p className="text-sm text-slate-500">c/ IVA USD ${product.price_with_iva_usd.toFixed(2)} · {product.available} disponível(is)</p>
-            <Button disabled={product.available < 1} onClick={() => void add()}>Adicionar ao carrinho</Button>
+
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Button disabled={!inStock} onClick={() => void add()}>
+              {inStock ? "Adicionar ao carrinho" : "Indisponível"}
+            </Button>
+            <Link
+              href="/contato"
+              className="inline-flex items-center rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            >
+              Pedir cotação deste item
+            </Link>
           </div>
         </div>
-      </Card>
-    </div>
+      </div>
+    </ShopShell>
   );
 }

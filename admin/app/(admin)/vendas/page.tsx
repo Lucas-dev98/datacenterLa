@@ -27,7 +27,8 @@ export default function VendasModulePage() {
           "/pedidos": "Pedidos B2B, B2C e e-commerce",
           "/clientes": "Cadastro e crédito de clientes",
           "/crm/leads": "Pipeline de oportunidades",
-          "/rma": "Devoluções e garantia",
+          "/devolucoes": "Retorno comercial — arrependimento e reembolso",
+          "/rma": "Defeito técnico — teste e garantia",
         }[item.href] ?? ""),
     }));
 

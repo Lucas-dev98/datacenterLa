@@ -56,22 +56,77 @@ type InventoryUnit struct {
 	ID            uuid.UUID  `json:"id"`
 	UnitCode      string     `json:"unit_code"` // AAA0001
 	SKUID         uuid.UUID  `json:"sku_id"`
-	WarehouseID   uuid.UUID
-	LocationID    *uuid.UUID
-	Status        UnitStatus
-	PurchaseID    *uuid.UUID
-	UnitCostUSD   *float64
-	ReceivedAt    *time.Time
-	AvailableAt   *time.Time
-	SoldAt        *time.Time
-	OrderID       *uuid.UUID
-	OrderItemID   *uuid.UUID
-	ReservationID *uuid.UUID
-	SerialNumber  *string
-	Notes         *string
-	Version       int
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	WarehouseID   uuid.UUID  `json:"warehouse_id,omitempty"`
+	LocationID    *uuid.UUID `json:"location_id,omitempty"`
+	Status        UnitStatus `json:"status"`
+	PurchaseID    *uuid.UUID `json:"purchase_id,omitempty"`
+	UnitCostUSD   *float64   `json:"unit_cost_usd,omitempty"`
+	ReceivedAt    *time.Time `json:"received_at,omitempty"`
+	AvailableAt   *time.Time `json:"available_at,omitempty"`
+	SoldAt        *time.Time `json:"sold_at,omitempty"`
+	OrderID       *uuid.UUID `json:"order_id,omitempty"`
+	OrderItemID   *uuid.UUID `json:"order_item_id,omitempty"`
+	ReservationID *uuid.UUID `json:"reservation_id,omitempty"`
+	SerialNumber  *string    `json:"serial_number,omitempty"`
+	IntakeBatchID *uuid.UUID `json:"intake_batch_id,omitempty"`
+	Notes         *string    `json:"notes,omitempty"`
+	Version       int        `json:"-"`
+	CreatedAt     time.Time  `json:"created_at,omitempty"`
+	UpdatedAt     time.Time  `json:"updated_at,omitempty"`
+}
+
+type IntakePhotoUpload struct {
+	Body []byte
+	Ext  string
+}
+
+type UnitIntakePhoto struct {
+	ID              uuid.UUID `json:"id"`
+	InventoryUnitID uuid.UUID `json:"inventory_unit_id"`
+	FilePath        string    `json:"-"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+type IntakeBatch struct {
+	ID            uuid.UUID  `json:"id"`
+	WarehouseID   uuid.UUID  `json:"warehouse_id"`
+	SKUID         uuid.UUID  `json:"sku_id"`
+	Quantity      int        `json:"quantity"`
+	FirstUnitCode *string    `json:"first_unit_code,omitempty"`
+	LastUnitCode  *string    `json:"last_unit_code,omitempty"`
+	PurchaseID    *uuid.UUID `json:"purchase_id,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+}
+
+type IntakeBatchPhoto struct {
+	ID        uuid.UUID `json:"id"`
+	BatchID   uuid.UUID `json:"batch_id"`
+	SortOrder int       `json:"sort_order"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// UnitDetail enriches InventoryUnit with catalog data for lookup screens.
+type UnitDetail struct {
+	ID                   uuid.UUID  `json:"id"`
+	UnitCode             string     `json:"unit_code"`
+	SKUID                uuid.UUID  `json:"sku_id"`
+	SKUCode              string     `json:"sku_code"`
+	SKUName              string     `json:"sku_name"`
+	ProductID            uuid.UUID  `json:"product_id"`
+	ProductName          string     `json:"product_name"`
+	ProductDescription   *string    `json:"product_description,omitempty"`
+	Brand                *string    `json:"brand,omitempty"`
+	CategoryName         *string    `json:"category_name,omitempty"`
+	Status               UnitStatus `json:"status"`
+	WarehouseID          uuid.UUID  `json:"warehouse_id"`
+	UnitCostUSD          *float64   `json:"unit_cost_usd,omitempty"`
+	ReceivedAt           *time.Time `json:"received_at,omitempty"`
+	AvailableAt          *time.Time `json:"available_at,omitempty"`
+	SoldAt               *time.Time `json:"sold_at,omitempty"`
+	OrderID              *uuid.UUID `json:"order_id,omitempty"`
+	PurchaseID           *uuid.UUID `json:"purchase_id,omitempty"`
+	PONumber             *string    `json:"po_number,omitempty"`
+	SerialNumber         *string    `json:"serial_number,omitempty"`
 }
 
 type StockBalance struct {
@@ -81,6 +136,43 @@ type StockBalance struct {
 	QtyReserved  int
 	QtyAvailable int
 	UpdatedAt    time.Time
+}
+
+type BalanceListItem struct {
+	SKUID        uuid.UUID `json:"sku_id"`
+	SKUCode      string    `json:"sku_code"`
+	SKUName      string    `json:"sku_name"`
+	WarehouseID  uuid.UUID `json:"warehouse_id"`
+	QtyPhysical  int       `json:"qty_physical"`
+	QtyReserved  int       `json:"qty_reserved"`
+	QtyAvailable int       `json:"qty_available"`
+}
+
+type LowStockSKU struct {
+	SKUID        uuid.UUID `json:"sku_id"`
+	SKUCode      string    `json:"sku_code"`
+	SKUName      string    `json:"sku_name"`
+	QtyPhysical  int       `json:"qty_physical"`
+	QtyReserved  int       `json:"qty_reserved"`
+	QtyAvailable int       `json:"qty_available"`
+}
+
+type MovementListItem struct {
+	ID              uuid.UUID    `json:"id"`
+	MovementType    MovementType `json:"movement_type"`
+	SKUID           uuid.UUID    `json:"sku_id"`
+	SKUCode         string       `json:"sku_code"`
+	SKUName         string       `json:"sku_name"`
+	WarehouseID     uuid.UUID    `json:"warehouse_id"`
+	InventoryUnitID *uuid.UUID   `json:"inventory_unit_id,omitempty"`
+	UnitCode        *string      `json:"unit_code,omitempty"`
+	Quantity        int          `json:"quantity"`
+	StatusBefore    *UnitStatus  `json:"status_before,omitempty"`
+	StatusAfter     *UnitStatus  `json:"status_after,omitempty"`
+	ReferenceType   *string      `json:"reference_type,omitempty"`
+	ReferenceID     *uuid.UUID   `json:"reference_id,omitempty"`
+	Reason          *string      `json:"reason,omitempty"`
+	CreatedAt       time.Time    `json:"created_at"`
 }
 
 type StockMovement struct {
@@ -114,11 +206,16 @@ type StockReservation struct {
 }
 
 type ReceiveItemInput struct {
-	SKUID        uuid.UUID  `json:"sku_id"`
-	Quantity     int        `json:"quantity"`
-	UnitCostUSD  *float64   `json:"unit_cost_usd,omitempty"`
-	SerialNumber *string    `json:"serial_number,omitempty"`
-	PurchaseID   *uuid.UUID `json:"purchase_id,omitempty"`
+	SKUID        uuid.UUID           `json:"sku_id"`
+	Quantity     int                 `json:"quantity"`
+	UnitCostUSD  *float64            `json:"unit_cost_usd,omitempty"`
+	SerialNumber *string             `json:"serial_number,omitempty"`
+	PurchaseID   *uuid.UUID          `json:"purchase_id,omitempty"`
+	Units        []ReceiveUnitDetail `json:"units,omitempty"`
+}
+
+type ReceiveUnitDetail struct {
+	SerialNumber string `json:"serial_number"`
 }
 
 type ReserveItemInput struct {
@@ -147,7 +244,11 @@ type IntakeQueueItem struct {
 	Status      UnitStatus `json:"status"`
 	PurchaseID  *uuid.UUID `json:"purchase_id,omitempty"`
 	PONumber    *string    `json:"po_number,omitempty"`
-	UnitCostUSD *float64   `json:"unit_cost_usd,omitempty"`
-	ReceivedAt  *time.Time `json:"received_at,omitempty"`
+	UnitCostUSD   *float64   `json:"unit_cost_usd,omitempty"`
+	ReceivedAt    *time.Time `json:"received_at,omitempty"`
+	SerialNumber  *string    `json:"serial_number,omitempty"`
+	IntakeBatchID *uuid.UUID `json:"intake_batch_id,omitempty"`
+	BatchPhotoCount int        `json:"batch_photo_count"`
+	HasIntakePhoto bool      `json:"has_intake_photo"`
 	NextAction  string     `json:"next_action"`
 }
