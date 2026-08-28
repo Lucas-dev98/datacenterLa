@@ -3,19 +3,16 @@ Product photos from Wikimedia Commons. Used under the stated Creative Commons li
 Attribution is required for CC BY / CC BY-SA works.
 
 lenovo-sr650-v3.jpg
-  source: https://pubs.lenovo.com/sr650-v3/pt-BR/sr650_v3_product_photo.jpg
-  note: official Lenovo ThinkSystem SR650 V3 product photo (pubs.lenovo.com)
+  note: three-quarter Lenovo ThinkSystem SR650 V3 2U with 24 SFF bays on black
   used for: Lenovo ThinkSystem SR650 V3 SKU and homepage featured card
   not used for: Dell PowerEdge R650
 
 dell-poweredge-r650.png
-  source: https://newserverlife.com/upload/iblock/7a9/r750.png
-  note: vendor listing photo (source filename r750.png); used for Dell PowerEdge R650
-  used for: Dell PowerEdge R650 SKU (seed: Servidor Dell PowerEdge R650 1U)
+  note: three-quarter Dell 1U honeycomb bezel with LCD on black; used for R650 vitrine/catalog
+  used for: Dell PowerEdge R650 SKU and homepage featured card
 
 dell-poweredge-r750.png
-  source: https://newserverlife.com/upload/iblock/7a9/r750.png
-  note: same NewServerLife file as dell-poweredge-r650.png; applied to R750 because that is the only Dell photo provided
+  note: three-quarter Dell EMC honeycomb-bezel chassis on black; used for R750 vitrine/catalog
   used for: Dell PowerEdge R750 SKU and homepage featured card
 
 dell-poweredge-rack.jpg
@@ -34,8 +31,7 @@ hpe-dl380.jpg
   author: Servershop24
 
 hpe-dl380-gen10-plus.jpg
-  source: https://cdn.cs.1worldsync.com/83/8d/838dbbb4-f2e6-4f40-8b9f-a14d5e753da0.jpg
-  note: vendor listing photo of HPE ProLiant DL380 Gen10 Plus
+  note: three-quarter HPE ProLiant DL380 Gen10 Plus on black with green logo
   used for: HPE/HP ProLiant DL380 Gen10 Plus SKU and homepage featured card
   not used for: other DL380 gens (Gen9, Gen10 non-Plus, Gen11) or DL360
 
@@ -138,8 +134,7 @@ storage-san.jpg
   author: Victor Grigas (Wikimedia Foundation)
 
 seagate-exos-chassis.png
-  source: https://serverpartdeals.com/cdn/shop/files/IMG_2418_1200x1200.png?v=1784827975
-  note: vendor listing photo of Seagate Exos storage chassis (ServerPartDeals)
+  note: stacked Seagate Exos rack chassis on black with orange handle accents
   used for: Seagate Exos storage chassis SKUs (X 2U12, E 5U84 JBOD, CORVAULT 4U106) and homepage featured card
   not used for: loose Exos HDDs, Synology/QNAP NAS, Dell PowerVault, HPE MSA, NetApp
 
