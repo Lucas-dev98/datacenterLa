@@ -48,15 +48,18 @@ func renderPDFContent(pdf *fpdf.Fpdf, in RenderInput, qrPNG []byte) error {
 	pdf.SetFont("Helvetica", "B", printFontDesc)
 	pdf.SetXY(printMarginMM, y)
 	descH := pdfMultiCellHeight(pdf, contentW, 3.2, strings.ToUpper(in.Description))
-	if descH > textH-6 {
-		descH = textH - 6
+	if descH > textH-8 {
+		descH = textH - 8
 	}
 	pdf.SetXY(printMarginMM, y)
 	pdf.MultiCell(contentW, 3.2, strings.ToUpper(in.Description), "", "C", false)
 
+	pdf.SetFont("Helvetica", "", 6)
+	pdf.SetXY(printMarginMM, y+descH+0.4)
+	pdf.CellFormat(contentW, 3, "SKU", "", 1, "C", false, 0, "")
 	pdf.SetFont("Helvetica", "B", printFontSKU)
-	pdf.SetXY(printMarginMM, y+descH+0.5)
-	pdf.CellFormat(contentW, 4, fmt.Sprintf("SKU: %s", in.SKU), "", 1, "C", false, 0, "")
+	pdf.SetXY(printMarginMM, pdf.GetY()-0.3)
+	pdf.CellFormat(contentW, 5, in.SKU, "", 1, "C", false, 0, "")
 
 	qrX := (opts.WidthMM - printQRSizeMM) / 2
 	qrY := opts.HeightMM - printMarginMM - printQRSizeMM

@@ -391,8 +391,10 @@ const productSelect = `
 
 const skuSelect = `
 	SELECT s.id, s.product_id, s.code, s.name, s.description, s.is_active,
-	       s.publish_compras_paraguai, s.publish_ecommerce, s.image_url, s.created_at, s.updated_at
+	       s.publish_compras_paraguai, s.publish_ecommerce, s.image_url, s.created_at, s.updated_at,
+	       pr.cost_usd, pr.min_price_usd, pr.price_b2c_usd, pr.price_b2b_usd, pr.price_reseller_usd
 	FROM skus s
+	LEFT JOIN sku_prices pr ON pr.sku_id = s.id
 `
 
 func productFilters(f domain.ListFilter) (string, []any) {
@@ -533,11 +535,15 @@ func scanProducts(rows pgx.Rows) ([]domain.Product, error) {
 	return out, rows.Err()
 }
 
+func scanSKUDest(s *domain.SKU, scan func(dest ...any) error) error {
+	return scan(&s.ID, &s.ProductID, &s.Code, &s.Name, &s.Description, &s.IsActive,
+		&s.PublishComprasParaguai, &s.PublishEcommerce, &s.ImageURL, &s.CreatedAt, &s.UpdatedAt,
+		&s.CostUSD, &s.MinPriceUSD, &s.PriceB2CUSD, &s.PriceB2BUSD, &s.PriceResellerUSD)
+}
+
 func scanSKU(row pgx.Row) (*domain.SKU, error) {
 	var s domain.SKU
-	err := row.Scan(&s.ID, &s.ProductID, &s.Code, &s.Name, &s.Description, &s.IsActive,
-		&s.PublishComprasParaguai, &s.PublishEcommerce, &s.ImageURL, &s.CreatedAt, &s.UpdatedAt)
-
+	err := scanSKUDest(&s, row.Scan)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrNotFound
 	}
@@ -548,8 +554,7 @@ func scanSKUs(rows pgx.Rows) ([]domain.SKU, error) {
 	var out []domain.SKU
 	for rows.Next() {
 		var s domain.SKU
-		if err := rows.Scan(&s.ID, &s.ProductID, &s.Code, &s.Name, &s.Description, &s.IsActive,
-			&s.PublishComprasParaguai, &s.PublishEcommerce, &s.ImageURL, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := scanSKUDest(&s, rows.Scan); err != nil {
 			return nil, err
 		}
 		out = append(out, s)

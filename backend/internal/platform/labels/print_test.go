@@ -18,8 +18,11 @@ func TestGenerateCadastroHTML(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(html)
-	if !strings.Contains(text, "MEMORIA DDR4 32 GB") || !strings.Contains(text, "SKU: 000042") {
+	if !strings.Contains(text, "MEMORIA DDR4 32 GB") || !strings.Contains(text, "000042") {
 		t.Fatalf("missing label text: %s", text[:min(200, len(text))])
+	}
+	if strings.Contains(text, "SKU: 000042") {
+		t.Fatal("drawer label should show SKU as registry number, not SKU: prefix")
 	}
 	if !strings.Contains(text, "data:image/png;base64,") {
 		t.Fatal("missing embedded qr")

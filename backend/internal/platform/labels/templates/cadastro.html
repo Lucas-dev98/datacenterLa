@@ -30,11 +30,18 @@
     text-transform: uppercase;
     overflow-wrap: anywhere;
   }
+  .sku-caption {
+    margin-top: 1.5mm;
+    font-size: 6pt;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    color: #333;
+  }
   .sku {
-    margin-top: 1mm;
-    font-size: 8pt;
+    font-size: 11pt;
     font-weight: 700;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.6px;
+    font-variant-numeric: tabular-nums;
   }
   .qr img {
     width: 18mm;
@@ -51,7 +58,8 @@
   <div class="label">
     <div class="text">
       <div class="description">{{.Description}}</div>
-      <div class="sku">SKU: {{.SKU}}</div>
+      <div class="sku-caption">SKU</div>
+      <div class="sku">{{.SKU}}</div>
     </div>
     <div class="qr"><img src="data:image/png;base64,{{.QRImageBase64}}" alt="QR SKU {{.SKU}}"></div>
   </div>

@@ -13,7 +13,7 @@ Painel ERP/CRM em **Next.js 15 + React + Tailwind**.
 - **Clientes** — listagem e cadastro CRM
 - **Dashboard** — métricas operacionais, pedidos pendentes, estoque baixo
 - **Financeiro** — contas a receber
-- **Etiquetas lote** — PDF/HTML batch (cadastro ou unidade AAA)
+- **Etiquetas de gaveta** — descrição, QR e SKU (registro no sistema)
 
 ## Pré-requisitos
 

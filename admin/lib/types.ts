@@ -70,6 +70,11 @@ export type SKU = {
   publish_compras_paraguai: boolean;
   publish_ecommerce: boolean;
   is_active: boolean;
+  cost_usd?: number;
+  min_price_usd?: number;
+  price_b2c_usd?: number;
+  price_b2b_usd?: number;
+  price_reseller_usd?: number;
 };
 
 export type PaymentIntent = {

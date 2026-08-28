@@ -22,7 +22,7 @@ func DefaultPrintOptions(kind LabelKind) PrintOptions {
 	case KindUnit:
 		return PrintOptions{WidthMM: 58, HeightMM: 45}
 	default:
-		return PrintOptions{WidthMM: 58, HeightMM: 35}
+		return PrintOptions{WidthMM: 58, HeightMM: 40}
 	}
 }
 
@@ -81,9 +81,9 @@ func RenderInputFromUnit(label UnitLabel, opts PrintOptions) RenderInput {
 }
 
 const (
-	printMarginMM   = 2.0
-	printQRSizeMM   = 18.0
-	printFontDesc   = 7.0
-	printFontSKU    = 8.0
-	printFontUnit   = 11.0
+	printMarginMM = 2.0
+	printQRSizeMM = 18.0
+	printFontDesc = 7.0
+	printFontSKU  = 11.0
+	printFontUnit = 11.0
 )

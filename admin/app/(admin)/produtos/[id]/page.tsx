@@ -32,6 +32,11 @@ export default function ProdutoEditPage() {
   const [imageUrl, setImageUrl] = useState("");
   const [publishCp, setPublishCp] = useState(false);
   const [publishEcom, setPublishEcom] = useState(false);
+  const [costUsd, setCostUsd] = useState("");
+  const [minPriceUsd, setMinPriceUsd] = useState("");
+  const [b2cUsd, setB2cUsd] = useState("");
+  const [b2bUsd, setB2bUsd] = useState("");
+  const [resellerUsd, setResellerUsd] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(true);
@@ -56,6 +61,11 @@ export default function ProdutoEditPage() {
           setPublishCp(firstSku.publish_compras_paraguai);
           setPublishEcom(firstSku.publish_ecommerce);
           setImageUrl(firstSku.image_url ?? "");
+          setCostUsd(firstSku.cost_usd?.toString() ?? "");
+          setMinPriceUsd(firstSku.min_price_usd?.toString() ?? "");
+          setB2cUsd(firstSku.price_b2c_usd?.toString() ?? "");
+          setB2bUsd(firstSku.price_b2b_usd?.toString() ?? "");
+          setResellerUsd(firstSku.price_reseller_usd?.toString() ?? "");
         }
         const values: Record<string, string> = {};
         for (const a of p.attributes ?? []) {
@@ -119,6 +129,23 @@ export default function ProdutoEditPage() {
             image_url: imageUrl || undefined,
           }),
         });
+        const prices: Record<string, number> = {};
+        const cost = parseFloat(costUsd);
+        const min = parseFloat(minPriceUsd);
+        const b2c = parseFloat(b2cUsd);
+        const b2b = parseFloat(b2bUsd);
+        const reseller = parseFloat(resellerUsd);
+        if (Number.isFinite(cost)) prices.cost_usd = cost;
+        if (Number.isFinite(min)) prices.min_price_usd = min;
+        if (Number.isFinite(b2c)) prices.price_b2c_usd = b2c;
+        if (Number.isFinite(b2b)) prices.price_b2b_usd = b2b;
+        if (Number.isFinite(reseller)) prices.price_reseller_usd = reseller;
+        if (Object.keys(prices).length) {
+          await api(`/api/v1/pricing/skus/${sku.id}`, {
+            method: "PUT",
+            body: JSON.stringify(prices),
+          });
+        }
       }
       setInfo("Produto atualizado");
     } catch (err) {
@@ -215,6 +242,26 @@ export default function ProdutoEditPage() {
                   <input type="checkbox" checked={publishEcom} onChange={(e) => setPublishEcom(e.target.checked)} />
                   Publicar e-commerce
                 </label>
+              </div>
+              <div className="space-y-4 rounded-lg border border-slate-200 p-4">
+                <p className="text-sm font-medium text-slate-700">Preços USD</p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Custo">
+                    <Input type="number" step="0.01" value={costUsd} onChange={(e) => setCostUsd(e.target.value)} />
+                  </Field>
+                  <Field label="Mínimo">
+                    <Input type="number" step="0.01" value={minPriceUsd} onChange={(e) => setMinPriceUsd(e.target.value)} />
+                  </Field>
+                  <Field label="B2C">
+                    <Input type="number" step="0.01" value={b2cUsd} onChange={(e) => setB2cUsd(e.target.value)} />
+                  </Field>
+                  <Field label="B2B">
+                    <Input type="number" step="0.01" value={b2bUsd} onChange={(e) => setB2bUsd(e.target.value)} />
+                  </Field>
+                  <Field label="Revendedor">
+                    <Input type="number" step="0.01" value={resellerUsd} onChange={(e) => setResellerUsd(e.target.value)} />
+                  </Field>
+                </div>
               </div>
             </>
           ) : null}

@@ -12,10 +12,10 @@ export default function CatalogoModulePage() {
 
   const descriptions: Record<string, string> = {
     "/cadastros": "Produto + SKU + etiqueta em um fluxo",
-    "/produtos": "Consulta e edição de produtos publicados",
+    "/produtos": "Consulta e edição de produtos, SKUs e preços",
     "/categorias": "Hierarquia e atributos dinâmicos",
-    "/precos": "Camadas B2C, B2B e histórico",
-    "/etiquetas": "Impressão em lote PDF/HTML",
+    "/precos": "Busca por código, nome ou descrição e camadas B2C/B2B",
+    "/etiquetas": "Etiqueta de gaveta: descrição, QR e SKU",
     "/integracoes/compras-paraguai": "Feed XML e sincronização",
   };
 

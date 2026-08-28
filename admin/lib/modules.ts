@@ -38,7 +38,7 @@ export const adminModules: AdminModule[] = [
       { href: "/produtos", label: "Produtos / SKUs", permission: "pim.products.read" },
       { href: "/categorias", label: "Categorias", permission: "pim.products.write" },
       { href: "/precos", label: "Preços", permission: "pim.prices.read" },
-      { href: "/etiquetas", label: "Etiquetas lote", permission: "labels.batch" },
+      { href: "/etiquetas", label: "Etiquetas de gaveta", permission: "labels.batch" },
       {
         href: "/integracoes/compras-paraguai",
         label: "Compras Paraguai",

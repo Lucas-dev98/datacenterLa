@@ -37,21 +37,21 @@ type CategoryAttribute struct {
 }
 
 type Product struct {
-	ID                   uuid.UUID  `json:"id"`
-	Name                 string     `json:"name"`
-	CategoryID           *uuid.UUID `json:"category_id,omitempty"`
-	Description          *string    `json:"description,omitempty"`
-	GeneratedDescription *string    `json:"generated_description,omitempty"`
-	NameES               *string    `json:"name_es,omitempty"`
-	DescriptionES        *string    `json:"description_es,omitempty"`
-	GeneratedDescriptionES *string  `json:"generated_description_es,omitempty"`
-	Brand                *string    `json:"brand,omitempty"`
-	Manufacturer         *string    `json:"manufacturer,omitempty"`
-	IsActive             bool       `json:"is_active"`
-	CreatedAt            time.Time  `json:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at"`
-	Attributes           []ProductAttributeValue `json:"attributes,omitempty"`
-	SKUs                 []SKU      `json:"skus,omitempty"`
+	ID                     uuid.UUID               `json:"id"`
+	Name                   string                  `json:"name"`
+	CategoryID             *uuid.UUID              `json:"category_id,omitempty"`
+	Description            *string                 `json:"description,omitempty"`
+	GeneratedDescription   *string                 `json:"generated_description,omitempty"`
+	NameES                 *string                 `json:"name_es,omitempty"`
+	DescriptionES          *string                 `json:"description_es,omitempty"`
+	GeneratedDescriptionES *string                 `json:"generated_description_es,omitempty"`
+	Brand                  *string                 `json:"brand,omitempty"`
+	Manufacturer           *string                 `json:"manufacturer,omitempty"`
+	IsActive               bool                    `json:"is_active"`
+	CreatedAt              time.Time               `json:"created_at"`
+	UpdatedAt              time.Time               `json:"updated_at"`
+	Attributes             []ProductAttributeValue `json:"attributes,omitempty"`
+	SKUs                   []SKU                   `json:"skus,omitempty"`
 }
 
 type ProductAttributeValue struct {
@@ -76,6 +76,11 @@ type SKU struct {
 	IsActive               bool       `json:"is_active"`
 	PublishComprasParaguai bool       `json:"publish_compras_paraguai"`
 	PublishEcommerce       bool       `json:"publish_ecommerce"`
+	CostUSD                *float64   `json:"cost_usd,omitempty"`
+	MinPriceUSD            *float64   `json:"min_price_usd,omitempty"`
+	PriceB2CUSD            *float64   `json:"price_b2c_usd,omitempty"`
+	PriceB2BUSD            *float64   `json:"price_b2b_usd,omitempty"`
+	PriceResellerUSD       *float64   `json:"price_reseller_usd,omitempty"`
 	CreatedAt              time.Time  `json:"created_at"`
 	UpdatedAt              time.Time  `json:"updated_at"`
 }
@@ -97,28 +102,28 @@ type ListResult[T any] struct {
 }
 
 type CreateProductInput struct {
-	Name         string                 `json:"name"`
-	CategoryID   *uuid.UUID             `json:"category_id,omitempty"`
-	Description  *string                `json:"description,omitempty"`
-	Brand        *string                `json:"brand,omitempty"`
-	Manufacturer *string                `json:"manufacturer,omitempty"`
-	NameES               *string          `json:"name_es,omitempty"`
-	DescriptionES        *string          `json:"description_es,omitempty"`
-	GeneratedDescriptionES *string        `json:"generated_description_es,omitempty"`
-	Attributes   []AttributeValueInput  `json:"attributes,omitempty"`
+	Name                   string                `json:"name"`
+	CategoryID             *uuid.UUID            `json:"category_id,omitempty"`
+	Description            *string               `json:"description,omitempty"`
+	Brand                  *string               `json:"brand,omitempty"`
+	Manufacturer           *string               `json:"manufacturer,omitempty"`
+	NameES                 *string               `json:"name_es,omitempty"`
+	DescriptionES          *string               `json:"description_es,omitempty"`
+	GeneratedDescriptionES *string               `json:"generated_description_es,omitempty"`
+	Attributes             []AttributeValueInput `json:"attributes,omitempty"`
 }
 
 type UpdateProductInput struct {
-	Name         *string                `json:"name,omitempty"`
-	CategoryID   *uuid.UUID             `json:"category_id,omitempty"`
-	Description  *string                `json:"description,omitempty"`
-	Brand        *string                `json:"brand,omitempty"`
-	Manufacturer *string                `json:"manufacturer,omitempty"`
-	NameES               *string          `json:"name_es,omitempty"`
-	DescriptionES        *string          `json:"description_es,omitempty"`
-	GeneratedDescriptionES *string        `json:"generated_description_es,omitempty"`
-	IsActive     *bool                  `json:"is_active,omitempty"`
-	Attributes   []AttributeValueInput  `json:"attributes,omitempty"`
+	Name                   *string               `json:"name,omitempty"`
+	CategoryID             *uuid.UUID            `json:"category_id,omitempty"`
+	Description            *string               `json:"description,omitempty"`
+	Brand                  *string               `json:"brand,omitempty"`
+	Manufacturer           *string               `json:"manufacturer,omitempty"`
+	NameES                 *string               `json:"name_es,omitempty"`
+	DescriptionES          *string               `json:"description_es,omitempty"`
+	GeneratedDescriptionES *string               `json:"generated_description_es,omitempty"`
+	IsActive               *bool                 `json:"is_active,omitempty"`
+	Attributes             []AttributeValueInput `json:"attributes,omitempty"`
 }
 
 type AttributeValueInput struct {

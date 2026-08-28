@@ -15,8 +15,8 @@ const links = [
   },
   {
     href: "/etiquetas",
-    label: "Etiquetas em lote",
-    description: "Impressão de etiquetas de cadastro e unidade AAA",
+    label: "Etiquetas de gaveta",
+    description: "Descrição, QR code e SKU para identificar a gaveta",
   },
 ];
 
