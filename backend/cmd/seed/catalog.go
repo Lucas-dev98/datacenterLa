@@ -427,9 +427,9 @@ func seedCatalog(ctx context.Context, pool *pgxpool.Pool) (map[string]catalogSKU
 			}
 		}
 		_, err = pool.Exec(ctx, `
-			INSERT INTO skus (id, product_id, code, name, description, publish_compras_paraguai, publish_ecommerce)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
-		`, skuID, productID, skuCode, item.SKUName, item.Description, item.PublishCP, item.PublishEcom)
+			INSERT INTO skus (id, product_id, code, name, description, publish_compras_paraguai, publish_ecommerce, image_url)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`, skuID, productID, skuCode, item.SKUName, item.Description, item.PublishCP, item.PublishEcom, defaultSKUImageURL(item.Category, item.SKUName))
 		if err != nil {
 			return nil, fmt.Errorf("sku %s: %w", item.SKUName, err)
 		}

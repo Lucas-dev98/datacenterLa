@@ -30,6 +30,7 @@ type FeedConfig struct {
 	ProductURLPrefix string
 	BuyURLPrefix     string
 	WebhookURL       string
+	PublicAPIURL     string
 }
 
 type FeedResult struct {

@@ -33,6 +33,8 @@ services:
       HTTP_ADDR: ":8080"
       JWT_SECRET: dev-secret-change-in-production-min-32-chars!!
       CORS_ORIGINS: http://localhost:3000,http://localhost:3001
+      PRODUCT_STATIC_DIR: /static
+      PUBLIC_API_URL: http://localhost:8080
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM: ${RESEND_FROM:-Data Center LA <onboarding@resend.dev>}
       # STRIPE_SECRET_KEY: sk_test_...

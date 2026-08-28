@@ -4,6 +4,7 @@ import Link from "next/link";
 import { type ReactNode, useEffect, useState } from "react";
 import { fetchCatalog } from "@/lib/api";
 import type { CatalogProduct } from "@/lib/types";
+import { catalogImageUrl } from "@/lib/product-image";
 import { MediaFrame } from "@/components/media-frame";
 
 const TRUST = [
@@ -88,27 +89,28 @@ const FAQS = [
   },
 ];
 
-const FEATURED_MODELS = [
-  { name: "Dell PowerEdge R650", href: "/loja?q=R650", image: "/products/dell-poweredge-r650.png" },
-  { name: "Dell PowerEdge R750", href: "/loja?q=R750", image: "/products/dell-poweredge-r750.png" },
-  { name: "HPE ProLiant DL380 Gen10 Plus", href: "/loja?q=DL380", image: "/products/hpe-dl380-gen10-plus.jpg" },
-  { name: "Lenovo SR650 V3", href: "/loja?q=SR650", image: "/products/lenovo-sr650-v3.jpg" },
-  { name: "Seagate Exos Storage", href: "/loja?grupo=storages", image: "/products/seagate-exos-chassis.png" },
-  { name: "SSD Enterprise", href: "/loja?grupo=componentes", image: "/products/ssd-u2-dark.jpg" },
-  { name: "Memória", href: "/loja?grupo=componentes&q=RDIMM", image: "/products/rdimm-micron.jpg" },
-  { name: "Processador", href: "/loja?grupo=componentes&q=Processador", image: "/products/amd-epyc-7302p.jpg" },
-  { name: "Placas de rede", href: "/loja?grupo=componentes&q=GbE", image: "/products/nic-intel.jpg" },
-];
+const FEATURED_CODES = ["000078", "000077", "000079", "000082", "000085", "000006", "000001", "000076", "000021"];
 
 export function Storefront() {
   const [featured, setFeatured] = useState<CatalogProduct[]>([]);
+  const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   useEffect(() => {
     void fetchCatalog()
-      .then((items) => setFeatured(items.filter((p) => p.available > 0).slice(0, 6)))
+      .then((items) => {
+        setCatalog(items);
+        setFeatured(items.filter((p) => p.available > 0).slice(0, 6));
+      })
       .catch(() => {});
   }, []);
+
+  const featuredModels = FEATURED_CODES.map((code) => catalog.find((p) => p.sku_code === code)).filter(
+    (p): p is CatalogProduct => Boolean(p),
+  );
+  const partCPU = catalog.find((p) => p.sku_code === "000076");
+  const partRAM = catalog.find((p) => p.sku_code === "000001");
+  const partSSD = catalog.find((p) => p.sku_code === "000006");
 
   return (
     <div className="bg-black text-white">
@@ -151,13 +153,13 @@ export function Storefront() {
         title="Componentes e peças"
         href="/loja?grupo=componentes"
         text="SSD e HDD enterprise, placas de rede, placas de vídeo, processadores, memórias ECC e fontes — peças para montar e expandir servidores e storages."
-        image="/products/ssd-u2-dark.jpg"
-        imageAlt="SSD enterprise U.2"
+        image={partSSD ? catalogImageUrl(partSSD.image_url) : "/brand/servers.png"}
+        imageAlt={partSSD?.name ?? "SSD enterprise"}
         reverse
         extraImages={[
-          { src: "/products/amd-epyc-7302p.jpg", alt: "Processador AMD EPYC 7302P" },
-          { src: "/products/rdimm-ddr5-ecc.png", alt: "Memória DDR5 ECC RDIMM" },
-        ]}
+          partCPU ? { src: catalogImageUrl(partCPU.image_url), alt: partCPU.name } : null,
+          partRAM ? { src: catalogImageUrl(partRAM.image_url), alt: partRAM.name } : null,
+        ].filter((x): x is { src: string; alt: string } => Boolean(x))}
         imageFit="parts"
       />
 
@@ -185,13 +187,13 @@ export function Storefront() {
             Modelos mais pedidos por datacenters, MSPs e empresas de TI.
           </p>
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURED_MODELS.map((item) => (
+            {featuredModels.map((item) => (
               <Link
-                key={item.name}
-                href={item.href}
+                key={item.sku_id}
+                href={`/produto/${item.sku_id}`}
                 className="group overflow-hidden border border-white/10 bg-black hover:border-white/30"
               >
-                <MediaFrame src={item.image} alt="" ratio="4/3" dark pad={false} />
+                <MediaFrame src={catalogImageUrl(item.image_url)} alt="" ratio="4/3" dark pad={false} />
                 <div className="border-t border-white/10 px-4 py-3 text-sm font-medium group-hover:underline">
                   {item.name}
                 </div>

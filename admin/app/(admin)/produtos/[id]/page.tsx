@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { API_URL } from "@/lib/config";
 import type { CategoryAttribute, Product, ProductAttributeValue, SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Textarea } from "@/components/ui";
 
@@ -187,8 +188,24 @@ export default function ProdutoEditPage() {
           {sku ? (
             <>
               <Field label="URL da imagem (e-commerce)">
-                <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." />
+                <Input
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  placeholder="/static/products/arquivo.jpg"
+                />
               </Field>
+              {imageUrl.trim() ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={
+                    /^https?:\/\//i.test(imageUrl.trim())
+                      ? imageUrl.trim()
+                      : `${API_URL}${imageUrl.trim().startsWith("/") ? "" : "/"}${imageUrl.trim()}`
+                  }
+                  alt=""
+                  className="h-28 w-40 object-contain bg-slate-50 ring-1 ring-slate-200"
+                />
+              ) : null}
               <div className="flex flex-wrap gap-4 text-sm">
                 <label className="flex items-center gap-2">
                   <input type="checkbox" checked={publishCp} onChange={(e) => setPublishCp(e.target.checked)} />

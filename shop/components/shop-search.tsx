@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { fetchCatalog } from "@/lib/api";
-import { productDisplayImage } from "@/lib/product-image";
+import { catalogImageUrl } from "@/lib/product-image";
 import type { CatalogProduct } from "@/lib/types";
 
 export function ShopSearch({
@@ -130,7 +130,7 @@ export function ShopSearch({
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={productDisplayImage(p.category_name, p.name, p.image_url)}
+                    src={catalogImageUrl(p.image_url)}
                     alt=""
                     className="h-10 w-14 shrink-0 object-contain"
                   />

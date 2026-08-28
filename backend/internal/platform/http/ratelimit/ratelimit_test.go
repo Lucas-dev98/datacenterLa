@@ -47,4 +47,11 @@ func TestPublicAPISkipsWebhookAndERP(t *testing.T) {
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("erp route should skip limiter, got %d", rec.Code)
 	}
+	req = httptest.NewRequest(http.MethodGet, "/static/products/x.png", nil)
+	req.RemoteAddr = "10.1.2.3:1"
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("static should skip limiter, got %d", rec.Code)
+	}
 }

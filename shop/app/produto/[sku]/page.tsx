@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { addToCart, fetchProduct } from "@/lib/api";
 import { formatPyg, formatUsd } from "@/lib/format";
-import { productDisplayImage } from "@/lib/product-image";
+import { catalogImageUrl } from "@/lib/product-image";
 import { getSessionId } from "@/lib/session";
 import type { CatalogProduct } from "@/lib/types";
 import { ShopShell } from "@/components/shop-shell";
@@ -77,7 +77,7 @@ export default function ProductPage() {
 
       <div className="mt-4 grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
         <MediaFrame
-          src={productDisplayImage(product.category_name, product.name, product.image_url)}
+          src={catalogImageUrl(product.image_url)}
           alt={product.name}
           ratio="4/3"
           className="ring-1 ring-neutral-200"

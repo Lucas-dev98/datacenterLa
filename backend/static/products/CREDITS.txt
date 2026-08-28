@@ -1,0 +1,145 @@
+
+Product photos from Wikimedia Commons. Used under the stated Creative Commons licenses.
+Attribution is required for CC BY / CC BY-SA works.
+
+lenovo-sr650-v3.jpg
+  note: three-quarter Lenovo ThinkSystem SR650 V3 2U with 24 SFF bays on black
+  used for: Lenovo ThinkSystem SR650 V3 SKU and homepage featured card
+  not used for: Dell PowerEdge R650
+
+dell-poweredge-r650.png
+  note: three-quarter Dell 1U honeycomb bezel with LCD on black; used for R650 vitrine/catalog
+  used for: Dell PowerEdge R650 SKU and homepage featured card
+
+dell-poweredge-r750.png
+  note: three-quarter Dell EMC honeycomb-bezel chassis on black; used for R750 vitrine/catalog
+  used for: Dell PowerEdge R750 SKU and homepage featured card
+
+dell-poweredge-rack.jpg
+  source: https://commons.wikimedia.org/wiki/File:Dell_PowerEdge_servers.jpg
+  license: CC BY-SA 2.0
+  author: Dell Inc. (Flickr)
+
+dell-poweredge-1u.jpg
+  source: https://commons.wikimedia.org/wiki/File:Dell_PowerEdge_R610.jpg
+  license: CC BY-SA 2.0
+  author: see Commons
+
+hpe-dl380.jpg
+  source: https://commons.wikimedia.org/wiki/File%3AHP_Proliant_DL380_G6_%28Generation_6%29.jpeg
+  license: CC BY-SA 3.0
+  author: Servershop24
+
+hpe-dl380-gen10-plus.jpg
+  note: three-quarter HPE ProLiant DL380 Gen10 Plus on black with green logo
+  used for: HPE/HP ProLiant DL380 Gen10 Plus SKU and homepage featured card
+  not used for: other DL380 gens (Gen9, Gen10 non-Plus, Gen11) or DL360
+
+cisco-catalyst.jpg
+  source: https://commons.wikimedia.org/wiki/File%3ACisco_Catalyst_2960-S_%2811625112186%29.jpg
+  license: CC BY 2.0
+  author: Dmitry Grigoriev from Nakhabino, Russia
+
+intel-xeon.jpg
+  source: https://commons.wikimedia.org/wiki/File%3AIntel_xeon_e5-1620_observe.jpg
+  license: CC BY-SA 4.0
+  author: Rjluna2
+  not used for: homepage Processador featured tile (replaced by amd-epyc-7302p.jpg)
+
+intel-xeon-6.jpg
+  note: Intel Xeon 6 processor product photo on black background
+  not used for: homepage Componentes e peças (replaced by amd-epyc-7302p.jpg)
+
+amd-epyc.jpg
+  source: https://commons.wikimedia.org/wiki/File%3AAmd_epyc_7302_top_side_IMGP3332_smial_wp.jpg
+  license: FAL
+  author: Smial ( talk )
+  used for: catalog AMD EPYC product fallback (product-image.ts)
+
+amd-epyc-7302p.jpg
+  source: https://commons.wikimedia.org/wiki/File:Amd_epyc_7302_top_side_IMGP3332_smial_wp.jpg
+  license: FAL
+  author: Smial (talk)
+  note: AMD EPYC 7302P top-down (silver IHS, teal substrate) on black background
+  used for: homepage Componentes e peças extra CPU image and Processador featured tile
+
+rdimm-micron.jpg
+  source: https://commons.wikimedia.org/wiki/File%3AMT36JSF1G72PZ-1G9K1HE.jpg
+  license: CC BY-SA 4.0
+  author: Mister rf
+
+rdimm-hynix.jpg
+  source: https://commons.wikimedia.org/wiki/File%3ASK_HYNIX_HMT451S6AFR8A-PB_4GB_PC3-12800_DDR3-1600MHz_SINGLE_RANK_MEMORY_MODULE_FRONT.jpg
+  license: CC BY-SA 4.0
+  author: Dinkun Chen
+
+rdimm-ddr5-ecc.png
+  note: DDR5 ECC RDIMM 16GB product photo on black background
+  used for: homepage Componentes e peças category block
+
+ssd-m2.jpg
+  source: https://commons.wikimedia.org/wiki/File%3ASamsung_980_PRO_PCIe_4.0_NVMe_SSD_1TB-top_PNr%C2%B00915.jpg
+  license: CC BY-SA 4.0
+  author: D-Kuru
+
+ssd-u2.jpg
+  source: https://commons.wikimedia.org/wiki/File%3AOCZ_Z6300_NVMe_flash_SSD%2C_U.2_%28SFF-8639%29_form-factor.jpg
+  license: CC BY-SA 4.0
+  author: Dmitry Nosachev
+
+ssd-u2-dark.jpg
+  note: same OCZ Z-Drive 6300 U.2 pair on black background (no white studio fill)
+  used for: homepage SSD Enterprise featured card and Componentes category photo
+  not used for: catalog product pages (those keep ssd-u2.jpg on the light shop UI)
+
+ssd-sata.jpg
+  source: https://commons.wikimedia.org/wiki/File%3ASAMSUNG_SATA_SSD_870_QVO_2TB_FRONT.jpg
+  license: CC BY-SA 4.0
+  author: Dinkun Chen
+
+hdd-exos.jpg
+  source: https://commons.wikimedia.org/wiki/File%3ASeagate_Exos_X20_20_TB_20240316_HOF01100_RAW-Export_000472.png
+  license: CC BY 4.0
+  author: PantheraLeo1359531
+
+nic-intel.jpg
+  source: https://commons.wikimedia.org/wiki/File%3AIntel_Gigabit_CT_Desktop_Adapter.jpg
+  license: CC BY-SA 4.0
+  author: Phiarc
+
+gpu-nvidia.jpg
+  source: https://commons.wikimedia.org/wiki/File%3ANvidia_GeForce_RTX_5060_Ti_16GB%2C_PNY_Overclocked_Dual_Fan%2C_front.jpg
+  license: CC BY-SA 4.0
+  author: FreeMediaKid!
+
+gpu-nvidia-rtx-6000-ada.jpg
+  source: https://www.dateks.lv/images/pic/1200/630/647/2383.jpg
+  note: vendor listing photo of NVIDIA RTX 6000 Ada Generation (Dateks)
+  used for: NVIDIA RTX 6000 Ada Generation SKU and homepage featured card
+  not used for: other NVIDIA GPUs (A4000, A6000, 4090, L40S)
+
+psu-atx.jpg
+  source: https://commons.wikimedia.org/wiki/File%3AFull_modular_ATX_power_supply_unit.jpg
+  license: CC BY-SA 4.0
+  author: Project Kei
+
+storage-nas.jpg
+  source: https://commons.wikimedia.org/wiki/File:Synology_Disk_Station_DS223J_-_NAS-Server.jpg
+  license: CC BY-SA 4.0
+  author: DYVER
+
+storage-san.jpg
+  source: https://commons.wikimedia.org/wiki/File:Wikimedia_Foundation_Servers-8055_01.jpg
+  license: CC BY-SA 3.0
+  author: Victor Grigas (Wikimedia Foundation)
+
+seagate-exos-chassis.png
+  note: stacked Seagate Exos rack chassis on black with orange handle accents
+  used for: Seagate Exos storage chassis SKUs (X 2U12, E 5U84 JBOD, CORVAULT 4U106) and homepage featured card
+  not used for: loose Exos HDDs, Synology/QNAP NAS, Dell PowerVault, HPE MSA, NetApp
+
+storage-seagate.jpg
+  source: https://commons.wikimedia.org/wiki/File:Compaq_StorageWorks_raid_array.jpg
+  license: see Commons
+  author: see Commons
+

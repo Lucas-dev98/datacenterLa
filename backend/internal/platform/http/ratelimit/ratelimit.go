@@ -36,7 +36,7 @@ func PublicAPI(next http.Handler) http.Handler {
 
 func publicBudget(r *http.Request) (int, time.Duration, bool) {
 	p := r.URL.Path
-	if strings.Contains(p, "/webhook/") {
+	if strings.Contains(p, "/webhook/") || strings.HasPrefix(p, "/static/") {
 		return 0, 0, false
 	}
 	switch {

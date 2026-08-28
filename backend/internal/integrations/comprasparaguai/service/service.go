@@ -269,6 +269,9 @@ func mapRow(row domain.FeedItemRow, cfg domain.FeedConfig) (domain.FeedItem, str
 	if row.ImageURL != nil {
 		imageURL = strings.TrimSpace(*row.ImageURL)
 	}
+	if imageURL != "" && strings.HasPrefix(imageURL, "/") && strings.TrimSpace(cfg.PublicAPIURL) != "" {
+		imageURL = strings.TrimRight(cfg.PublicAPIURL, "/") + imageURL
+	}
 
 	return domain.FeedItem{
 		SKUCode:         row.SKUCode,

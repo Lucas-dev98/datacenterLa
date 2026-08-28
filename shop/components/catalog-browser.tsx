@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { addToCart, fetchCatalog, fetchCategories } from "@/lib/api";
 import { CATALOG_GROUPS, categoryIdsForGroup, productInGroup } from "@/lib/catalog-groups";
 import { formatPyg, formatUsd } from "@/lib/format";
-import { productDisplayImage } from "@/lib/product-image";
+import { catalogImageUrl } from "@/lib/product-image";
 import { getSessionId } from "@/lib/session";
 import type { CatalogProduct, EcommerceCategory } from "@/lib/types";
 import { Breadcrumb } from "@/components/breadcrumb";
@@ -222,7 +222,7 @@ export function CatalogBrowser() {
             <article key={p.sku_id} className="group flex flex-col bg-white ring-1 ring-neutral-200 transition hover:ring-neutral-400">
               <Link href={`/produto/${p.sku_id}`} className="block">
                 <MediaFrame
-                  src={productDisplayImage(p.category_name, p.name, p.image_url)}
+                  src={catalogImageUrl(p.image_url)}
                   alt=""
                   ratio="4/3"
                 />

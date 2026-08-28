@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -125,6 +127,7 @@ func main() {
 		ProductURLPrefix: cfg.FeedProductURL,
 		BuyURLPrefix:     cfg.FeedBuyURL,
 		WebhookURL:       cfg.FeedWebhookURL,
+		PublicAPIURL:     cfg.PublicAPIURL,
 	})
 	cpH := cphandler.New(cpSvc)
 
@@ -142,6 +145,14 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
 	r.Use(ratelimit.PublicAPI)
+
+	if dir := resolveProductStaticDir(cfg.ProductStaticDir); dir != "" {
+		log.Printf("product images from %s", dir)
+		fileServer := http.StripPrefix("/static", http.FileServer(http.Dir(dir)))
+		r.Get("/static/*", func(w http.ResponseWriter, req *http.Request) {
+			fileServer.ServeHTTP(w, req)
+		})
+	}
 
 	r.Get("/health", func(w http.ResponseWriter, req *http.Request) {
 		ctx, cancel := context.WithTimeout(req.Context(), 2*time.Second)
@@ -250,4 +261,24 @@ func runReservationExpiry(svc *stockservice.Service) {
 			log.Printf("expired %d reservations", n)
 		}
 	}
+}
+
+func resolveProductStaticDir(configured string) string {
+	for _, p := range []string{configured, "static", filepath.Join("backend", "static")} {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		st, err := os.Stat(p)
+		if err != nil || !st.IsDir() {
+			continue
+		}
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			return p
+		}
+		return abs
+	}
+	log.Printf("product static dir not found; SKU image_url files will 404")
+	return ""
 }
