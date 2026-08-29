@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { addToCart, fetchCatalog, fetchCategories } from "@/lib/api";
 import { CATALOG_GROUPS, categoryIdsForGroup, productInGroup } from "@/lib/catalog-groups";
 import { formatPyg, formatUsd } from "@/lib/format";
@@ -13,16 +13,13 @@ import { Breadcrumb } from "@/components/breadcrumb";
 import { MediaFrame } from "@/components/media-frame";
 import { Alert, Button, Input, Select } from "@/components/ui";
 
-export function CatalogBrowser() {
+export function CatalogBrowser({ q: urlQ = "", grupo = "" }: { q?: string; grupo?: string }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const initialQ = searchParams.get("q") ?? "";
-  const grupo = searchParams.get("grupo") ?? "";
 
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [categories, setCategories] = useState<EcommerceCategory[]>([]);
   const [categoryId, setCategoryId] = useState("");
-  const [search, setSearch] = useState(initialQ);
+  const [search, setSearch] = useState(urlQ);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
@@ -36,8 +33,8 @@ export function CatalogBrowser() {
   }, [grupo]);
 
   useEffect(() => {
-    setSearch(initialQ);
-  }, [initialQ]);
+    setSearch(urlQ);
+  }, [urlQ]);
 
   useEffect(() => {
     void fetchCategories().then(setCategories).catch(() => {});
@@ -61,12 +58,12 @@ export function CatalogBrowser() {
           setLoading(false);
         }
       })();
-    }, search === initialQ ? 0 : 250);
+    }, search.trim() === urlQ ? 0 : 250);
     return () => clearTimeout(t);
-  }, [categoryId, search, initialQ]);
+  }, [categoryId, search, urlQ]);
 
   useEffect(() => {
-    if (search === initialQ) return;
+    if (search.trim() === urlQ) return;
     const t = setTimeout(() => {
       const next = term
         ? `/loja?q=${encodeURIComponent(term)}`
@@ -76,7 +73,13 @@ export function CatalogBrowser() {
       router.replace(next, { scroll: false });
     }, 400);
     return () => clearTimeout(t);
-  }, [search, initialQ, grupo, router, term]);
+  }, [search, urlQ, grupo, router, term]);
+
+  function submitSearch(e: FormEvent) {
+    e.preventDefault();
+    const next = term ? `/loja?q=${encodeURIComponent(term)}` : grupo ? `/loja?grupo=${encodeURIComponent(grupo)}` : "/loja";
+    router.push(next);
+  }
 
   const visible = useMemo(() => {
     if (!grupo || searching) return products;
@@ -145,13 +148,27 @@ export function CatalogBrowser() {
             ))}
           </div>
           <div className="flex flex-1 flex-wrap gap-2 lg:justify-end">
-            <Input
-              id="busca"
-              className="max-w-xs bg-white"
-              placeholder="SKU, marca, modelo…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            <form onSubmit={submitSearch} className="relative max-w-xs flex-1">
+              <Input
+                id="busca"
+                className="bg-white pr-9"
+                placeholder="SKU, marca, modelo…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              {search ? (
+                <button
+                  type="button"
+                  aria-label="Limpar busca"
+                  onClick={() => setSearch("")}
+                  className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-neutral-400 hover:text-neutral-700"
+                >
+                  ×
+                </button>
+              ) : null}
+            </form>
             <Select className="max-w-xs bg-white" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
               <option value="">Linha completa</option>
               {categories

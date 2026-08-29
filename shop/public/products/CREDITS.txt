@@ -2,8 +2,8 @@
 Product photos from Wikimedia Commons. Used under the stated Creative Commons licenses.
 Attribution is required for CC BY / CC BY-SA works.
 
-lenovo-sr650-v3.jpg
-  note: three-quarter Lenovo ThinkSystem SR650 V3 2U with 24 SFF bays on black
+lenovo-sr650-v3.png
+  note: front three-quarter Lenovo ThinkSystem SR650 V3 with SFF bays on black
   used for: Lenovo ThinkSystem SR650 V3 SKU and homepage featured card
   not used for: Dell PowerEdge R650
 
@@ -64,9 +64,8 @@ amd-epyc-7302p.jpg
   used for: homepage Componentes e peças extra CPU image and Processador featured tile
 
 rdimm-micron.jpg
-  source: https://commons.wikimedia.org/wiki/File%3AMT36JSF1G72PZ-1G9K1HE.jpg
-  license: CC BY-SA 4.0
-  author: Mister rf
+  note: Micron MT36JSF1G72PZ 8GB 2Rx4 PC3-14900R RDIMM front/back on black
+  used for: Micron ECC RDIMM SKUs and MEM_* category default image
 
 rdimm-hynix.jpg
   source: https://commons.wikimedia.org/wiki/File%3ASK_HYNIX_HMT451S6AFR8A-PB_4GB_PC3-12800_DDR3-1600MHz_SINGLE_RANK_MEMORY_MODULE_FRONT.jpg

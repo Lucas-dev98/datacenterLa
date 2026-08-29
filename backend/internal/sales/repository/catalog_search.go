@@ -91,6 +91,8 @@ var catalogTokenAliases = map[string][]string{
 	"processor":   {"processador", "xeon", "epyc", "cpu"},
 	"ram":         {"memoria", "rdimm", "dimm", "ecc"},
 	"memoria":     {"ram", "rdimm", "dimm", "ecc"},
+	"memorias":    {"memoria", "ram", "rdimm", "dimm", "ecc"},
+	"memories":    {"memoria", "ram", "rdimm", "dimm", "ecc"},
 	"rdimm":       {"ram", "memoria", "ecc", "dimm"},
 	"nic":         {"rede", "gbe", "ethernet", "x710", "i350", "connectx"},
 	"rede":        {"nic", "gbe", "ethernet", "x710", "i350", "connectx"},
@@ -143,6 +145,13 @@ var catalogNoisyPatterns = map[string]bool{
 	"ram": true,
 }
 
+func catalogStemPlural(token string) string {
+	if len(token) < 4 || !strings.HasSuffix(token, "s") || strings.HasSuffix(token, "ss") {
+		return ""
+	}
+	return strings.TrimSuffix(token, "s")
+}
+
 func catalogHasDigit(s string) bool {
 	for _, r := range s {
 		if unicode.IsDigit(r) {
@@ -162,6 +171,12 @@ func catalogPatternsForToken(token string, all []string) []string {
 		seen[v] = true
 	}
 	add(token)
+	if stem := catalogStemPlural(token); stem != "" && stem != token {
+		add(stem)
+		for _, a := range catalogTokenAliases[stem] {
+			add(a)
+		}
+	}
 	if c := catalogCompact(token); c != token {
 		add(c)
 	}

@@ -51,6 +51,13 @@ func TestCatalogPatternsIncludeAliases(t *testing.T) {
 	}
 }
 
+func TestCatalogPatternsStemPluralMemorias(t *testing.T) {
+	joined := strings.Join(catalogPatternsForToken("memorias", []string{"memorias"}), " ")
+	if !strings.Contains(joined, "memoria") {
+		t.Fatalf("memorias should stem to memoria, got %#v", joined)
+	}
+}
+
 func TestCatalogSearchSQLAndTokens(t *testing.T) {
 	sql, args, n := catalogSearchSQL("R650", nil, 2)
 	if sql == "" || n <= 2 || len(args) == 0 {

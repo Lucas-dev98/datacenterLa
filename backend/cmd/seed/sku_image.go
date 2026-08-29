@@ -18,9 +18,19 @@ func defaultSKUImageURL(category, skuName string) string {
 	case strings.Contains(name, "dl380") && (strings.Contains(name, "plus") || strings.Contains(name, "gen10+")):
 		return skuImagePrefix + "hpe-dl380-gen10-plus.jpg"
 	case strings.Contains(name, "sr650") && strings.Contains(name, "lenovo"):
-		return skuImagePrefix + "lenovo-sr650-v3.jpg"
+		return skuImagePrefix + "lenovo-sr650-v3.png"
 	case strings.Contains(name, "dl380") || strings.Contains(name, "dl360") || strings.Contains(name, "proliant"):
 		return skuImagePrefix + "hpe-dl380.jpg"
+	case strings.Contains(name, "catalyst 9300") || (strings.Contains(name, "catalyst") && !strings.Contains(name, "nexus")):
+		return skuImagePrefix + "cisco-catalyst-9300.png"
+	case strings.Contains(name, "nexus"):
+		return skuImagePrefix + "cisco-nexus-93180.png"
+	case strings.Contains(name, "aruba"):
+		return skuImagePrefix + "aruba-2930f.png"
+	case strings.Contains(name, "arista") || strings.Contains(name, "7050"):
+		return skuImagePrefix + "arista-7050sx.png"
+	case strings.Contains(name, "juniper") || strings.Contains(name, "ex4300"):
+		return skuImagePrefix + "juniper-ex4300.png"
 	}
 
 	switch {
@@ -59,7 +69,7 @@ func defaultSKUImageURL(category, skuName string) string {
 	case strings.HasPrefix(cat, "STG_"):
 		return skuImagePrefix + "storage-san.jpg"
 	case strings.HasPrefix(cat, "SW_"):
-		return skuImagePrefix + "cisco-catalyst.jpg"
+		return skuImagePrefix + "cisco-catalyst-9300.png"
 	default:
 		return skuImagePrefix + "placeholder.svg"
 	}

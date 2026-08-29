@@ -1,21 +1,16 @@
-import { Suspense } from "react";
 import { CatalogBrowser } from "@/components/catalog-browser";
 import { ShopShell } from "@/components/shop-shell";
 
-export default function LojaPage() {
+type PageProps = {
+  searchParams: Promise<{ q?: string; grupo?: string }>;
+};
+
+export default async function LojaPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+
   return (
     <ShopShell>
-      <Suspense
-        fallback={
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-80 animate-pulse rounded-lg bg-white/70 ring-1 ring-neutral-200" />
-            ))}
-          </div>
-        }
-      >
-        <CatalogBrowser />
-      </Suspense>
+      <CatalogBrowser q={params.q?.trim() ?? ""} grupo={params.grupo?.trim() ?? ""} />
     </ShopShell>
   );
 }
