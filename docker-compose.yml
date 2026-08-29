@@ -23,6 +23,15 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   api:
     build: ./backend
     restart: unless-stopped

@@ -109,7 +109,7 @@ export function Storefront() {
     (p): p is CatalogProduct => Boolean(p),
   );
   const partCPU = catalog.find((p) => p.sku_code === "000076");
-  const partRAM = catalog.find((p) => p.sku_code === "000001");
+  const partRAM = catalog.find((p) => p.sku_code === "000032");
   const partSSD = catalog.find((p) => p.sku_code === "000006");
 
   return (

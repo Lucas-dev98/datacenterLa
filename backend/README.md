@@ -15,6 +15,24 @@ docker compose up -d
 make seed
 ```
 
+### PostgreSQL (dev)
+
+| Campo | Valor |
+|-------|-------|
+| Host | `localhost` |
+| Porta | `5434` |
+| Banco | `datacenterla` |
+| Usuário | `datacenterla` |
+| Senha | `datacenterla` |
+
+**Adminer (web):** com `docker compose up -d`, abra [http://localhost:8081](http://localhost:8081), sistema **PostgreSQL**, servidor **`postgres`** (dentro do Docker) ou **`host.docker.internal:5434`** se o banco estiver só na máquina host.
+
+Também pode usar DBeaver, pgAdmin ou `psql`:
+
+```bash
+psql postgres://datacenterla:datacenterla@localhost:5434/datacenterla
+```
+
 ### Credenciais dev (seed)
 
 | Campo | Valor |

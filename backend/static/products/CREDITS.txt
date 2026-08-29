@@ -103,14 +103,12 @@ ssd-m2.jpg
   author: D-Kuru
 
 ssd-u2.jpg
-  source: https://commons.wikimedia.org/wiki/File%3AOCZ_Z6300_NVMe_flash_SSD%2C_U.2_%28SFF-8639%29_form-factor.jpg
-  license: CC BY-SA 4.0
-  author: Dmitry Nosachev
+  note: OCZ Z-Drive 6300 U.2 (SFF-8639) pair on black background
+  used for: U.2 / enterprise NVMe SSD SKUs, homepage Componentes block, and featured SSD tile
 
 ssd-u2-dark.jpg
-  note: same OCZ Z-Drive 6300 U.2 pair on black background (no white studio fill)
-  used for: homepage SSD Enterprise featured card and Componentes category photo
-  not used for: catalog product pages (those keep ssd-u2.jpg on the light shop UI)
+  note: alias of ssd-u2.jpg (same OCZ Z-Drive 6300 on black)
+  used for: legacy references to the dark-background U.2 photo
 
 ssd-sata.jpg
   source: https://commons.wikimedia.org/wiki/File%3ASAMSUNG_SATA_SSD_870_QVO_2TB_FRONT.jpg
@@ -123,9 +121,8 @@ hdd-exos.jpg
   author: PantheraLeo1359531
 
 nic-intel.jpg
-  source: https://commons.wikimedia.org/wiki/File%3AIntel_Gigabit_CT_Desktop_Adapter.jpg
-  license: CC BY-SA 4.0
-  author: Phiarc
+  note: Intel PCIe Gigabit NIC (WG82574L) on black background
+  used for: REDE_* network adapter SKUs (Intel X710, ConnectX, Broadcom, etc.)
 
 gpu-nvidia.jpg
   source: https://commons.wikimedia.org/wiki/File%3ANvidia_GeForce_RTX_5060_Ti_16GB%2C_PNY_Overclocked_Dual_Fan%2C_front.jpg
@@ -133,9 +130,8 @@ gpu-nvidia.jpg
   author: FreeMediaKid!
 
 gpu-nvidia-rtx-6000-ada.jpg
-  source: https://www.dateks.lv/images/pic/1200/630/647/2383.jpg
-  note: vendor listing photo of NVIDIA RTX 6000 Ada Generation (Dateks)
-  used for: NVIDIA RTX 6000 Ada Generation SKU and homepage featured card
+  note: NVIDIA RTX 6000 Ada Generation with retail box on black background
+  used for: NVIDIA RTX 6000 Ada Generation SKU (000099) and homepage featured card
   not used for: other NVIDIA GPUs (A4000, A6000, 4090, L40S)
 
 psu-atx.jpg

@@ -1,0 +1,1 @@
+-- No-op: prior URLs were already ssd-u2.jpg for most U.2 SKUs.

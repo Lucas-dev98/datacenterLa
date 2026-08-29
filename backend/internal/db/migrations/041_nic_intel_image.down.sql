@@ -1,0 +1,1 @@
+-- No-op: prior URLs were already nic-intel.jpg for most network SKUs.

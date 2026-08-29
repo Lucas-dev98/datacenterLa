@@ -13,6 +13,7 @@ func TestDefaultSKUImageURL(t *testing.T) {
 		{"SRV_RACK_2U", "Lenovo ThinkSystem SR650 V3 2U", "lenovo-sr650-v3.png"},
 		{"CPU_AMD", "AMD EPYC 7543 32C/64T Milan", "amd-epyc.jpg"},
 		{"MEM_SERVIDOR", "Samsung 32GB DDR4-3200 ECC RDIMM", "rdimm-micron.jpg"},
+		{"MEM_ECC", "Micron 16GB DDR4-3200 ECC RDIMM", "rdimm-micron.jpg"},
 		{"STG_SAN", "Seagate Exos X 2U12 12 baias SAS", "seagate-exos-chassis.png"},
 		{"SW_ACCESS", "Cisco Catalyst 9300 48p 1G", "cisco-catalyst-9300.png"},
 		{"SW_DATACENTER", "Cisco Nexus 93180YC-FX 48p 25G", "cisco-nexus-93180.png"},

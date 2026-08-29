@@ -10,5 +10,9 @@ export function catalogImageUrl(imageUrl?: string | null): string {
     return raw;
   }
   const path = raw.startsWith("/") ? raw : `/${raw}`;
-  return `${API_URL}${path}`;
+  const base = `${API_URL}${path}`;
+  if (path.startsWith("/static/products/") && !/[?&]v=/.test(base)) {
+    return `${base}?v=20260834`;
+  }
+  return base;
 }

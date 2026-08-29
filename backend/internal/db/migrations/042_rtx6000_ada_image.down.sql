@@ -1,0 +1,1 @@
+-- No-op: image_url was already gpu-nvidia-rtx-6000-ada.jpg for RTX 6000 Ada SKUs.

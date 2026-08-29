@@ -31,6 +31,8 @@ func defaultSKUImageURL(category, skuName string) string {
 		return skuImagePrefix + "arista-7050sx.png"
 	case strings.Contains(name, "juniper") || strings.Contains(name, "ex4300"):
 		return skuImagePrefix + "juniper-ex4300.png"
+	case strings.Contains(name, "micron") && (strings.Contains(name, "rdimm") || strings.Contains(name, "lrdimm") || strings.Contains(name, "dimm")):
+		return skuImagePrefix + "rdimm-micron.jpg"
 	}
 
 	switch {
