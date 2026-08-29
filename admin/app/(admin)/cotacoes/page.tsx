@@ -1,17 +1,46 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { QuoteListItem } from "@/lib/types";
 import { Alert, Button, Card, Select, Table } from "@/components/ui";
 
+type WebsiteRequest = {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  source: string;
+  status: string;
+  notes?: string;
+  created_at: string;
+};
+
+function cleanNotes(notes?: string): string {
+  if (!notes?.trim()) return "—";
+  return notes.replace(/^Cotação pelo site:\s*/i, "").trim() || "—";
+}
+
 export default function CotacoesPage() {
   const [items, setItems] = useState<QuoteListItem[]>([]);
+  const [website, setWebsite] = useState<WebsiteRequest[]>([]);
   const [status, setStatus] = useState("");
   const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [websiteError, setWebsiteError] = useState("");
+
+  const loadWebsite = useCallback(async () => {
+    setWebsiteError("");
+    try {
+      const res = await api<{ items: WebsiteRequest[] }>("/api/v1/sales/quotes/website-requests");
+      setWebsite(res.items ?? []);
+    } catch (err) {
+      setWebsiteError(err instanceof Error ? err.message : "Erro ao carregar solicitações do site");
+    }
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -33,13 +62,34 @@ export default function CotacoesPage() {
     void load();
   }, [status]);
 
+  useEffect(() => {
+    void loadWebsite();
+  }, [loadWebsite]);
+
+  async function setWebsiteStatus(id: string, next: string) {
+    try {
+      await api(`/api/v1/sales/quotes/website-requests/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: next }),
+      });
+      await loadWebsite();
+    } catch (err) {
+      setWebsiteError(err instanceof Error ? err.message : "Erro ao atualizar status");
+    }
+  }
+
+  const newWebsite = website.filter((w) => w.status === "new").length;
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Cotações</h1>
           <p className="mt-1 text-sm text-slate-600">
-            {total} cotação(ões) · CRM B2B
+            {total} cotação(ões) B2B
+            {website.length > 0
+              ? ` · ${website.length} solicitação(ões) do site${newWebsite ? ` (${newWebsite} nova${newWebsite > 1 ? "s" : ""})` : ""}`
+              : ""}
           </p>
         </div>
         <Link href="/cotacoes/nova">
@@ -47,18 +97,70 @@ export default function CotacoesPage() {
         </Link>
       </header>
 
-      <Card title="Filtros">
+      <Card title="Solicitações do site">
+        <p className="mb-4 text-sm text-slate-600">
+          Pedidos enviados pelo formulário de cotação da loja (`/contato`).
+        </p>
+        {websiteError ? <Alert tone="error">{websiteError}</Alert> : null}
+        {website.length === 0 && !websiteError ? (
+          <p className="text-sm text-slate-500">Nenhuma solicitação do site ainda.</p>
+        ) : website.length > 0 ? (
+          <div className="space-y-3">
+            {website.map((w) => (
+              <article
+                key={w.id}
+                className={`rounded-lg border p-4 ${
+                  w.status === "new" ? "border-amber-300 bg-amber-50/60" : "border-slate-200 bg-white"
+                }`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-slate-900">{w.name}</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {[w.email, w.phone, w.company].filter(Boolean).join(" · ") || "Sem contato extra"}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700">
+                      {w.status}
+                    </span>
+                    <span className="text-slate-500">
+                      {new Date(w.created_at).toLocaleString("pt-BR")}
+                    </span>
+                  </div>
+                </div>
+                <p className="mt-3 whitespace-pre-wrap text-sm text-slate-800">{cleanNotes(w.notes)}</p>
+                {w.status === "new" ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button type="button" onClick={() => void setWebsiteStatus(w.id, "contacted")}>
+                      Marcar contato
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => void setWebsiteStatus(w.id, "qualified")}>
+                      Qualificar
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => void setWebsiteStatus(w.id, "lost")}>
+                      Perdido
+                    </Button>
+                  </div>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        ) : null}
+      </Card>
+
+      <Card title="Filtros — cotações B2B">
         <Select className="max-w-xs" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">Todos os status</option>
           <option value="draft">Rascunho</option>
           <option value="sent">Enviada</option>
-          <option value="accepted">Aceita</option>
+          <option value="approved">Aceita</option>
           <option value="rejected">Rejeitada</option>
           <option value="expired">Expirada</option>
         </Select>
       </Card>
 
-      <Card title="Lista">
+      <Card title="Cotações B2B">
         {error ? <Alert tone="error">{error}</Alert> : null}
         {loading ? (
           <p className="text-sm text-slate-500">Carregando…</p>

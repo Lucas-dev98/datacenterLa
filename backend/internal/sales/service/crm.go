@@ -33,6 +33,10 @@ func (s *Service) ListLeads(ctx context.Context, limit int) ([]domain.Lead, erro
 	return s.repo.ListLeads(ctx, limit)
 }
 
+func (s *Service) ListWebsiteLeads(ctx context.Context, limit int) ([]domain.Lead, error) {
+	return s.repo.ListWebsiteLeads(ctx, limit)
+}
+
 func (s *Service) CreateLead(ctx context.Context, in domain.CreateLeadInput) (*domain.Lead, error) {
 	if strings.TrimSpace(in.Name) == "" {
 		return nil, domain.ErrInvalidInput

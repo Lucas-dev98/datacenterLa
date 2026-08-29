@@ -51,6 +51,8 @@ func (h *Handler) Routes() chi.Router {
 	r.Route("/quotes", func(r chi.Router) {
 		r.With(perm("sales.quotes.write")).Get("/", h.listQuotes)
 		r.With(perm("sales.quotes.write")).Post("/", h.createQuote)
+		r.With(perm("sales.quotes.write")).Get("/website-requests", h.listWebsiteQuoteRequests)
+		r.With(perm("sales.quotes.write")).Patch("/website-requests/{id}/status", h.updateWebsiteQuoteStatus)
 		r.With(perm("sales.quotes.write")).Get("/{id}", h.getQuote)
 		r.With(perm("sales.quotes.write")).Post("/{id}/send", h.sendQuote)
 		r.With(perm("sales.orders.write")).Post("/{id}/convert", h.convertQuote)
@@ -1256,6 +1258,36 @@ func (h *Handler) listLeads(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.JSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (h *Handler) listWebsiteQuoteRequests(w http.ResponseWriter, r *http.Request) {
+	items, err := h.svc.ListWebsiteLeads(r.Context(), 100)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, map[string]any{"items": items, "total": len(items)})
+}
+
+func (h *Handler) updateWebsiteQuoteStatus(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	l, err := h.svc.UpdateLeadStatus(r.Context(), id, body.Status)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, l)
 }
 
 func strPtr(s string) *string {

@@ -11,13 +11,32 @@ import (
 )
 
 func (r *Postgres) ListLeads(ctx context.Context, limit int) ([]domain.Lead, error) {
+	return r.listLeads(ctx, nil, limit)
+}
+
+// ListWebsiteLeads returns quote requests submitted from the public shop form.
+func (r *Postgres) ListWebsiteLeads(ctx context.Context, limit int) ([]domain.Lead, error) {
+	return r.listLeads(ctx, []string{"website", "web"}, limit)
+}
+
+func (r *Postgres) listLeads(ctx context.Context, sources []string, limit int) ([]domain.Lead, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := r.pool.Query(ctx, `
+	query := `
 		SELECT id, name, email, phone, company, source, status::text, notes, owner_id, customer_id, created_at, updated_at
-		FROM crm_leads ORDER BY created_at DESC LIMIT $1
-	`, limit)
+		FROM crm_leads`
+	args := []any{}
+	if len(sources) > 0 {
+		query += ` WHERE source = ANY($1)`
+		args = append(args, sources)
+		query += ` ORDER BY created_at DESC LIMIT $2`
+		args = append(args, limit)
+	} else {
+		query += ` ORDER BY created_at DESC LIMIT $1`
+		args = append(args, limit)
+	}
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
