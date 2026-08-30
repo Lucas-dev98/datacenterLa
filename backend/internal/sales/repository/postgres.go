@@ -1041,7 +1041,7 @@ func (r *Postgres) ClearCart(ctx context.Context, cartID uuid.UUID) error {
 
 // --- Catalog ---
 
-func (r *Postgres) ListEcommerceCatalog(ctx context.Context, warehouseID uuid.UUID, categoryID *uuid.UUID, search string) ([]domain.CatalogProduct, error) {
+func (r *Postgres) ListEcommerceCatalog(ctx context.Context, warehouseID uuid.UUID, categoryID *uuid.UUID, search string, skuCodes []string) ([]domain.CatalogProduct, error) {
 	q := `
 		SELECT s.id, s.code, s.name, s.description, p.category_id, c.name, s.image_url,
 		       COALESCE(b.qty_available, 0)
@@ -1057,6 +1057,11 @@ func (r *Postgres) ListEcommerceCatalog(ctx context.Context, warehouseID uuid.UU
 	if categoryID != nil {
 		q += fmt.Sprintf(` AND p.category_id = $%d`, n)
 		args = append(args, *categoryID)
+		n++
+	}
+	if len(skuCodes) > 0 {
+		q += fmt.Sprintf(` AND s.code = ANY($%d)`, n)
+		args = append(args, skuCodes)
 		n++
 	}
 	if strings.TrimSpace(search) != "" {

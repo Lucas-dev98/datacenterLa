@@ -31,6 +31,8 @@ func wipeTransactional(ctx context.Context, pool *pgxpool.Pool) error {
 			stock_counts,
 			stock_health_issues,
 			inventory_unit_intake_photos,
+			intake_test_photos,
+			supplier_return_requests,
 			stock_intake_batch_photos,
 			stock_movements,
 			stock_reservations,

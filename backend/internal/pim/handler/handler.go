@@ -2,8 +2,11 @@ package handler
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/datacenterla/platform/internal/pim/domain"
 	"github.com/datacenterla/platform/internal/pim/service"
@@ -33,6 +36,7 @@ func (h *Handler) Routes() chi.Router {
 		r.With(w).Post("/", h.createCategory)
 		r.With(rd).Get("/{id}", h.getCategory)
 		r.With(w).Put("/{id}", h.updateCategory)
+		r.With(w).Delete("/{id}", h.deactivateCategory)
 		r.With(rd).Get("/{id}/attributes", h.listCategoryAttributes)
 		r.With(w).Post("/{id}/attributes", h.createCategoryAttribute)
 	})
@@ -54,6 +58,7 @@ func (h *Handler) Routes() chi.Router {
 		r.With(rd).Get("/code/{code}", h.getSKUByCode)
 		r.With(rd).Get("/{id}", h.getSKU)
 		r.With(w).Put("/{id}", h.updateSKU)
+		r.With(w).Post("/{id}/image", h.uploadSKUImage)
 		r.With(w).Delete("/{id}", h.deactivateSKU)
 	})
 
@@ -115,6 +120,19 @@ func (h *Handler) updateCategory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.JSON(w, http.StatusOK, c)
+}
+
+func (h *Handler) deactivateCategory(w http.ResponseWriter, r *http.Request) {
+	id, err := parseUUID(chi.URLParam(r, "id"))
+	if err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	if err := h.svc.DeactivateCategory(r.Context(), id); err != nil {
+		response.Error(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) listCategoryAttributes(w http.ResponseWriter, r *http.Request) {
@@ -310,6 +328,46 @@ func (h *Handler) updateSKU(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s, err := h.svc.UpdateSKU(r.Context(), id, in)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, s)
+}
+
+func (h *Handler) uploadSKUImage(w http.ResponseWriter, r *http.Request) {
+	id, err := parseUUID(chi.URLParam(r, "id"))
+	if err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	if err := r.ParseMultipartForm(8 << 20); err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	file, hdr, err := r.FormFile("image")
+	if err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	defer file.Close()
+	body, err := io.ReadAll(io.LimitReader(file, 8<<20))
+	if err != nil || len(body) == 0 {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	ext := strings.TrimPrefix(filepath.Ext(hdr.Filename), ".")
+	if ext == "" {
+		switch hdr.Header.Get("Content-Type") {
+		case "image/png":
+			ext = "png"
+		case "image/webp":
+			ext = "webp"
+		default:
+			ext = "jpg"
+		}
+	}
+	s, err := h.svc.UploadSKUImage(r.Context(), id, ext, body)
 	if err != nil {
 		response.Error(w, err)
 		return

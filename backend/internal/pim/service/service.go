@@ -7,6 +7,7 @@ import (
 
 	"github.com/datacenterla/platform/internal/pim/domain"
 	"github.com/datacenterla/platform/internal/pim/repository"
+	"github.com/datacenterla/platform/internal/platform/storage"
 	"github.com/google/uuid"
 )
 
@@ -37,6 +38,24 @@ func (s *Service) ListCategories(ctx context.Context, activeOnly bool) ([]domain
 
 func (s *Service) UpdateCategory(ctx context.Context, id uuid.UUID, in domain.UpdateCategoryInput) (*domain.Category, error) {
 	return s.repo.UpdateCategory(ctx, id, in)
+}
+
+func (s *Service) DeactivateCategory(ctx context.Context, id uuid.UUID) error {
+	children, err := s.repo.CountActiveChildCategories(ctx, id)
+	if err != nil {
+		return err
+	}
+	if children > 0 {
+		return fmt.Errorf("%w: category has active child categories", domain.ErrHasDependents)
+	}
+	products, err := s.repo.CountActiveProductsInCategory(ctx, id)
+	if err != nil {
+		return err
+	}
+	if products > 0 {
+		return fmt.Errorf("%w: category has active products", domain.ErrHasDependents)
+	}
+	return s.repo.DeactivateCategory(ctx, id)
 }
 
 func (s *Service) CreateCategoryAttribute(ctx context.Context, categoryID uuid.UUID, in domain.CreateCategoryAttributeInput) (*domain.CategoryAttribute, error) {
@@ -232,6 +251,17 @@ func (s *Service) UpdateSKU(ctx context.Context, id uuid.UUID, in domain.UpdateS
 		_ = s.repo.InsertOutboxEvent(ctx, "pim.publish_changed", map[string]any{"sku_id": id.String()})
 	}
 	return sku, nil
+}
+
+func (s *Service) UploadSKUImage(ctx context.Context, id uuid.UUID, ext string, body []byte) (*domain.SKU, error) {
+	if _, err := s.repo.GetSKU(ctx, id); err != nil {
+		return nil, err
+	}
+	url, err := storage.SaveSKUCatalogImage(id, ext, body)
+	if err != nil {
+		return nil, err
+	}
+	return s.UpdateSKU(ctx, id, domain.UpdateSKUInput{ImageURL: &url})
 }
 
 func (s *Service) DeactivateSKU(ctx context.Context, id uuid.UUID) error {

@@ -413,7 +413,19 @@ export default function ComprasPage() {
             o.supplier_name ?? "—",
             o.status,
             new Date(o.created_at).toLocaleDateString("pt-BR"),
-            <Link key="l" href={`/compras/${o.id}`} className="text-blue-600 hover:underline">Abrir</Link>,
+            <span key="l" className="flex flex-col gap-1">
+              <Link href={`/compras/${o.id}`} className="text-blue-600 hover:underline">
+                Abrir
+              </Link>
+              {o.status === "ordered" || o.status === "partial" ? (
+                <Link
+                  href={`/estoque/entrada/compras/${o.id}/receber`}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  Receber mercadoria
+                </Link>
+              ) : null}
+            </span>,
           ])}
         />
       </Card>

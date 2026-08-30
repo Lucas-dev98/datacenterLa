@@ -1,10 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { QrScanner } from "@/components/qr-scanner";
 import { api } from "@/lib/api";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
-import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
+import { parseQrPayload } from "@/lib/qr-decode";
+import { playScanBeep, unlockScanAudio } from "@/lib/scan-beep";
+import type { InventoryUnitDetail, SKU } from "@/lib/types";
+import { Alert, Button, Card, Field, Input, Table } from "@/components/ui";
 
 type StockCount = {
   id: string;
@@ -12,7 +16,13 @@ type StockCount = {
   status: string;
   count_type: string;
   created_at: string;
-  lines?: { sku_code?: string; system_qty: number; counted_qty?: number; variance: number }[];
+  lines?: {
+    sku_code?: string;
+    unit_code?: string;
+    system_qty: number;
+    counted_qty?: number;
+    variance: number;
+  }[];
 };
 
 type Adjustment = {
@@ -23,17 +33,32 @@ type Adjustment = {
   status: string;
 };
 
+type ResolvedItem = {
+  kind: "unit" | "sku";
+  code: string;
+  skuId: string;
+  skuCode: string;
+  label: string;
+};
+
 export default function InventarioPage() {
   const [counts, setCounts] = useState<StockCount[]>([]);
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
   const [selectedCount, setSelectedCount] = useState<StockCount | null>(null);
-  const [skuId, setSkuId] = useState("");
-  const [countedQty, setCountedQty] = useState("0");
+  const [scanInput, setScanInput] = useState("");
+  const [skuQty, setSkuQty] = useState("1");
+  const [autoIncrement, setAutoIncrement] = useState(true);
+  const [resolved, setResolved] = useState<ResolvedItem | null>(null);
+  const [pendingSkuCounts, setPendingSkuCounts] = useState<Record<string, number>>({});
   const [adjSku, setAdjSku] = useState("");
   const [adjDelta, setAdjDelta] = useState("-1");
   const [adjReason, setAdjReason] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const [busy, setBusy] = useState(false);
+  const scanInputRef = useRef<HTMLInputElement>(null);
+
+  const counting = selectedCount?.status === "in_progress";
 
   async function load() {
     setError("");
@@ -53,53 +78,216 @@ export default function InventarioPage() {
     void load();
   }, []);
 
+  useEffect(() => {
+    if (counting) scanInputRef.current?.focus();
+  }, [counting, selectedCount?.id]);
+
+  async function refreshCount(id: string) {
+    const c = await api<StockCount>(`/api/v1/stock/counts/${id}`);
+    setSelectedCount(c);
+    return c;
+  }
+
   async function createCount() {
+    setBusy(true);
+    setError("");
     try {
       const c = await api<StockCount>("/api/v1/stock/counts", {
         method: "POST",
         body: JSON.stringify({ warehouse_id: DEFAULT_WAREHOUSE_ID, count_type: "full" }),
       });
       setSelectedCount(c);
-      setInfo("Sessão de inventário criada");
+      setPendingSkuCounts({});
+      setResolved(null);
+      setInfo("Sessão de inventário criada — clique em Iniciar para começar a contagem.");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
+    } finally {
+      setBusy(false);
     }
   }
 
   async function startCount(id: string) {
-    await api(`/api/v1/stock/counts/${id}/start`, { method: "POST" });
-    const c = await api<StockCount>(`/api/v1/stock/counts/${id}`);
-    setSelectedCount(c);
-    setInfo("Contagem iniciada");
+    setBusy(true);
+    unlockScanAudio();
+    try {
+      await api(`/api/v1/stock/counts/${id}/start`, { method: "POST" });
+      await refreshCount(id);
+      setInfo("Contagem iniciada — escaneie QR codes ou digite códigos.");
+      setScanInput("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro");
+    } finally {
+      setBusy(false);
+    }
   }
 
-  async function addLine(e: FormEvent) {
+  const resolveSku = useCallback(async (code: string): Promise<ResolvedItem> => {
+    const sku = await api<SKU>(`/api/v1/pim/skus/code/${encodeURIComponent(code)}`);
+    return {
+      kind: "sku",
+      code,
+      skuId: sku.id,
+      skuCode: sku.code,
+      label: sku.name,
+    };
+  }, []);
+
+  const resolveUnit = useCallback(async (code: string): Promise<ResolvedItem> => {
+    const unit = await api<InventoryUnitDetail>(
+      `/api/v1/stock/units/code/${encodeURIComponent(code)}`,
+    );
+    return {
+      kind: "unit",
+      code: unit.unit_code,
+      skuId: unit.sku_id,
+      skuCode: unit.sku_code,
+      label: unit.product_name || unit.sku_name || unit.sku_code,
+    };
+  }, []);
+
+  const registerUnit = useCallback(
+    async (unitCode: string) => {
+      if (!selectedCount) return;
+      const c = await api<StockCount>(`/api/v1/stock/counts/${selectedCount.id}/lines`, {
+        method: "POST",
+        body: JSON.stringify({ unit_code: unitCode }),
+      });
+      setSelectedCount(c);
+      setInfo(`Unidade ${unitCode} registrada na contagem.`);
+      playScanBeep();
+    },
+    [selectedCount],
+  );
+
+  const registerSkuQty = useCallback(
+    async (item: ResolvedItem, qty: number) => {
+      if (!selectedCount || qty < 0) return;
+      const c = await api<StockCount>(`/api/v1/stock/counts/${selectedCount.id}/lines`, {
+        method: "POST",
+        body: JSON.stringify({ sku_id: item.skuId, counted_qty: qty }),
+      });
+      setSelectedCount(c);
+      setPendingSkuCounts((prev) => ({ ...prev, [item.skuId]: qty }));
+      setInfo(`SKU ${item.skuCode}: ${qty} unidade(s) registrada(s).`);
+      playScanBeep();
+    },
+    [selectedCount],
+  );
+
+  const processScan = useCallback(
+    async (raw: string) => {
+      if (!selectedCount || selectedCount.status !== "in_progress") {
+        setError("Inicie uma sessão de contagem antes de escanear.");
+        return;
+      }
+
+      const payload = parseQrPayload(raw);
+      if (!payload) {
+        setError("Código não reconhecido. Use etiqueta AAA ou SKU.");
+        return;
+      }
+
+      setBusy(true);
+      setError("");
+      try {
+        if (payload.kind === "unit") {
+          const item = await resolveUnit(payload.code);
+          setResolved(item);
+          await registerUnit(item.code);
+          setScanInput("");
+          return;
+        }
+
+        const item = await resolveSku(payload.code);
+        setResolved(item);
+
+        if (autoIncrement) {
+          const prev =
+            pendingSkuCounts[item.skuId] ??
+            selectedCount.lines?.find((l) => l.sku_code === item.skuCode)?.counted_qty ??
+            0;
+          const next = (typeof prev === "number" ? prev : 0) + 1;
+          await registerSkuQty(item, next);
+          setScanInput("");
+          return;
+        }
+
+        setSkuQty(String((pendingSkuCounts[item.skuId] ?? 0) + 1));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erro ao processar código");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [
+      selectedCount,
+      autoIncrement,
+      pendingSkuCounts,
+      resolveUnit,
+      resolveSku,
+      registerUnit,
+      registerSkuQty,
+    ],
+  );
+
+  async function onManualScan(e: FormEvent) {
     e.preventDefault();
-    if (!selectedCount) return;
-    const c = await api<StockCount>(`/api/v1/stock/counts/${selectedCount.id}/lines`, {
-      method: "POST",
-      body: JSON.stringify({ sku_id: skuId, counted_qty: parseInt(countedQty, 10) || 0 }),
-    });
-    setSelectedCount(c);
-    setInfo("Linha registrada");
+    if (!scanInput.trim()) return;
+    await processScan(scanInput);
+  }
+
+  async function submitSkuQty(e: FormEvent) {
+    e.preventDefault();
+    if (!resolved || resolved.kind !== "sku") return;
+    const qty = parseInt(skuQty, 10);
+    if (Number.isNaN(qty) || qty < 0) {
+      setError("Informe uma quantidade válida.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await registerSkuQty(resolved, qty);
+      setScanInput("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao registrar");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function completeCount() {
     if (!selectedCount) return;
-    await api(`/api/v1/stock/counts/${selectedCount.id}/complete`, { method: "POST" });
-    const c = await api<StockCount>(`/api/v1/stock/counts/${selectedCount.id}`);
-    setSelectedCount(c);
-    setInfo("Contagem finalizada — aguardando aprovação");
-    await load();
+    setBusy(true);
+    try {
+      await api(`/api/v1/stock/counts/${selectedCount.id}/complete`, { method: "POST" });
+      await refreshCount(selectedCount.id);
+      setInfo("Contagem finalizada — aguardando aprovação.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function approveCount() {
     if (!selectedCount) return;
-    const c = await api<StockCount>(`/api/v1/stock/counts/${selectedCount.id}/approve`, { method: "POST" });
-    setSelectedCount(c);
-    setInfo("Inventário aprovado — ajustes gerados");
-    await load();
+    setBusy(true);
+    try {
+      const c = await api<StockCount>(`/api/v1/stock/counts/${selectedCount.id}/approve`, {
+        method: "POST",
+      });
+      setSelectedCount(c);
+      setInfo("Inventário aprovado — ajustes gerados.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function createAdjustment(e: FormEvent) {
@@ -128,6 +316,8 @@ export default function InventarioPage() {
     await load();
   }
 
+  const lineCount = selectedCount?.lines?.length ?? 0;
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <header>
@@ -137,66 +327,162 @@ export default function InventarioPage() {
           </Link>
         </p>
         <h1 className="text-2xl font-semibold text-slate-900">Inventário e ajustes</h1>
-        <p className="mt-1 text-sm text-slate-600">Contagem física com aprovação e ajustes auditados</p>
+        <p className="mt-1 text-sm text-slate-600">
+          Escaneie QR codes de unidades (AAA) ou SKUs, registre a contagem e finalize para aprovação.
+        </p>
       </header>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
       {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card title="Inventário">
-        <div className="mb-4 flex gap-2">
-          <Button type="button" onClick={() => void createCount()}>Nova contagem</Button>
+        <div className="mb-4 flex flex-wrap gap-2">
+          <Button type="button" onClick={() => void createCount()} disabled={busy}>
+            Nova contagem
+          </Button>
           {selectedCount ? (
             <>
               {selectedCount.status === "draft" ? (
-                <Button type="button" variant="secondary" onClick={() => void startCount(selectedCount.id)}>Iniciar</Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={() => void startCount(selectedCount.id)}
+                >
+                  Iniciar
+                </Button>
               ) : null}
               {selectedCount.status === "in_progress" ? (
-                <Button type="button" variant="secondary" onClick={() => void completeCount()}>Finalizar</Button>
+                <Button type="button" variant="secondary" disabled={busy} onClick={() => void completeCount()}>
+                  Finalizar
+                </Button>
               ) : null}
               {selectedCount.status === "pending_review" ? (
-                <Button type="button" onClick={() => void approveCount()}>Aprovar</Button>
+                <Button type="button" disabled={busy} onClick={() => void approveCount()}>
+                  Aprovar
+                </Button>
               ) : null}
             </>
           ) : null}
         </div>
+
         {selectedCount ? (
           <p className="mb-4 text-sm text-slate-600">
-            Sessão <span className="font-mono">{selectedCount.id.slice(0, 8)}…</span> · status: <strong>{selectedCount.status}</strong>
+            Sessão <span className="font-mono">{selectedCount.id.slice(0, 8)}…</span> · status:{" "}
+            <strong>{selectedCount.status}</strong>
+            {lineCount > 0 ? ` · ${lineCount} linha(s) registrada(s)` : null}
           </p>
         ) : null}
-        {selectedCount?.status === "in_progress" ? (
-          <form className="mb-4 grid gap-3 sm:grid-cols-3" onSubmit={addLine}>
-            <Field label="SKU ID (UUID)">
-              <Input value={skuId} onChange={(e) => setSkuId(e.target.value)} required />
-            </Field>
-            <Field label="Qtd contada">
-              <Input type="number" value={countedQty} onChange={(e) => setCountedQty(e.target.value)} />
-            </Field>
-            <div className="flex items-end">
-              <Button type="submit">Registrar linha</Button>
+
+        {counting ? (
+          <div className="mb-6 space-y-4 rounded-lg border border-slate-200 bg-slate-50/80 p-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">Leitura de QR code</h3>
+              <p className="mt-1 text-xs text-slate-600">
+                Etiqueta de unidade (AAA) registra 1 peça por leitura. Etiqueta de SKU acumula quantidade
+                {autoIncrement ? " (+1 a cada scan)" : " (informe a qtd abaixo)"}.
+              </p>
             </div>
-          </form>
+
+            <QrScanner onScan={(text) => void processScan(text)} disabled={busy} />
+
+            <form className="flex flex-wrap items-end gap-3" onSubmit={onManualScan}>
+              <div className="min-w-[220px] flex-1">
+                <Field label="Código (QR, AAA ou SKU)">
+                  <Input
+                    inputRef={scanInputRef}
+                    className="font-mono"
+                    value={scanInput}
+                    onChange={(e) => setScanInput(e.target.value)}
+                    placeholder="AAA0001 ou 000042"
+                    autoComplete="off"
+                    disabled={busy}
+                  />
+                </Field>
+              </div>
+              <Button type="submit" disabled={busy || !scanInput.trim()}>
+                Processar
+              </Button>
+            </form>
+
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={autoIncrement}
+                onChange={(e) => setAutoIncrement(e.target.checked)}
+              />
+              Incrementar +1 automaticamente ao escanear SKU
+            </label>
+
+            {resolved ? (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm">
+                <p className="font-medium text-emerald-900">
+                  {resolved.kind === "unit" ? "Unidade" : "SKU"}:{" "}
+                  <span className="font-mono">{resolved.code}</span>
+                </p>
+                <p className="text-emerald-800">
+                  {resolved.skuCode} — {resolved.label}
+                </p>
+              </div>
+            ) : null}
+
+            {resolved?.kind === "sku" && !autoIncrement ? (
+              <form className="flex flex-wrap items-end gap-3" onSubmit={submitSkuQty}>
+                <Field label="Qtd contada deste SKU">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={skuQty}
+                    onChange={(e) => setSkuQty(e.target.value)}
+                    disabled={busy}
+                  />
+                </Field>
+                <Button type="submit" disabled={busy}>
+                  Registrar quantidade
+                </Button>
+              </form>
+            ) : null}
+          </div>
+        ) : selectedCount ? (
+          <p className="mb-4 text-sm text-slate-500">Clique em Iniciar para habilitar o scanner.</p>
         ) : null}
+
         {selectedCount?.lines?.length ? (
           <Table
-            headers={["SKU", "Sistema", "Contado", "Variância"]}
+            headers={["SKU", "Unidade", "Sistema", "Contado", "Variância"]}
             rows={selectedCount.lines.map((l) => [
               l.sku_code ?? "—",
+              l.unit_code ?? "—",
               l.system_qty,
               l.counted_qty ?? "—",
               l.variance,
             ])}
           />
         ) : null}
+
         <div className="mt-4">
           <Table
-            headers={["ID", "Status", "Tipo", "Criado"]}
+            headers={["ID", "Status", "Tipo", "Criado", ""]}
             rows={counts.map((c) => [
               c.id.slice(0, 8) + "…",
               c.status,
               c.count_type,
               new Date(c.created_at).toLocaleString("pt-BR"),
+              c.status === "draft" || c.status === "in_progress" ? (
+                <button
+                  key={c.id}
+                  type="button"
+                  className="text-blue-600 hover:underline"
+                  onClick={() => {
+                    setSelectedCount(c);
+                    void refreshCount(c.id);
+                  }}
+                >
+                  Abrir
+                </button>
+              ) : (
+                "—"
+              ),
             ])}
           />
         </div>
@@ -226,10 +512,22 @@ export default function InventarioPage() {
             a.reason,
             <div key="a" className="flex gap-2">
               {a.status === "pending" ? (
-                <button type="button" className="text-blue-600 hover:underline" onClick={() => void approveAdj(a.id)}>Aprovar</button>
+                <button
+                  type="button"
+                  className="text-blue-600 hover:underline"
+                  onClick={() => void approveAdj(a.id)}
+                >
+                  Aprovar
+                </button>
               ) : null}
               {a.status === "approved" ? (
-                <button type="button" className="text-blue-600 hover:underline" onClick={() => void applyAdj(a.id)}>Aplicar</button>
+                <button
+                  type="button"
+                  className="text-blue-600 hover:underline"
+                  onClick={() => void applyAdj(a.id)}
+                >
+                  Aplicar
+                </button>
               ) : null}
             </div>,
           ])}

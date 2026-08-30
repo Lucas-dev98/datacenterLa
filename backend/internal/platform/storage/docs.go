@@ -36,6 +36,10 @@ func RMATestPhotoDir() string {
 	return filepath.Join(dataDir(), "rma-test-photos")
 }
 
+func IntakeTestPhotoDir() string {
+	return filepath.Join(dataDir(), "intake-test-photos")
+}
+
 func SaveCustomerDocument(customerID uuid.UUID, ext string, body []byte) (string, error) {
 	ext = normalizeImageExt(ext)
 	if err := os.MkdirAll(CustomerDocDir(), 0o755); err != nil {
@@ -128,6 +132,54 @@ func SaveRMATestPhoto(caseID, photoID uuid.UUID, ext string, body []byte) (strin
 		return "", fmt.Errorf("write rma test photo: %w", err)
 	}
 	return rel, nil
+}
+
+func SaveIntakeTestPhoto(unitID, photoID uuid.UUID, ext string, body []byte) (string, error) {
+	ext = normalizeImageExt(ext)
+	if err := os.MkdirAll(IntakeTestPhotoDir(), 0o755); err != nil {
+		return "", fmt.Errorf("create intake test photo dir: %w", err)
+	}
+	rel := filepath.Join("intake-test-photos", unitID.String(), photoID.String()+"."+ext)
+	abs := filepath.Join(dataDir(), rel)
+	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		return "", fmt.Errorf("create intake test photo dir: %w", err)
+	}
+	if err := os.WriteFile(abs, body, 0o644); err != nil {
+		return "", fmt.Errorf("write intake test photo: %w", err)
+	}
+	return rel, nil
+}
+
+// SaveSKUCatalogImage writes a catalog photo under the public /static/products/uploads tree.
+// Returns the public URL path stored in skus.image_url (e.g. /static/products/uploads/...).
+func SaveSKUCatalogImage(skuID uuid.UUID, ext string, body []byte) (string, error) {
+	ext = normalizeImageExt(ext)
+	if len(body) == 0 {
+		return "", fmt.Errorf("empty image")
+	}
+	root := productStaticRoot()
+	dir := filepath.Join(root, "products", "uploads")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("create product upload dir: %w", err)
+	}
+	name := fmt.Sprintf("%s-%s.%s", skuID.String(), uuid.New().String()[:8], ext)
+	abs := filepath.Join(dir, name)
+	if err := os.WriteFile(abs, body, 0o644); err != nil {
+		return "", fmt.Errorf("write product image: %w", err)
+	}
+	return "/static/products/uploads/" + name, nil
+}
+
+func productStaticRoot() string {
+	if v := strings.TrimSpace(os.Getenv("PRODUCT_STATIC_DIR")); v != "" {
+		return v
+	}
+	for _, p := range []string{"static", filepath.Join("backend", "static")} {
+		if st, err := os.Stat(p); err == nil && st.IsDir() {
+			return p
+		}
+	}
+	return "static"
 }
 
 func normalizeImageExt(ext string) string {

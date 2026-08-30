@@ -2,12 +2,17 @@ package handler
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
+	"strconv"
+	"strings"
 
 	authmiddleware "github.com/datacenterla/platform/internal/auth/middleware"
 	"github.com/datacenterla/platform/internal/platform/http/response"
 	"github.com/datacenterla/platform/internal/purchases/domain"
 	"github.com/datacenterla/platform/internal/purchases/service"
+	stockdomain "github.com/datacenterla/platform/internal/stock/domain"
+	stockservice "github.com/datacenterla/platform/internal/stock/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -40,6 +45,7 @@ func (h *Handler) Routes() chi.Router {
 		r.With(read).Get("/{id}", h.getOrder)
 		r.With(write).Post("/{id}/submit", h.submitOrder)
 		r.With(recv).Post("/{id}/receive", h.receiveOrder)
+		r.With(recv).Post("/{id}/receive-intake", h.receiveOrderIntake)
 		r.With(write).Post("/{id}/cancel", h.cancelOrder)
 	})
 	return r
@@ -171,6 +177,53 @@ func (h *Handler) receiveOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.JSON(w, http.StatusOK, po)
+}
+
+func (h *Handler) receiveOrderIntake(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	raw := strings.TrimSpace(r.FormValue("payload"))
+	if raw == "" {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	var in domain.ReceivePOInput
+	if err := json.Unmarshal([]byte(raw), &in); err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	var batchPhotos []stockdomain.IntakePhotoUpload
+	for i := 0; i < 5; i++ {
+		key := "batch_photo_" + strconv.Itoa(i)
+		file, hdr, err := r.FormFile(key)
+		if err != nil {
+			continue
+		}
+		body, err := io.ReadAll(io.LimitReader(file, 8<<20))
+		file.Close()
+		if err != nil || len(body) == 0 {
+			response.Error(w, domain.ErrInvalidInput)
+			return
+		}
+		batchPhotos = append(batchPhotos, stockdomain.IntakePhotoUpload{
+			Body: body,
+			Ext:  stockservice.PhotoExtFromUpload(hdr.Filename, hdr.Header.Get("Content-Type")),
+		})
+	}
+	uc, _ := authmiddleware.UserFromContext(r.Context())
+	result, err := h.svc.ReceivePurchaseOrderWithIntake(r.Context(), id, in, batchPhotos, uuid.MustParse(uc.UserID))
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusCreated, result)
 }
 
 func (h *Handler) cancelOrder(w http.ResponseWriter, r *http.Request) {

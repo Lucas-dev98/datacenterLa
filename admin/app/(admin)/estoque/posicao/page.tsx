@@ -174,7 +174,7 @@ export default function EstoquePosicaoPage() {
         ) : items.length === 0 ? (
           <p className="text-sm text-slate-500">
             Nenhum saldo encontrado. Cadastre SKUs em{" "}
-            <Link href="/estoque/cadastro" className="text-blue-600 hover:underline">
+            <Link href="/produtos" className="text-blue-600 hover:underline">
               Cadastro
             </Link>{" "}
             e receba mercadoria em{" "}

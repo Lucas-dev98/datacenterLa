@@ -1,9 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, uploadSKUImage } from "@/lib/api";
 import { API_URL } from "@/lib/config";
 import type { CategoryAttribute, Product, ProductAttributeValue, SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Textarea } from "@/components/ui";
@@ -17,8 +17,16 @@ function attrValue(attrs: ProductAttributeValue[], attrId: string): string {
   return "";
 }
 
+function resolveImageSrc(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith("blob:")) return trimmed;
+  return `${API_URL}${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
+}
+
 export default function ProdutoEditPage() {
   const params = useParams<{ id: string }>();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [product, setProduct] = useState<Product | null>(null);
   const [sku, setSku] = useState<SKU | null>(null);
   const [catAttrs, setCatAttrs] = useState<CategoryAttribute[]>([]);
@@ -30,6 +38,8 @@ export default function ProdutoEditPage() {
   const [descriptionEs, setDescriptionEs] = useState("");
   const [generatedEs, setGeneratedEs] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [localPreview, setLocalPreview] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [publishCp, setPublishCp] = useState(false);
   const [publishEcom, setPublishEcom] = useState(false);
   const [costUsd, setCostUsd] = useState("");
@@ -89,24 +99,63 @@ export default function ProdutoEditPage() {
     void load();
   }, [params.id]);
 
+  useEffect(() => {
+    return () => {
+      if (localPreview) URL.revokeObjectURL(localPreview);
+    };
+  }, [localPreview]);
+
+  async function onPickFile(file: File | null) {
+    if (!file || !sku) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Selecione um arquivo de imagem (JPG, PNG ou WebP).");
+      return;
+    }
+    setError("");
+    setInfo("");
+    setUploadingImage(true);
+    const preview = URL.createObjectURL(file);
+    if (localPreview) URL.revokeObjectURL(localPreview);
+    setLocalPreview(preview);
+    try {
+      const updated = await uploadSKUImage(sku.id, file);
+      if (updated.image_url) {
+        setImageUrl(updated.image_url);
+        setSku({ ...sku, image_url: updated.image_url });
+      }
+      setInfo("Foto enviada e salva no cadastro.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao enviar foto");
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError("");
     setInfo("");
     try {
-      const attributes = catAttrs.map((def) => {
-        const raw = attrValues[def.id] ?? "";
-        const base = { category_attribute_id: def.id };
-        if (def.data_type === "number") {
-          const n = parseFloat(raw);
-          return { ...base, value_number: Number.isFinite(n) ? n : undefined };
-        }
-        if (def.data_type === "boolean") {
-          return { ...base, value_boolean: raw === "true" || raw === "1" };
-        }
-        return { ...base, value_text: raw || undefined };
-      }).filter((a) => "value_text" in a && a.value_text || "value_number" in a && a.value_number != null || "value_boolean" in a);
+      const attributes = catAttrs
+        .map((def) => {
+          const raw = attrValues[def.id] ?? "";
+          const base = { category_attribute_id: def.id };
+          if (def.data_type === "number") {
+            const n = parseFloat(raw);
+            return { ...base, value_number: Number.isFinite(n) ? n : undefined };
+          }
+          if (def.data_type === "boolean") {
+            return { ...base, value_boolean: raw === "true" || raw === "1" };
+          }
+          return { ...base, value_text: raw || undefined };
+        })
+        .filter(
+          (a) =>
+            ("value_text" in a && a.value_text) ||
+            ("value_number" in a && a.value_number != null) ||
+            "value_boolean" in a,
+        );
 
       await api(`/api/v1/pim/products/${params.id}`, {
         method: "PUT",
@@ -157,10 +206,14 @@ export default function ProdutoEditPage() {
 
   if (loading) return <p className="text-slate-500">Carregando…</p>;
 
+  const previewSrc = localPreview || resolveImageSrc(imageUrl);
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
-        <Link href="/produtos" className="text-sm text-blue-600 hover:underline">← Produtos</Link>
+        <Link href="/produtos" className="text-sm text-blue-600 hover:underline">
+          ← Produtos
+        </Link>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">Editar produto</h1>
         {sku ? <p className="mt-1 font-mono text-sm text-slate-600">SKU {sku.code}</p> : null}
       </header>
@@ -205,34 +258,87 @@ export default function ProdutoEditPage() {
             </div>
           ) : null}
 
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-4">
+          <div className="space-y-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
             <p className="text-sm font-medium text-amber-900">Tradução ES — feed Compras Paraguai</p>
-            <Field label="Nome ES"><Input value={nameEs} onChange={(e) => setNameEs(e.target.value)} /></Field>
-            <Field label="Descrição ES"><Textarea rows={2} value={descriptionEs} onChange={(e) => setDescriptionEs(e.target.value)} /></Field>
-            <Field label="Descrição curta ES"><Input value={generatedEs} onChange={(e) => setGeneratedEs(e.target.value)} /></Field>
+            <Field label="Nome ES">
+              <Input value={nameEs} onChange={(e) => setNameEs(e.target.value)} />
+            </Field>
+            <Field label="Descrição ES">
+              <Textarea rows={2} value={descriptionEs} onChange={(e) => setDescriptionEs(e.target.value)} />
+            </Field>
+            <Field label="Descrição curta ES">
+              <Input value={generatedEs} onChange={(e) => setGeneratedEs(e.target.value)} />
+            </Field>
           </div>
 
           {sku ? (
             <>
-              <Field label="URL da imagem (e-commerce)">
-                <Input
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="/static/products/arquivo.jpg"
-                />
-              </Field>
-              {imageUrl.trim() ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={
-                    /^https?:\/\//i.test(imageUrl.trim())
-                      ? imageUrl.trim()
-                      : `${API_URL}${imageUrl.trim().startsWith("/") ? "" : "/"}${imageUrl.trim()}`
-                  }
-                  alt=""
-                  className="h-28 w-40 object-contain bg-slate-50 ring-1 ring-slate-200"
-                />
-              ) : null}
+              <div className="space-y-3 rounded-lg border border-slate-200 p-4">
+                <p className="text-sm font-medium text-slate-900">Foto do produto (e-commerce)</p>
+                <p className="text-xs text-slate-500">
+                  Cole um link público ou envie um arquivo do dispositivo. O arquivo fica no servidor e o caminho
+                  é gravado no cadastro.
+                </p>
+                <Field label="Link da imagem">
+                  <Input
+                    value={imageUrl}
+                    onChange={(e) => {
+                      setImageUrl(e.target.value);
+                      if (localPreview) {
+                        URL.revokeObjectURL(localPreview);
+                        setLocalPreview("");
+                      }
+                    }}
+                    placeholder="https://… ou /static/products/arquivo.jpg"
+                  />
+                </Field>
+                <div className="flex flex-wrap items-center gap-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      void onPickFile(file);
+                      e.target.value = "";
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={uploadingImage}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {uploadingImage ? "Enviando…" : "Carregar do dispositivo"}
+                  </Button>
+                  {imageUrl ? (
+                    <button
+                      type="button"
+                      className="text-sm text-red-600 hover:underline"
+                      onClick={() => {
+                        setImageUrl("");
+                        if (localPreview) {
+                          URL.revokeObjectURL(localPreview);
+                          setLocalPreview("");
+                        }
+                      }}
+                    >
+                      Remover foto
+                    </button>
+                  ) : null}
+                </div>
+                {previewSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={previewSrc}
+                    alt="Pré-visualização do produto"
+                    className="h-36 w-48 rounded-lg bg-slate-50 object-contain ring-1 ring-slate-200"
+                  />
+                ) : (
+                  <p className="text-xs text-slate-400">Nenhuma foto definida.</p>
+                )}
+              </div>
               <div className="flex flex-wrap gap-4 text-sm">
                 <label className="flex items-center gap-2">
                   <input type="checkbox" checked={publishCp} onChange={(e) => setPublishCp(e.target.checked)} />
@@ -259,7 +365,12 @@ export default function ProdutoEditPage() {
                     <Input type="number" step="0.01" value={b2bUsd} onChange={(e) => setB2bUsd(e.target.value)} />
                   </Field>
                   <Field label="Revendedor">
-                    <Input type="number" step="0.01" value={resellerUsd} onChange={(e) => setResellerUsd(e.target.value)} />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={resellerUsd}
+                      onChange={(e) => setResellerUsd(e.target.value)}
+                    />
                   </Field>
                 </div>
               </div>
@@ -268,7 +379,9 @@ export default function ProdutoEditPage() {
 
           {error ? <Alert tone="error">{error}</Alert> : null}
           {info ? <Alert tone="success">{info}</Alert> : null}
-          <Button type="submit" disabled={saving}>{saving ? "Salvando…" : "Salvar alterações"}</Button>
+          <Button type="submit" disabled={saving || uploadingImage}>
+            {saving ? "Salvando…" : "Salvar alterações"}
+          </Button>
         </form>
       </Card>
 

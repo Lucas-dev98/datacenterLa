@@ -37,11 +37,11 @@ export function ShopSearch({
 
   const header = variant === "header";
   const inputClass = header
-    ? "h-10 w-52 rounded-full border border-white/15 bg-white/5 py-0 pl-9 pr-8 text-[13px] text-white outline-none placeholder:text-white/35 focus:border-white/40 focus:bg-white/10 xl:w-72"
-    : "h-11 w-full rounded-lg border border-white/15 bg-white/5 py-0 pl-3 pr-20 text-sm text-white outline-none placeholder:text-white/40";
+    ? "h-10 w-44 rounded-full border border-white/15 bg-white/5 py-0 pl-9 pr-8 text-[13px] text-white outline-none placeholder:text-white/35 focus:border-white/40 focus:bg-white/10 xl:w-72"
+    : "h-12 w-full rounded-lg border border-white/15 bg-white/5 py-0 pl-3 pr-20 text-base text-white outline-none placeholder:text-white/40 sm:text-sm";
 
   return (
-    <div className={header ? "relative hidden md:block" : "relative"}>
+    <div className={header ? "relative hidden lg:block" : "relative"}>
       <form onSubmit={goSearch} className="relative" role="search">
         {header ? (
           <button

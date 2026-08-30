@@ -66,6 +66,11 @@ func (h *Handler) Routes() chi.Router {
 	r.With(invRead).Get("/intake/queue", h.listIntakeQueue)
 	r.With(invRecv).Post("/intake/advance", h.advanceIntake)
 	r.With(invRecv).Post("/intake/complete", h.completeIntake)
+	r.With(invRecv).Post("/intake/units/{unit_id}/test-pass", h.passIntakeTest)
+	r.With(invRecv).Post("/intake/units/{unit_id}/test-fail", h.failIntakeTest)
+	r.With(invRead).Get("/intake/units/{unit_id}/test-photos/{photo_id}/file", h.getIntakeTestPhotoFile)
+	r.With(invRead).Get("/supplier-returns", h.listSupplierReturns)
+	r.With(invRecv).Post("/supplier-returns/{id}/status", h.updateSupplierReturnStatus)
 	r.With(invRecv).Post("/units/{unit_id}/transition", h.transitionUnit)
 	r.With(invRecv).Post("/units/{unit_id}/release", h.releaseUnit)
 	r.With(ordConfirm).Post("/internal/reservations", h.createReservation)
@@ -829,4 +834,122 @@ func (h *Handler) applyAdjustment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func parseMultipartTestPhotos(r *http.Request) ([]domain.IntakePhotoUpload, error) {
+	var photos []domain.IntakePhotoUpload
+	for i := 0; i < 5; i++ {
+		key := "test_photo_" + strconv.Itoa(i)
+		file, hdr, err := r.FormFile(key)
+		if err != nil {
+			continue
+		}
+		body, err := io.ReadAll(io.LimitReader(file, 8<<20))
+		file.Close()
+		if err != nil || len(body) == 0 {
+			return nil, domain.ErrInvalidInput
+		}
+		photos = append(photos, domain.IntakePhotoUpload{
+			Body: body,
+			Ext:  service.PhotoExtFromUpload(hdr.Filename, hdr.Header.Get("Content-Type")),
+		})
+	}
+	return photos, nil
+}
+
+func (h *Handler) passIntakeTest(w http.ResponseWriter, r *http.Request) {
+	unitID, err := uuid.Parse(chi.URLParam(r, "unit_id"))
+	if err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	photos, err := parseMultipartTestPhotos(r)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	unit, err := h.svc.PassIntakeTest(r.Context(), unitID, photos, userID(r))
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, unit)
+}
+
+func (h *Handler) failIntakeTest(w http.ResponseWriter, r *http.Request) {
+	unitID, err := uuid.Parse(chi.URLParam(r, "unit_id"))
+	if err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	reason := strings.TrimSpace(r.FormValue("reason"))
+	photos, err := parseMultipartTestPhotos(r)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	ret, err := h.svc.FailIntakeTest(r.Context(), unitID, reason, photos, userID(r))
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusCreated, ret)
+}
+
+func (h *Handler) getIntakeTestPhotoFile(w http.ResponseWriter, r *http.Request) {
+	unitID, err := uuid.Parse(chi.URLParam(r, "unit_id"))
+	if err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	photoID, err := uuid.Parse(chi.URLParam(r, "photo_id"))
+	if err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	body, contentType, err := h.svc.GetIntakeTestPhotoFile(r.Context(), unitID, photoID)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Write(body)
+}
+
+func (h *Handler) listSupplierReturns(w http.ResponseWriter, r *http.Request) {
+	items, err := h.svc.ListSupplierReturns(r.Context(), r.URL.Query().Get("status"), 100)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (h *Handler) updateSupplierReturnStatus(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		response.Error(w, domain.ErrInvalidInput)
+		return
+	}
+	item, err := h.svc.UpdateSupplierReturnStatus(r.Context(), id, body.Status, userID(r))
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, item)
 }

@@ -81,29 +81,51 @@ export function Alert({ tone = "info", children, className = "" }: { tone?: "inf
   return <div className={`rounded-lg border px-4 py-3 text-sm ${styles} ${className}`}>{children}</div>;
 }
 
-export function Table({ headers, rows }: { headers: string[]; rows: ReactNode[][] }) {
+export function Table({
+  headers,
+  rows,
+  onRowClick,
+  onRowDoubleClick,
+  selectedRowIndices,
+}: {
+  headers: ReactNode[];
+  rows: ReactNode[][];
+  onRowClick?: (rowIndex: number, event: React.MouseEvent<HTMLTableRowElement>) => void;
+  onRowDoubleClick?: (rowIndex: number, event: React.MouseEvent<HTMLTableRowElement>) => void;
+  selectedRowIndices?: Set<number>;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full text-left text-sm">
         <thead>
           <tr className="border-b border-slate-200 text-slate-500">
-            {headers.map((h) => (
-              <th key={h} className="px-3 py-2 font-medium">
+            {headers.map((h, i) => (
+              <th key={i} className="px-3 py-2 font-medium">
                 {h}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => (
-            <tr key={i} className="border-b border-slate-100 last:border-0">
-              {row.map((cell, j) => (
-                <td key={j} className="px-3 py-2 text-slate-800">
-                  {cell}
-                </td>
-              ))}
-            </tr>
-          ))}
+          {rows.map((row, i) => {
+            const selected = selectedRowIndices?.has(i);
+            return (
+              <tr
+                key={i}
+                className={`border-b border-slate-100 last:border-0 ${
+                  onRowClick || onRowDoubleClick ? "cursor-pointer select-none" : ""
+                } ${selected ? "bg-blue-50 ring-1 ring-inset ring-blue-200" : onRowClick ? "hover:bg-slate-50" : ""}`}
+                onClick={onRowClick ? (event) => onRowClick(i, event) : undefined}
+                onDoubleClick={onRowDoubleClick ? (event) => onRowDoubleClick(i, event) : undefined}
+              >
+                {row.map((cell, j) => (
+                  <td key={j} className="px-3 py-2 text-slate-800">
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

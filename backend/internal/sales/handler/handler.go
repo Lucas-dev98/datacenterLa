@@ -631,7 +631,15 @@ func (h *Handler) catalog(w http.ResponseWriter, r *http.Request) {
 		categoryID = &id
 	}
 	search := r.URL.Query().Get("q")
-	items, err := h.svc.ListCatalog(r.Context(), wh, categoryID, search)
+	var skuCodes []string
+	if v := strings.TrimSpace(r.URL.Query().Get("sku_codes")); v != "" {
+		for _, part := range strings.Split(v, ",") {
+			if code := strings.TrimSpace(part); code != "" {
+				skuCodes = append(skuCodes, code)
+			}
+		}
+	}
+	items, err := h.svc.ListCatalog(r.Context(), wh, categoryID, search, skuCodes)
 	if err != nil {
 		response.Error(w, err)
 		return

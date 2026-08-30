@@ -83,6 +83,35 @@ func (r *Postgres) UpdateCategory(ctx context.Context, id uuid.UUID, in domain.U
 	return &c, err
 }
 
+func (r *Postgres) CountActiveChildCategories(ctx context.Context, parentID uuid.UUID) (int, error) {
+	var n int
+	err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM categories WHERE parent_id = $1 AND is_active = true
+	`, parentID).Scan(&n)
+	return n, err
+}
+
+func (r *Postgres) CountActiveProductsInCategory(ctx context.Context, categoryID uuid.UUID) (int, error) {
+	var n int
+	err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM products WHERE category_id = $1 AND is_active = true
+	`, categoryID).Scan(&n)
+	return n, err
+}
+
+func (r *Postgres) DeactivateCategory(ctx context.Context, id uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE categories SET is_active = false, updated_at = now() WHERE id = $1 AND is_active = true
+	`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
 func (r *Postgres) CreateCategoryAttribute(ctx context.Context, categoryID uuid.UUID, in domain.CreateCategoryAttributeInput) (*domain.CategoryAttribute, error) {
 	var a domain.CategoryAttribute
 	err := r.pool.QueryRow(ctx, `

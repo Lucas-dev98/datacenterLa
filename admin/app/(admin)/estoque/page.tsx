@@ -7,8 +7,8 @@ export default function EstoqueHubPage() {
   return (
     <ModuleHub
       title="Estoque"
-      description="Controle físico por unidade (AAA): entrada, posição, saída e cadastro de produtos."
-      links={estoqueHubSections}
+      description="Controle físico por unidade (AAA): entrada → posição → expedição."
+      sections={estoqueHubSections}
     />
   );
 }

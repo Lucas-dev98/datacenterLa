@@ -6,6 +6,7 @@ import { api, apiBlob, downloadBlob } from "@/lib/api";
 import { DEFAULT_LOCATION_ID, DEFAULT_WAREHOUSE_ID } from "@/lib/config";
 import type { IntakeQueueItem, InventoryUnit } from "@/lib/types";
 import { IntakeBatchPhotoGallery, IntakePhotoThumb } from "@/components/intake-batch-photos";
+import { IntakeTestPanel } from "@/components/intake-test-panel";
 import { Alert, Button, Card, Field, Input, Table } from "@/components/ui";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -33,6 +34,7 @@ export default function RecebimentoPage() {
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [activeTestUnit, setActiveTestUnit] = useState<{ id: string; code: string } | null>(null);
 
   const batchIds = useMemo(() => {
     const ids = new Set<string>();
@@ -172,6 +174,12 @@ export default function RecebimentoPage() {
         setError(`Unidade ${code} não está na fila (status: ${status || "?"})`);
         return;
       }
+      if (status === "inspecting") {
+        setActiveTestUnit({ id: unit.id, code });
+        setScanCode("");
+        setInfo(`Unidade ${code} aberta para teste com fotos.`);
+        return;
+      }
       const inQueue = items.find((i) => i.id === unit.id);
       const nextAction = inQueue?.next_action ?? (status === "identified" ? "liberar" : status === "inspecting" ? "identificar" : "inspecionar");
       await advanceOne(unit.id, code, nextAction);
@@ -208,7 +216,7 @@ export default function RecebimentoPage() {
           </p>
           <h1 className="text-2xl font-semibold text-slate-900">Fila de recebimento</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Inspeção → identificação → liberação. Após receber uma PO ou entrada avulsa, as unidades aparecem aqui.
+            Inspeção → teste com fotos → identificação → liberação. Reprovação abre devolução ao fornecedor.
           </p>
         </div>
         <Button type="button" variant="secondary" onClick={() => void load()} disabled={loading}>
@@ -332,30 +340,61 @@ export default function RecebimentoPage() {
               item.next_action,
               item.unit_cost_usd != null ? item.unit_cost_usd.toFixed(2) : "—",
               item.received_at ? new Date(item.received_at).toLocaleString("pt-BR") : "—",
-              <span key={`a-${item.id}`} className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={submitting}
-                  onClick={() => void advanceOne(item.id, item.unit_code, item.next_action)}
-                >
-                  {actionButtonLabel(item.next_action)}
-                </Button>
-                {item.next_action !== "liberar" ? (
-                  <button
+              <span key={`a-${item.id}`} className="flex flex-col gap-2">
+                {item.status === "inspecting" ? (
+                  <Button
                     type="button"
-                    className="text-xs text-blue-600 hover:underline"
+                    variant="secondary"
                     disabled={submitting}
-                    onClick={() => void advanceBatch([item.id], "complete")}
+                    onClick={() => setActiveTestUnit({ id: item.id, code: item.unit_code })}
                   >
-                    Liberar tudo
-                  </button>
-                ) : null}
+                    Testar / fotos
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={submitting}
+                      onClick={() => void advanceOne(item.id, item.unit_code, item.next_action)}
+                    >
+                      {actionButtonLabel(item.next_action)}
+                    </Button>
+                    {item.next_action !== "liberar" ? (
+                      <button
+                        type="button"
+                        className="text-xs text-blue-600 hover:underline"
+                        disabled={submitting}
+                        onClick={() => void advanceBatch([item.id], "complete")}
+                      >
+                        Liberar tudo
+                      </button>
+                    ) : null}
+                  </>
+                )}
               </span>,
             ])}
           />
         )}
       </Card>
+
+      {activeTestUnit ? (
+        <Card title={`Teste — ${activeTestUnit.code}`}>
+          <IntakeTestPanel
+            unitId={activeTestUnit.id}
+            unitCode={activeTestUnit.code}
+            onDone={() => {
+              setActiveTestUnit(null);
+              void load();
+            }}
+          />
+          <div className="mt-3">
+            <Button type="button" variant="secondary" onClick={() => setActiveTestUnit(null)}>
+              Fechar
+            </Button>
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }

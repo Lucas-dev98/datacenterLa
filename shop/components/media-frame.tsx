@@ -37,6 +37,8 @@ export function MediaFrame({
       <img
         src={src}
         alt={alt}
+        loading="lazy"
+        decoding="async"
         className={`absolute inset-0 h-full w-full ${fit === "cover" ? "object-cover" : "object-contain"} ${
           pad && fit === "contain" ? "p-[5%]" : ""
         }`}

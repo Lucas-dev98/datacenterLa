@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode, useEffect, useState } from "react";
-import { fetchCatalog } from "@/lib/api";
+import { type ReactNode, useState } from "react";
 import type { CatalogProduct } from "@/lib/types";
 import { catalogImageUrl } from "@/lib/product-image";
 import { MediaFrame } from "@/components/media-frame";
@@ -89,28 +88,16 @@ const FAQS = [
   },
 ];
 
-const FEATURED_CODES = ["000078", "000077", "000079", "000082", "000085", "000006", "000001", "000076", "000021"];
+type StorefrontProps = {
+  featuredModels: CatalogProduct[];
+  featured: CatalogProduct[];
+  partCPU?: CatalogProduct;
+  partRAM?: CatalogProduct;
+  partSSD?: CatalogProduct;
+};
 
-export function Storefront() {
-  const [featured, setFeatured] = useState<CatalogProduct[]>([]);
-  const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
+export function Storefront({ featuredModels, featured, partCPU, partRAM, partSSD }: StorefrontProps) {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-
-  useEffect(() => {
-    void fetchCatalog()
-      .then((items) => {
-        setCatalog(items);
-        setFeatured(items.filter((p) => p.available > 0).slice(0, 6));
-      })
-      .catch(() => {});
-  }, []);
-
-  const featuredModels = FEATURED_CODES.map((code) => catalog.find((p) => p.sku_code === code)).filter(
-    (p): p is CatalogProduct => Boolean(p),
-  );
-  const partCPU = catalog.find((p) => p.sku_code === "000076");
-  const partRAM = catalog.find((p) => p.sku_code === "000032");
-  const partSSD = catalog.find((p) => p.sku_code === "000006");
 
   return (
     <div className="bg-black text-white">
@@ -122,7 +109,7 @@ export function Storefront() {
         title="Servidores"
         href="/loja?grupo=servidores"
         text="Equipamentos enterprise de marcas líderes como Dell, HPE, Lenovo e Supermicro. Opções novas, usadas e recondicionadas para implementações de alto desempenho."
-        image="/brand/servers.png"
+        image="/brand/servers.webp"
         imageAlt="Rack de servidores Dell, HPE, Lenovo e IBM"
         reverse={false}
         imageFit="rack"
@@ -132,7 +119,7 @@ export function Storefront() {
         title="Storages"
         href="/loja?grupo=storages"
         text="Equipamentos NAS, SAN e JBOD — Seagate Exos, Dell PowerVault, HPE MSA, NetApp, Synology e Lenovo. Chassis de armazenamento, não discos avulsos."
-        image="/brand/storage.png"
+        image="/brand/storage.webp"
         imageAlt="Storages Seagate, Dell, HPE e NetApp"
         reverse
         imageFit="rack"
@@ -143,7 +130,7 @@ export function Storefront() {
         title="Switches e networking"
         href="/loja?grupo=switch"
         text="Switches L2/L3, routers, transceivers e equipamentos para redes de baixa latência. Cisco, Juniper, Arista, HPE Aruba."
-        image="/brand/networking.png"
+        image="/brand/networking.webp"
         imageAlt="Switches Cisco Catalyst"
         reverse={false}
         imageFit="wide"
@@ -153,7 +140,7 @@ export function Storefront() {
         title="Componentes e peças"
         href="/loja?grupo=componentes"
         text="SSD e HDD enterprise, placas de rede, placas de vídeo, processadores, memórias ECC e fontes — peças para montar e expandir servidores e storages."
-        image={partSSD ? catalogImageUrl(partSSD.image_url) : "/brand/servers.png"}
+        image={partSSD ? catalogImageUrl(partSSD.image_url) : "/brand/servers.webp"}
         imageAlt={partSSD?.name ?? "SSD enterprise"}
         reverse
         extraImages={[
@@ -289,8 +276,10 @@ function Hero() {
     <section className="relative h-[100svh] min-h-[640px] overflow-hidden">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/brand/hero-aisle.png"
+        src="/brand/hero-aisle.webp"
         alt=""
+        fetchPriority="high"
+        decoding="async"
         className="absolute inset-0 h-full w-full object-cover object-[center_40%]"
       />
       <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/25 to-black/80" />

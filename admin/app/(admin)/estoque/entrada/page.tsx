@@ -19,6 +19,11 @@ const links = [
     label: "Entrada avulsa",
     description: estoqueFlowDescriptions["/estoque/entrada/avulsa"],
   },
+  {
+    href: "/estoque/entrada/devolucoes-fornecedor",
+    label: "Devoluções ao fornecedor",
+    description: estoqueFlowDescriptions["/estoque/entrada/devolucoes-fornecedor"],
+  },
 ];
 
 export default function EstoqueEntradaPage() {

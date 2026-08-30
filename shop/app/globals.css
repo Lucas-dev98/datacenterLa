@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+:root {
+  --shop-header-h: 4rem; /* h-16 */
+}
+
+@media (min-width: 768px) {
+  :root {
+    --shop-header-h: 4.25rem;
+  }
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -8,6 +18,12 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   background: #000;
   color: #fff;
+}
+
+/* Evita overflow horizontal em mobile */
+html,
+body {
+  overflow-x: clip;
 }
 
 ::selection {

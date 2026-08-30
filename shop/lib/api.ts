@@ -1,6 +1,7 @@
 import { API_URL, DEFAULT_WAREHOUSE_ID } from "./config";
 import { getShopToken } from "./auth";
 import { notifyCartChanged } from "./cart-events";
+import { cachedFetch } from "./catalog-cache";
 import type { ApiError, Cart, CatalogProduct, EcommerceCategory, Order, PublicOrder } from "./types";
 
 export class ApiClientError extends Error {
@@ -77,13 +78,18 @@ export async function fetchCatalog(
   const params = new URLSearchParams({ warehouse_id: warehouseId });
   if (opts?.categoryId) params.set("category_id", opts.categoryId);
   if (opts?.q) params.set("q", opts.q);
-  const res = await api<{ items: CatalogProduct[] }>(`/api/v1/ecommerce/catalog?${params}`);
-  return res.items ?? [];
+  const cacheKey = `catalog:${params.toString()}`;
+  return cachedFetch(cacheKey, async () => {
+    const res = await api<{ items: CatalogProduct[] }>(`/api/v1/ecommerce/catalog?${params}`);
+    return res.items ?? [];
+  });
 }
 
 export async function fetchCategories(): Promise<EcommerceCategory[]> {
-  const res = await api<{ items: EcommerceCategory[] }>("/api/v1/ecommerce/categories");
-  return res.items ?? [];
+  return cachedFetch("categories", async () => {
+    const res = await api<{ items: EcommerceCategory[] }>("/api/v1/ecommerce/categories");
+    return res.items ?? [];
+  });
 }
 
 export function normalizeOrderNumber(raw: string): string {

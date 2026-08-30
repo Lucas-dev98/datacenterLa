@@ -63,24 +63,40 @@ export default function CartPage() {
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_320px]">
           <ul className="divide-y divide-neutral-200 bg-white ring-1 ring-neutral-200">
             {items.map((item) => (
-              <li key={item.sku_id} className="flex items-center justify-between gap-4 px-5 py-4">
-                <div>
-                  <p className="font-medium">{item.name ?? item.sku_code}</p>
-                  <p className="text-sm text-neutral-500">{formatUsd(item.price_usd ?? 0)} cada</p>
+              <li
+                key={item.sku_id}
+                className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium leading-snug">{item.name ?? item.sku_code}</p>
+                  <p className="mt-0.5 text-sm text-neutral-500">{formatUsd(item.price_usd ?? 0)} cada</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="secondary" onClick={() => void changeQty(item.sku_id, item.quantity - 1)}>
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <Button
+                    variant="secondary"
+                    className="min-h-11 min-w-11 px-0"
+                    aria-label="Diminuir quantidade"
+                    onClick={() => void changeQty(item.sku_id, item.quantity - 1)}
+                  >
                     −
                   </Button>
-                  <span className="w-8 text-center text-sm">{item.quantity}</span>
-                  <Button variant="secondary" onClick={() => void changeQty(item.sku_id, item.quantity + 1)}>
+                  <span className="w-10 text-center text-sm tabular-nums">{item.quantity}</span>
+                  <Button
+                    variant="secondary"
+                    className="min-h-11 min-w-11 px-0"
+                    aria-label="Aumentar quantidade"
+                    onClick={() => void changeQty(item.sku_id, item.quantity + 1)}
+                  >
                     +
                   </Button>
                 </div>
               </li>
             ))}
           </ul>
-          <aside className="h-fit bg-white p-6 ring-1 ring-neutral-200 lg:sticky lg:top-24">
+          <aside
+            className="h-fit bg-white p-5 ring-1 ring-neutral-200 sm:p-6 lg:sticky"
+            style={{ top: "calc(var(--shop-header-h) + 1.5rem)" }}
+          >
             <p className="text-[11px] uppercase tracking-[0.16em] text-neutral-400">Resumo</p>
             <p className="mt-3 flex justify-between text-sm">
               <span>Subtotal</span>

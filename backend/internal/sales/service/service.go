@@ -558,8 +558,8 @@ func (s *Service) CancelOrder(ctx context.Context, orderID uuid.UUID, cancelledB
 
 // --- E-commerce ---
 
-func (s *Service) ListCatalog(ctx context.Context, warehouseID uuid.UUID, categoryID *uuid.UUID, search string) ([]domain.CatalogProduct, error) {
-	products, err := s.repo.ListEcommerceCatalog(ctx, warehouseID, categoryID, search)
+func (s *Service) ListCatalog(ctx context.Context, warehouseID uuid.UUID, categoryID *uuid.UUID, search string, skuCodes []string) ([]domain.CatalogProduct, error) {
+	products, err := s.repo.ListEcommerceCatalog(ctx, warehouseID, categoryID, search, skuCodes)
 	if err != nil {
 		return nil, err
 	}

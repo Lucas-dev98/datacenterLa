@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import type { ResolvedPrice, SKU, SKUPrice } from "@/lib/types";
@@ -10,10 +10,22 @@ function usd(n?: number | null): string {
   return n != null && Number.isFinite(n) ? `$${n.toFixed(2)}` : "—";
 }
 
+function priceFromSku(s: SKU): SKUPrice {
+  return {
+    sku_id: s.id,
+    cost_usd: s.cost_usd,
+    min_price_usd: s.min_price_usd,
+    price_b2c_usd: s.price_b2c_usd,
+    price_b2b_usd: s.price_b2b_usd,
+    price_reseller_usd: s.price_reseller_usd,
+    updated_at: new Date().toISOString(),
+  };
+}
+
 export default function PrecosPage() {
+  const editRef = useRef<HTMLDivElement>(null);
   const [q, setQ] = useState("");
-  const [hits, setHits] = useState<SKU[]>([]);
-  const [searched, setSearched] = useState(false);
+  const [skus, setSkus] = useState<SKU[]>([]);
   const [sku, setSku] = useState<SKU | null>(null);
   const [price, setPrice] = useState<SKUPrice | null>(null);
   const [resolved, setResolved] = useState<ResolvedPrice[]>([]);
@@ -25,87 +37,75 @@ export default function PrecosPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
-  const [searching, setSearching] = useState(false);
+  const [listing, setListing] = useState(true);
+
+  const loadList = useCallback(async (term = "") => {
+    setListing(true);
+    setError("");
+    try {
+      const qs = term.trim() ? `&q=${encodeURIComponent(term.trim())}` : "";
+      const res = await api<{ items: SKU[] }>(`/api/v1/pim/skus?active_only=true&limit=100${qs}`);
+      setSkus(res.items ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao carregar produtos");
+      setSkus([]);
+    } finally {
+      setListing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadList();
+  }, [loadList]);
 
   useEffect(() => {
     const term = q.trim();
-    if (term.length < 2) {
-      setHits([]);
-      setSearched(false);
-      return;
-    }
     const t = setTimeout(() => {
-      void search(term);
-    }, 220);
+      void loadList(term);
+    }, term ? 250 : 0);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, loadList]);
 
-  async function search(term: string) {
-    setError("");
-    setSearching(true);
-    try {
-      const res = await api<{ items: SKU[] }>(
-        `/api/v1/pim/skus?active_only=true&limit=25&q=${encodeURIComponent(term)}`,
-      );
-      const items = res.items ?? [];
-      setHits(items);
-      setSearched(true);
-      if (items.length === 1) {
-        await loadPrices(items[0]);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro na busca");
-      setHits([]);
-      setSearched(true);
-    } finally {
-      setSearching(false);
-    }
+  function fillForm(p: SKUPrice) {
+    setPrice(p);
+    setCost(p.cost_usd != null ? String(p.cost_usd) : "");
+    setMinPrice(p.min_price_usd != null ? String(p.min_price_usd) : "");
+    setB2c(p.price_b2c_usd != null ? String(p.price_b2c_usd) : "");
+    setB2b(p.price_b2b_usd != null ? String(p.price_b2b_usd) : "");
+    setReseller(p.price_reseller_usd != null ? String(p.price_reseller_usd) : "");
   }
 
   async function loadPrices(s: SKU) {
     setSku(s);
     setInfo("");
     setError("");
+    // Abre o formulário na hora (não depende da API).
+    fillForm(priceFromSku(s));
+    requestAnimationFrame(() => {
+      editRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
     try {
       const p = await api<SKUPrice>(`/api/v1/pricing/skus/${s.id}`);
-      setPrice(p);
-      setCost(p.cost_usd?.toString() ?? "");
-      setMinPrice(p.min_price_usd?.toString() ?? "");
-      setB2c(p.price_b2c_usd?.toString() ?? "");
-      setB2b(p.price_b2b_usd?.toString() ?? "");
-      setReseller(p.price_reseller_usd?.toString() ?? "");
+      fillForm(p);
       const channels = ["b2c", "b2b", "reseller"];
       const resolvedPrices = await Promise.all(
-        channels.map((ch) => api<ResolvedPrice>(`/api/v1/pricing/skus/${s.id}/resolve?channel=${ch}`).catch(() => null)),
+        channels.map((ch) =>
+          api<ResolvedPrice>(`/api/v1/pricing/skus/${s.id}/resolve?channel=${ch}`).catch(() => null),
+        ),
       );
       setResolved(resolvedPrices.filter((r): r is ResolvedPrice => Boolean(r)));
-    } catch {
-      setPrice({
-        sku_id: s.id,
-        cost_usd: s.cost_usd,
-        min_price_usd: s.min_price_usd,
-        price_b2c_usd: s.price_b2c_usd,
-        price_b2b_usd: s.price_b2b_usd,
-        price_reseller_usd: s.price_reseller_usd,
-        updated_at: new Date().toISOString(),
-      });
-      setCost(s.cost_usd?.toString() ?? "");
-      setMinPrice(s.min_price_usd?.toString() ?? "");
-      setB2c(s.price_b2c_usd?.toString() ?? "");
-      setB2b(s.price_b2b_usd?.toString() ?? "");
-      setReseller(s.price_reseller_usd?.toString() ?? "");
+    } catch (err) {
       setResolved([]);
+      setError(err instanceof Error ? err.message : "Não foi possível carregar preços da API — editando com valores da lista.");
     }
   }
 
-  async function onConsult(e: FormEvent) {
-    e.preventDefault();
-    const term = q.trim();
-    if (term.length < 2) {
-      setError("Digite pelo menos 2 caracteres (código, nome ou descrição).");
-      return;
-    }
-    await search(term);
+  function closeEditor() {
+    setSku(null);
+    setPrice(null);
+    setResolved([]);
+    setInfo("");
   }
 
   async function onSave(e: FormEvent) {
@@ -127,13 +127,17 @@ export default function PrecosPage() {
       if (Number.isFinite(b2bN)) body.price_b2b_usd = b2bN;
       if (Number.isFinite(resellerN)) body.price_reseller_usd = resellerN;
 
+      if (Object.keys(body).length === 0) {
+        setError("Informe ao menos um preço para salvar.");
+        return;
+      }
+
       await api(`/api/v1/pricing/skus/${sku.id}`, {
         method: "PUT",
         body: JSON.stringify(body),
       });
       setInfo("Preços atualizados");
-      await loadPrices(sku);
-      setHits((prev) =>
+      setSkus((prev) =>
         prev.map((h) =>
           h.id === sku.id
             ? {
@@ -147,6 +151,9 @@ export default function PrecosPage() {
             : h,
         ),
       );
+      const updated = { ...sku, ...body };
+      setSku(updated);
+      await loadPrices(updated);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar");
     } finally {
@@ -159,71 +166,32 @@ export default function PrecosPage() {
       <header>
         <h1 className="text-2xl font-semibold text-slate-900">Preços</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Busque por código, nome ou descrição e altere os preços do SKU.
+          Clique em <strong>Editar</strong> (ou na linha) para alterar custo, B2C, B2B e revenda.
         </p>
       </header>
 
-      <Card title="Buscar SKU">
-        <form className="flex flex-wrap gap-3" onSubmit={(e) => void onConsult(e)}>
-          <Input
-            className="max-w-lg"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Código, nome ou descrição — ex. memória DDR4, R650, 000001"
-          />
-          <Button type="submit" disabled={searching}>
-            {searching ? "Buscando…" : "Consultar"}
-          </Button>
-          {sku?.product_id ? (
-            <Link href={`/produtos/${sku.product_id}`} className="self-center text-sm text-blue-600 hover:underline">
-              Editar produto
-            </Link>
-          ) : null}
-        </form>
-
-        {searched && !searching && hits.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-500">Nenhum SKU encontrado para “{q.trim()}”.</p>
-        ) : null}
-
-        {hits.length > 0 ? (
-          <div className="mt-4">
-            <Table
-              headers={["Código", "SKU", "Custo", "B2C", "B2B", ""]}
-              rows={hits.map((s) => [
-                <span key="c" className="font-mono font-medium">{s.code}</span>,
-                <div key="n">
-                  <p className="font-medium text-slate-900">{s.name}</p>
-                  {s.description ? (
-                    <p className="mt-0.5 text-xs leading-snug text-slate-500">
-                      {s.description.length > 110 ? `${s.description.slice(0, 110)}…` : s.description}
-                    </p>
-                  ) : null}
-                </div>,
-                <span key="cost" className="font-mono tabular-nums">{usd(s.cost_usd)}</span>,
-                <span key="b2c" className="font-mono tabular-nums">{usd(s.price_b2c_usd)}</span>,
-                <span key="b2b" className="font-mono tabular-nums">{usd(s.price_b2b_usd)}</span>,
-                <button
-                  key="sel"
-                  type="button"
-                  className={`text-sm font-medium ${sku?.id === s.id ? "text-slate-400" : "text-blue-600 hover:underline"}`}
-                  onClick={() => void loadPrices(s)}
-                  disabled={sku?.id === s.id}
-                >
-                  {sku?.id === s.id ? "Selecionado" : "Selecionar"}
-                </button>,
-              ])}
-            />
-          </div>
-        ) : null}
-      </Card>
+      {error ? <Alert tone="error">{error}</Alert> : null}
+      {info ? <Alert tone="success">{info}</Alert> : null}
 
       {sku && price ? (
-        <>
-          <Card title={`Preços — ${sku.code} · ${sku.name}`}>
-            {sku.description ? <p className="mb-4 text-sm text-slate-600">{sku.description}</p> : null}
-            <form className="grid gap-4 sm:grid-cols-2" onSubmit={onSave}>
+        <div ref={editRef}>
+          <Card title={`Editando — ${sku.code} · ${sku.name}`}>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              {sku.description ? <p className="text-sm text-slate-600">{sku.description}</p> : <span />}
+              <div className="flex gap-3 text-sm">
+                {sku.product_id ? (
+                  <Link href={`/produtos/${sku.product_id}`} className="text-blue-600 hover:underline">
+                    Abrir produto
+                  </Link>
+                ) : null}
+                <button type="button" className="text-slate-600 hover:underline" onClick={closeEditor}>
+                  Fechar
+                </button>
+              </div>
+            </div>
+            <form className="grid gap-4 sm:grid-cols-2" onSubmit={(e) => void onSave(e)}>
               <Field label="Custo USD">
-                <Input type="number" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} />
+                <Input type="number" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} autoFocus />
               </Field>
               <Field label="Preço mínimo USD">
                 <Input type="number" step="0.01" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} />
@@ -237,32 +205,97 @@ export default function PrecosPage() {
               <Field label="Revendedor USD">
                 <Input type="number" step="0.01" value={reseller} onChange={(e) => setReseller(e.target.value)} />
               </Field>
-              <div className="flex items-end sm:col-span-2">
+              <div className="flex items-end gap-2 sm:col-span-2">
                 <Button type="submit" disabled={loading}>
-                  Salvar preços
+                  {loading ? "Salvando…" : "Salvar preços"}
+                </Button>
+                <Button type="button" variant="secondary" onClick={closeEditor}>
+                  Cancelar
                 </Button>
               </div>
             </form>
           </Card>
 
-          {resolved.length ? (
-            <Card title="Preço resolvido por canal (com IVA 10%)">
-              <Table
-                headers={["Canal", "Base USD", "Com IVA USD", "Promo"]}
-                rows={resolved.map((r) => [
-                  r.channel,
-                  `$${r.base_price_usd.toFixed(2)}`,
-                  `$${r.price_with_iva_usd.toFixed(2)}`,
-                  r.promo_applied ? "Sim" : "Não",
-                ])}
-              />
-            </Card>
+          {resolved.length > 0 ? (
+            <div className="mt-4">
+              <Card title="Preço resolvido por canal (com IVA 10%)">
+                <Table
+                  headers={["Canal", "Base USD", "Com IVA USD", "Promo"]}
+                  rows={resolved.map((r) => [
+                    r.channel,
+                    `$${r.base_price_usd.toFixed(2)}`,
+                    `$${r.price_with_iva_usd.toFixed(2)}`,
+                    r.promo_applied ? "Sim" : "Não",
+                  ])}
+                />
+              </Card>
+            </div>
           ) : null}
-        </>
+        </div>
       ) : null}
 
-      {error ? <Alert tone="error">{error}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
+      <Card title={`Produtos (${skus.length})`}>
+        <div className="mb-4">
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Filtrar por código, nome ou descrição…"
+          />
+        </div>
+
+        {listing ? (
+          <p className="text-sm text-slate-500">Carregando produtos…</p>
+        ) : skus.length === 0 ? (
+          <p className="text-sm text-slate-500">Nenhum produto encontrado.</p>
+        ) : (
+          <Table
+            onRowClick={(index) => void loadPrices(skus[index])}
+            headers={["Código", "Produto", "Custo", "B2C", "B2B", "Revenda", ""]}
+            rows={skus.map((s) => {
+              const selected = sku?.id === s.id;
+              return [
+                <span
+                  key="c"
+                  className={`font-mono font-medium ${selected ? "text-blue-800" : "text-blue-700"}`}
+                >
+                  {s.code}
+                </span>,
+                <div key="n">
+                  <p className={`font-medium ${selected ? "text-blue-900" : "text-slate-900"}`}>{s.name}</p>
+                  {s.description ? (
+                    <p className="mt-0.5 text-xs leading-snug text-slate-500">
+                      {s.description.length > 90 ? `${s.description.slice(0, 90)}…` : s.description}
+                    </p>
+                  ) : null}
+                </div>,
+                <span key="cost" className="font-mono tabular-nums">
+                  {usd(s.cost_usd)}
+                </span>,
+                <span key="b2c" className="font-mono tabular-nums">
+                  {usd(s.price_b2c_usd)}
+                </span>,
+                <span key="b2b" className="font-mono tabular-nums">
+                  {usd(s.price_b2b_usd)}
+                </span>,
+                <span key="res" className="font-mono tabular-nums">
+                  {usd(s.price_reseller_usd)}
+                </span>,
+                <span key="a" className="flex gap-3" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className={`text-sm font-medium ${
+                      selected ? "text-emerald-700" : "text-blue-600 hover:underline"
+                    }`}
+                    onClick={() => void loadPrices(s)}
+                  >
+                    {selected ? "Editando…" : "Editar"}
+                  </button>
+                </span>,
+              ];
+            })}
+          />
+        )}
+      </Card>
     </div>
   );
 }
