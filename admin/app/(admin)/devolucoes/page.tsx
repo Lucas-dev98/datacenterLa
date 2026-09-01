@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { blobObjectUrl } from "@/lib/api/client";
+import { useCreateCustomerReturn } from "@/hooks/use-create-customer-return";
 import { returnsApi, type CustomerReturn, type ReturnWindowCheck } from "@/lib/api/returns";
 import type { Order, OrderItem, OrderListItem } from "@/lib/types";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
@@ -57,7 +58,8 @@ export default function DevolucoesPage() {
   const [eligibleUnits, setEligibleUnits] = useState<number | null>(null);
   const [resolveById, setResolveById] = useState<Record<string, string>>({});
   const [loadingOrder, setLoadingOrder] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const { run: submitReturn, loading: submitting, setError: setReturnMutationError } =
+    useCreateCustomerReturn();
   const [selectedOrderLabel, setSelectedOrderLabel] = useState("");
   const [expandedId, setExpandedId] = useState("");
   const [expandedCase, setExpandedCase] = useState<CustomerReturn | null>(null);
@@ -197,9 +199,9 @@ export default function DevolucoesPage() {
       }
       return;
     }
-    setSubmitting(true);
     setError("");
     setInfo("");
+    setReturnMutationError("");
     try {
       const form = new FormData();
       form.set(
@@ -214,7 +216,7 @@ export default function DevolucoesPage() {
       photos.forEach((photo, index) => {
         form.set(`photo_${index}`, photo.file, photo.file.name || `return-${index + 1}.jpg`);
       });
-      await returnsApi.createWithPhotos(form);
+      await submitReturn(form);
       setInfo("Devolução registrada — aguardando aprovação.");
       clearOrder();
       setReason("");
@@ -224,8 +226,6 @@ export default function DevolucoesPage() {
       await loadCases(caseSearch);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao registrar devolução");
-    } finally {
-      setSubmitting(false);
     }
   }
 

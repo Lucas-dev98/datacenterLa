@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useFinanceDashboard } from "@/hooks/use-finance-dashboard";
+import { usePayPayable, useRecordReceivablePayment } from "@/hooks/use-finance-mutations";
 import { financeApi, type Payable } from "@/lib/api/finance";
 import type { ReceivableListItem } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
@@ -10,6 +11,8 @@ import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/u
 export default function FinanceiroPage() {
   const [status, setStatus] = useState("open");
   const { data, error, loading, refetch } = useFinanceDashboard(status);
+  const receivablePayment = useRecordReceivablePayment();
+  const payablePayment = usePayPayable();
   const items = data?.receivables ?? [];
   const payables = data?.payables ?? [];
   const summary = data?.summary ?? null;
@@ -21,9 +24,9 @@ export default function FinanceiroPage() {
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("transfer");
   const [payRef, setPayRef] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState("");
-  const displayError = actionError || error;
+  const submitting = receivablePayment.loading || payablePayment.loading;
+  const displayError = actionError || error || receivablePayment.error || payablePayment.error;
 
   const outstanding = items.reduce((sum, r) => sum + (r.amount_usd - r.paid_usd), 0);
 
@@ -46,11 +49,12 @@ export default function FinanceiroPage() {
   async function submitReceivablePayment(e: FormEvent) {
     e.preventDefault();
     if (!payingReceivableId) return;
-    setSubmitting(true);
     setActionError("");
     setInfo("");
+    receivablePayment.setError("");
     try {
-      await financeApi.recordReceivablePayment(payingReceivableId, {
+      await receivablePayment.run({
+        id: payingReceivableId,
         amount_usd: parseFloat(payAmount) || 0,
         method: payMethod,
         reference: payRef || undefined,
@@ -60,19 +64,18 @@ export default function FinanceiroPage() {
       await refetch();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao registrar pagamento");
-    } finally {
-      setSubmitting(false);
     }
   }
 
   async function submitPayablePayment(e: FormEvent) {
     e.preventDefault();
     if (!payingPayableId) return;
-    setSubmitting(true);
     setActionError("");
     setInfo("");
+    payablePayment.setError("");
     try {
-      await financeApi.payPayable(payingPayableId, {
+      await payablePayment.run({
+        id: payingPayableId,
         amount_usd: parseFloat(payAmount) || 0,
         method: payMethod,
         reference: payRef || undefined,
@@ -82,8 +85,6 @@ export default function FinanceiroPage() {
       await refetch();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao registrar pagamento");
-    } finally {
-      setSubmitting(false);
     }
   }
 
