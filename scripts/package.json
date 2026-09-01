@@ -1,0 +1,8 @@
+{
+  "name": "datacenterla-e2e-scripts",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "playwright": "^1.51.1"
+  }
+}

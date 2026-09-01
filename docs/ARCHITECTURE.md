@@ -28,4 +28,4 @@ Monólito modular com três processos front-end e um backend Go.
 
 ## CI
 
-`.github/workflows/ci.yml` — testes Go (integração), typecheck + build Next.js (admin/shop), smoke E2E da API (`e2e_api_smoke.py`) e fluxos (`e2e_flows.py`: PO→intake→venda→devolução/RMA).
+`.github/workflows/ci.yml` — testes Go (integração), typecheck + build Next.js (admin/shop), smoke/fluxos API (`e2e_*`.py) e crawl UI admin (`run_e2e_admin_crawl.mjs`).
