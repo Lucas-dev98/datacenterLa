@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useState } from "react";
-import { salesApi } from "@/lib/api/sales";
+import { FormEvent, useEffect, useState } from "react";
+import { useAnalyticsDashboard } from "@/hooks/use-analytics-dashboard";
 import { orderChannelLabel } from "@/lib/order-channels";
-import type { AnalyticsDashboard } from "@/lib/types";
 import { AbcParetoChart } from "@/components/abc-pareto-chart";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
@@ -30,30 +29,24 @@ export default function AnalyticsPage() {
   const [to, setTo] = useState(initial.to);
   const [channel, setChannel] = useState("");
   const [metric, setMetric] = useState<"revenue" | "quantity">("revenue");
-  const [data, setData] = useState<AnalyticsDashboard | null>(null);
+  const [applied, setApplied] = useState({
+    from: initial.from,
+    to: initial.to,
+    channel: "",
+    metric: "revenue" as "revenue" | "quantity",
+  });
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await salesApi.analyticsDashboard({ from, to, metric, channel: channel || undefined });
-      setData(res);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar análise");
-    } finally {
-      setLoading(false);
-    }
-  }, [from, to, channel, metric]);
+  const { data, error: loadError, loading } = useAnalyticsDashboard(applied);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (loadError) setError(loadError);
+  }, [loadError]);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    void load();
+    setError("");
+    setApplied({ from, to, channel, metric });
   }
 
   const summary = data?.summary;
@@ -108,6 +101,7 @@ export default function AnalyticsPage() {
                 setFrom(p.from);
                 setTo(p.to);
                 setChannel("");
+                setApplied({ from: p.from, to: p.to, channel: "", metric });
               }}
             >
               Mês atual

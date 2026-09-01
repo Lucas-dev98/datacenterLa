@@ -1,9 +1,9 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { stockApi } from "@/lib/api/stock";
+import { useStockMovements } from "@/hooks/use-stock-movements";
 import {
   MOVEMENT_TYPE_OPTIONS,
   movementReferenceHref,
@@ -35,49 +35,51 @@ export default function EstoqueMovimentacoesPage() {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [movementType, setMovementType] = useState("");
-  const [items, setItems] = useState<StockMovementRow[]>([]);
-  const [total, setTotal] = useState(0);
+  const [appliedQuery, setAppliedQuery] = useState("");
+  const [appliedType, setAppliedType] = useState("");
   const [offset, setOffset] = useState(0);
+  const [items, setItems] = useState<StockMovementRow[]>([]);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
 
-  const load = useCallback(
-    async (q: string, type: string, pageOffset: number, append: boolean) => {
-      setLoading(true);
-      setError("");
-      try {
-        const res = await stockApi.listMovements({
-          q,
-          movement_type: type,
-          offset: pageOffset,
-          limit: PAGE_SIZE,
-        });
-        const next = res.items ?? [];
-        setItems((prev) => (append ? [...prev, ...next] : next));
-        setTotal(res.total ?? 0);
-        setOffset(pageOffset);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Erro ao carregar movimentações");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [],
-  );
+  const { data, error: loadError, loading, refetch } = useStockMovements({
+    q: appliedQuery,
+    movementType: appliedType,
+    offset,
+    limit: PAGE_SIZE,
+  });
+  const total = data?.total ?? 0;
 
   useEffect(() => {
     const q = searchParams.get("q") ?? "";
     setQuery(q);
-    void load(q, "", 0, false);
-  }, [load, searchParams]);
+    setAppliedQuery(q);
+    setAppliedType("");
+    setOffset(0);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (loadError) setError(loadError);
+  }, [loadError]);
+
+  useEffect(() => {
+    if (!data) return;
+    setItems((prev) => (offset === 0 ? data.items : [...prev, ...data.items]));
+  }, [data, offset]);
 
   function onSearch(e: FormEvent) {
     e.preventDefault();
-    void load(query, movementType, 0, false);
+    setOffset(0);
+    setAppliedQuery(query.trim());
+    setAppliedType(movementType);
+  }
+
+  function onRefresh() {
+    if (offset === 0) void refetch();
+    else setOffset(0);
   }
 
   function onLoadMore() {
-    void load(query, movementType, offset + PAGE_SIZE, true);
+    setOffset((prev) => prev + PAGE_SIZE);
   }
 
   const hasMore = items.length < total;
@@ -121,12 +123,7 @@ export default function EstoqueMovimentacoesPage() {
           <Button type="submit" disabled={loading}>
             Buscar
           </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={loading}
-            onClick={() => void load(query, movementType, 0, false)}
-          >
+          <Button type="button" variant="secondary" disabled={loading} onClick={onRefresh}>
             Atualizar
           </Button>
         </form>
