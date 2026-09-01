@@ -4,28 +4,16 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
-import { api, receivePOIntakeWithPhotos } from "@/lib/api";
+import { useApiQueryFn } from "@/hooks/use-api-query";
+import { pimApi } from "@/lib/api/pim";
+import { purchasesApi, type PurchaseOrderDetail, type PurchaseOrderItem } from "@/lib/api/purchases";
+import { stockApi } from "@/lib/api/stock";
 import { API_URL } from "@/lib/config";
-import type { InventoryUnitReceive, SKU } from "@/lib/types";
+import type { InventoryUnitReceive } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Table } from "@/components/ui";
 
-type POItem = {
-  sku_id: string;
-  sku_code?: string;
-  quantity_ordered: number;
-  quantity_received: number;
-  unit_cost_usd: number;
-  unit_landed_cost_usd?: number;
-};
-
-type PO = {
-  id: string;
-  po_number: string;
-  supplier_name?: string;
-  status: string;
-  warehouse_id: string;
-  items?: POItem[];
-};
+type POItem = PurchaseOrderItem;
+type PO = PurchaseOrderDetail;
 
 type View = "lista" | "sku";
 type SkuStep = "detalhe" | "fotos" | "concluido";
@@ -44,59 +32,26 @@ function itemPending(item: POItem): number {
 export default function ReceberPOPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const [po, setPo] = useState<PO | null>(null);
+  const fetchPo = useCallback(async () => {
+    const data = await purchasesApi.getOrder(params.id);
+    const skuById = await pimApi.loadSkusByIds((data.items ?? []).map((i) => i.sku_id));
+    return { po: data, skuById };
+  }, [params.id]);
+  const { data, error: loadError, loading, refetch } = useApiQueryFn(fetchPo, { deps: [params.id] });
+  const po = data?.po ?? null;
+  const skuById = data?.skuById ?? {};
   const [view, setView] = useState<View>("lista");
   const [skuStep, setSkuStep] = useState<SkuStep>("detalhe");
   const [activeSkuId, setActiveSkuId] = useState<string | null>(null);
   const [skuQty, setSkuQty] = useState(0);
-  const [skuById, setSkuById] = useState<Record<string, SKU>>({});
-  const [nextCodes, setNextCodes] = useState<string[]>([]);
   const [batchPhotos, setBatchPhotos] = useState<BatchPhotoDraft[]>([]);
   const [lastUnits, setLastUnits] = useState<InventoryUnitReceive[]>([]);
+  const [nextCodes, setNextCodes] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [codesLoading, setCodesLoading] = useState(false);
-
-  const loadSkus = useCallback(async (items: POItem[]) => {
-    const ids = [...new Set(items.map((i) => i.sku_id))];
-    const entries = await Promise.all(
-      ids.map(async (id) => {
-        try {
-          const sku = await api<SKU>(`/api/v1/pim/skus/${id}`);
-          return [id, sku] as const;
-        } catch {
-          return [id, null] as const;
-        }
-      }),
-    );
-    const map: Record<string, SKU> = {};
-    for (const [id, sku] of entries) {
-      if (sku) map[id] = sku;
-    }
-    setSkuById(map);
-  }, []);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const data = await api<PO>(`/api/v1/purchases/orders/${params.id}`);
-      setPo(data);
-      await loadSkus(data.items ?? []);
-      return data;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar PO");
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, [params.id, loadSkus]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const displayError = error || loadError;
 
   const pendingItems = useMemo(
     () => (po?.items ?? []).filter((i) => itemPending(i) > 0),
@@ -128,7 +83,7 @@ export default function ReceberPOPage() {
     }
     setCodesLoading(true);
     try {
-      const res = await api<{ codes: string[] }>(`/api/v1/stock/units/next-codes?count=${count}`);
+      const res = await stockApi.peekNextUnitCodes(count);
       setNextCodes(res.codes ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao reservar códigos AAA");
@@ -191,17 +146,11 @@ export default function ReceberPOPage() {
         form.append(`batch_photo_${index}`, photo.file);
       });
 
-      const res = await receivePOIntakeWithPhotos(po.id, form);
+      const res = await purchasesApi.receiveIntake(po.id, form);
       setLastUnits(res.units ?? []);
       batchPhotos.forEach((p) => URL.revokeObjectURL(p.preview));
       setBatchPhotos([]);
-      if (res.order) {
-        const updated = res.order as PO;
-        setPo(updated);
-        await loadSkus(updated.items ?? []);
-      } else {
-        await load();
-      }
+      await refetch();
       setSkuStep("concluido");
       setInfo(`${res.units?.length ?? 0} unidade(s) de ${activeSku?.name ?? "SKU"} registrada(s).`);
     } catch (err) {
@@ -227,7 +176,7 @@ export default function ReceberPOPage() {
   }, [po, activeSkuId]);
 
   if (loading) return <p className="p-6 text-sm text-slate-500">Carregando PO…</p>;
-  if (!po) return <Alert tone="error">{error || "PO não encontrada"}</Alert>;
+  if (!po) return <Alert tone="error">{displayError || "PO não encontrada"}</Alert>;
 
   const canReceive = po.status === "ordered" || po.status === "partial";
   const codeRange =
@@ -281,7 +230,7 @@ export default function ReceberPOPage() {
         </ol>
       )}
 
-      {error ? <Alert tone="error">{error}</Alert> : null}
+      {displayError ? <Alert tone="error">{displayError}</Alert> : null}
       {info ? <Alert tone="success">{info}</Alert> : null}
 
       {poComplete && view === "lista" ? (

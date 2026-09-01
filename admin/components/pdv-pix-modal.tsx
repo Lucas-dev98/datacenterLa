@@ -1,19 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { posApi, type POSPixInitResponse } from "@/lib/api/pos";
 import type { Order } from "@/lib/types";
 import { Alert, Button, Field, Input } from "@/components/ui";
 
-export type POSPixInitResponse = {
-  order: Order;
-  amount_brl: number;
-  brl_rate: number;
-  copy_paste: string;
-  qr_png_base64: string;
-  txid: string;
-  dev_mode?: boolean;
-};
+export type { POSPixInitResponse };
 
 type Props = {
   data: POSPixInitResponse;
@@ -43,12 +35,9 @@ export function PDVPixModal({ data, shipImmediately, onConfirmed, onCancelled }:
     setConfirming(true);
     setError("");
     try {
-      const order = await api<Order>(`/api/v1/sales/pos/pix/${data.order.id}/confirm`, {
-        method: "POST",
-        body: JSON.stringify({
-          reference: reference.trim() || undefined,
-          ship_immediately: shipImmediately,
-        }),
+      const order = await posApi.pixConfirm(data.order.id, {
+        reference: reference.trim() || undefined,
+        ship_immediately: shipImmediately,
       });
       onConfirmed(order);
     } catch (err) {
@@ -63,7 +52,7 @@ export function PDVPixModal({ data, shipImmediately, onConfirmed, onCancelled }:
     setCancelling(true);
     setError("");
     try {
-      await api<Order>(`/api/v1/sales/pos/pix/${data.order.id}/cancel`, { method: "POST" });
+      await posApi.pixCancel(data.order.id);
       onCancelled();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao cancelar venda");

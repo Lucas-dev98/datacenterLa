@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApiQueryFn } from "@/hooks/use-api-query";
-import { purchasesApi, type PurchaseOrderSummary } from "@/lib/api/stock";
+import { purchasesApi, type PurchaseOrderSummary } from "@/lib/api/purchases";
 import { Alert, Button, Card, Table } from "@/components/ui";
 
 const STATUS_LABEL: Record<string, string> = {

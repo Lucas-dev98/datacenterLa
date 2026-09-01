@@ -1,4 +1,15 @@
 export { salesApi } from "./sales";
-export { stockApi, purchasesApi } from "./stock";
+export { stockApi } from "./stock";
+export { purchasesApi } from "./purchases";
+export type { PurchaseOrderDetail, PurchaseOrderItem, PurchaseOrderSummary } from "./purchases";
 export { pimApi } from "./pim";
+export { financeApi } from "./finance";
+export type { FinanceDashboard, FinanceSummary, OrderMarginRow, Payable } from "./finance";
+export { paymentsApi } from "./payments";
+export { returnsApi } from "./returns";
+export type { CustomerReturn, ReturnWindowCheck } from "./returns";
+export { rmaApi } from "./rma";
+export type { RMACase, WarrantyCheck } from "./rma";
+export { posApi } from "./pos";
+export { pricingApi } from "./pricing";
 export { api, ApiClientError } from "./client";

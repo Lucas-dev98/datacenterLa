@@ -3,11 +3,14 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api, apiText, printHTML } from "@/lib/api";
+import { printHTML } from "@/lib/api";
+import { paymentsApi } from "@/lib/api/payments";
+import { salesApi } from "@/lib/api/sales";
 import { hasPermission } from "@/lib/permissions";
 import { useAuth } from "@/components/auth-provider";
+import { useOrderDetail } from "@/hooks/use-order-detail";
 import { orderChannelLabel } from "@/lib/order-channels";
-import type { Customer, Order, PaymentIntent } from "@/lib/types";
+import type { PaymentIntent } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 import { StripePaymentForm } from "@/components/stripe-payment-form";
 import { ShipExpeditionModal } from "@/components/ship-expedition-modal";
@@ -16,11 +19,9 @@ import { OrderShipPhotosGallery } from "@/components/order-ship-photos-gallery";
 export default function PedidoDetailPage() {
   const params = useParams<{ id: string }>();
   const { user } = useAuth();
-  const [order, setOrder] = useState<Order | null>(null);
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [error, setError] = useState("");
+  const { order, customer, error, loading, refetch, setOrder } = useOrderDetail(params.id);
+  const [actionError, setActionError] = useState("");
   const [info, setInfo] = useState("");
-  const [loading, setLoading] = useState(true);
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("transfer");
   const [payRef, setPayRef] = useState("");
@@ -29,98 +30,74 @@ export default function PedidoDetailPage() {
   const [gatewayIntent, setGatewayIntent] = useState<PaymentIntent | null>(null);
   const [shipModalOpen, setShipModalOpen] = useState(false);
 
-  async function load() {
-    setLoading(true);
-    setError("");
-    try {
-      const o = await api<Order>(`/api/v1/sales/orders/${params.id}`);
-      setOrder(o);
-      setPayAmount(o.total_usd.toFixed(2));
-      const c = await api<Customer>(`/api/v1/sales/customers/${o.customer_id}`);
-      setCustomer(c);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar");
-    } finally {
-      setLoading(false);
-    }
-  }
+  useEffect(() => {
+    if (order) setPayAmount(order.total_usd.toFixed(2));
+  }, [order]);
 
   useEffect(() => {
-    void load();
-    void api<{ provider: string; stripe_publishable_key?: string }>("/api/v1/payments/config")
-      .then(setPaymentConfig)
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.id]);
+    void paymentsApi.getConfig().then(setPaymentConfig).catch(() => {});
+  }, []);
 
   async function confirmOrder() {
     setInfo("");
-    setError("");
+    setActionError("");
     try {
-      const o = await api<Order>(`/api/v1/sales/orders/${params.id}/confirm`, { method: "POST" });
-      setOrder(o);
+      setOrder(await salesApi.confirmOrder(params.id));
       setInfo("Pedido confirmado — estoque reservado");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao confirmar");
+      setActionError(err instanceof Error ? err.message : "Erro ao confirmar");
     }
   }
 
   async function confirmCredit() {
     setInfo("");
-    setError("");
+    setActionError("");
     try {
-      const o = await api<Order>(`/api/v1/sales/orders/${params.id}/confirm-credit`, { method: "POST" });
-      setOrder(o);
+      setOrder(await salesApi.confirmCredit(params.id));
       setInfo("Pedido confirmado com crédito B2B — estoque reservado");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao confirmar crédito");
+      setActionError(err instanceof Error ? err.message : "Erro ao confirmar crédito");
     }
   }
 
   async function recordPayment(e: FormEvent) {
     e.preventDefault();
     setInfo("");
-    setError("");
+    setActionError("");
     try {
-      const o = await api<Order>(`/api/v1/sales/orders/${params.id}/payments`, {
-        method: "POST",
-        body: JSON.stringify({
-          amount_usd: parseFloat(payAmount) || 0,
-          method: payMethod,
-          reference: payRef || undefined,
-        }),
+      const o = await salesApi.recordPayment(params.id, {
+        amount_usd: parseFloat(payAmount) || 0,
+        method: payMethod,
+        reference: payRef || undefined,
       });
       setOrder(o);
       setInfo(o.status === "paid" ? "Pagamento registrado — pedido pago" : "Pagamento parcial registrado");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao registrar pagamento");
+      setActionError(err instanceof Error ? err.message : "Erro ao registrar pagamento");
     }
   }
 
   async function payViaGateway() {
     setGatewayLoading(true);
     setInfo("");
-    setError("");
+    setActionError("");
     setGatewayIntent(null);
     try {
-      const intent = await api<PaymentIntent>("/api/v1/payments/intents", {
-        method: "POST",
-        body: JSON.stringify({ order_id: params.id }),
-      });
+      const intent = await paymentsApi.createIntent(params.id);
       if (intent.provider === "stripe") {
         if (!paymentConfig?.stripe_publishable_key) {
-          setError("Stripe configurado no servidor, mas chave publicável ausente.");
+          setActionError("Stripe configurado no servidor, mas chave publicável ausente.");
           return;
         }
         setGatewayIntent(intent);
         setInfo("Informe o cartão abaixo para concluir a cobrança.");
         return;
       }
-      await api(`/api/v1/payments/intents/${intent.id}/confirm`, { method: "POST" });
-      await load();
+      await paymentsApi.confirmIntent(intent.id);
+      await refetch();
       setInfo("Pagamento via gateway confirmado — pedido atualizado");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro no gateway");
+      setActionError(err instanceof Error ? err.message : "Erro no gateway");
     } finally {
       setGatewayLoading(false);
     }
@@ -128,33 +105,34 @@ export default function PedidoDetailPage() {
 
   async function confirmGatewayIntent() {
     if (!gatewayIntent) return;
-    await api(`/api/v1/payments/intents/${gatewayIntent.id}/confirm`, { method: "POST" });
+    await paymentsApi.confirmIntent(gatewayIntent.id);
     setGatewayIntent(null);
-    await load();
+    await refetch();
     setInfo("Pagamento via Stripe confirmado — pedido atualizado");
   }
 
   async function onShipped() {
     setShipModalOpen(false);
-    await load();
+    await refetch();
     setInfo("Pedido expedido — estoque baixado");
   }
 
   async function cancelOrder() {
     if (!confirm("Cancelar este pedido? Reservas de estoque serão liberadas.")) return;
     setInfo("");
-    setError("");
+    setActionError("");
     try {
-      const o = await api<Order>(`/api/v1/sales/orders/${params.id}/cancel`, { method: "POST" });
-      setOrder(o);
+      setOrder(await salesApi.cancelOrder(params.id));
       setInfo("Pedido cancelado");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao cancelar");
+      setActionError(err instanceof Error ? err.message : "Erro ao cancelar");
     }
   }
 
+  const displayError = actionError || error;
+
   if (loading) return <p className="text-slate-500">Carregando…</p>;
-  if (!order) return error ? <Alert tone="error">{error}</Alert> : null;
+  if (!order) return displayError ? <Alert tone="error">{displayError}</Alert> : null;
 
   const isB2B = customer?.type === "b2b" || customer?.type === "reseller";
   const canCancelDraft =
@@ -191,9 +169,10 @@ export default function PedidoDetailPage() {
             type="button"
             variant="secondary"
             onClick={() => {
-              void apiText(`/api/v1/sales/orders/${order.id}/receipt`)
+              void salesApi
+                .orderReceiptHtml(order.id)
                 .then(printHTML)
-                .catch((err) => setError(err instanceof Error ? err.message : "Erro no comprovante"));
+                .catch((err) => setActionError(err instanceof Error ? err.message : "Erro no comprovante"));
             }}
           >
             Imprimir comprovante
@@ -209,7 +188,7 @@ export default function PedidoDetailPage() {
         ) : null}
       </header>
 
-      {error ? <Alert tone="error">{error}</Alert> : null}
+      {displayError ? <Alert tone="error">{displayError}</Alert> : null}
       {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card title="Itens">

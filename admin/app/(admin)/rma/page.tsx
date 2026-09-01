@@ -2,35 +2,11 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { api, apiBlob, blobObjectUrl, createRMAWithPhotos, ApiClientError } from "@/lib/api";
+import { apiBlob, blobObjectUrl, createRMAWithPhotos, ApiClientError } from "@/lib/api";
+import { rmaApi, type RMACase, type WarrantyCheck } from "@/lib/api/rma";
 import type { Order, OrderItem, OrderListItem } from "@/lib/types";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
-
-type RMATestPhoto = { id: string; rma_case_id: string; created_at: string };
-
-type RMACase = {
-  id: string;
-  case_number: string;
-  order_number?: string;
-  customer_name?: string;
-  status: string;
-  reason: string;
-  test_notes?: string;
-  defect_confirmed: boolean;
-  within_warranty: boolean;
-  warranty_days?: number;
-  warranty_expires_at?: string;
-  test_photos?: RMATestPhoto[];
-  resolution?: string;
-  created_at: string;
-};
-
-type WarrantyCheck = {
-  warranty_days: number;
-  warranty_expires_at?: string;
-  within_warranty: boolean;
-};
 
 function RMATestPhotoThumb({ caseId, photoId, alt }: { caseId: string; photoId: string; alt: string }) {
   const [url, setUrl] = useState("");
@@ -94,7 +70,7 @@ export default function RMAPage() {
     }
     void (async () => {
       try {
-        const detail = await api<RMACase>(`/api/v1/sales/rma/${expandedCaseId}`);
+        const detail = await rmaApi.get(expandedCaseId);
         setExpandedCase(detail);
       } catch {
         setExpandedCase(items.find((c) => c.id === expandedCaseId) ?? null);
@@ -106,7 +82,7 @@ export default function RMAPage() {
     try {
       const term = (q ?? caseSearch).trim();
       const qs = term ? `?q=${encodeURIComponent(term)}` : "";
-      const res = await api<{ items: RMACase[] }>(`/api/v1/sales/rma${qs}`);
+      const res = await rmaApi.list(term);
       setItems(res.items ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao carregar casos RMA");
@@ -122,9 +98,7 @@ export default function RMAPage() {
     setSearchingOrders(true);
     setError("");
     try {
-      const res = await api<{ items: OrderListItem[] }>(
-        `/api/v1/sales/orders?status=shipped&q=${encodeURIComponent(q)}&limit=20`,
-      );
+      const res = await rmaApi.searchShippedOrders(q);
       setOrderResults(res.items ?? []);
       if ((res.items ?? []).length === 0) {
         setError("Nenhum pedido expedido encontrado — tente número do pedido, cliente, documento ou código AAA.");
@@ -196,11 +170,7 @@ export default function RMAPage() {
       setLoadingOrder(true);
       setError("");
       try {
-        const [order, warrantyRes] = await Promise.all([
-          api<Order>(`/api/v1/sales/orders/${orderId}`),
-          api<WarrantyCheck>(`/api/v1/sales/rma/warranty-check?order_id=${encodeURIComponent(orderId)}`),
-        ]);
-        const lines = order.items ?? [];
+        const { order, orderItems: lines, warranty: warrantyRes } = await rmaApi.loadOrderContext(orderId);
         setOrderItems(lines);
         setOrderItemId((prev) => {
           if (prev && lines.some((l) => l.id === prev)) return prev;
@@ -227,9 +197,7 @@ export default function RMAPage() {
     }
     void (async () => {
       try {
-        const res = await api<{ eligible_units: number }>(
-          `/api/v1/sales/rma/eligibility?order_id=${encodeURIComponent(orderId)}&order_item_id=${encodeURIComponent(orderItemId)}`,
-        );
+        const res = await rmaApi.eligibility(orderId, orderItemId);
         setEligibleUnits(res.eligible_units);
       } catch {
         setEligibleUnits(null);
@@ -327,10 +295,11 @@ export default function RMAPage() {
     const rmaCase = items.find((c) => c.id === id);
     const bodyResolution = resolution ?? (rmaCase ? defaultRmaResolution(rmaCase) : "scrap");
     try {
-      await api(`/api/v1/sales/rma/${id}/${step}`, {
-        method: "POST",
-        body: step === "resolve" ? JSON.stringify({ resolution: bodyResolution }) : undefined,
-      });
+      await rmaApi.step(
+        id,
+        step,
+        step === "resolve" ? { resolution: bodyResolution } : undefined,
+      );
       setInfo(`RMA ${step}${step === "resolve" ? ` (${bodyResolution})` : ""}`);
       await loadCases(caseSearch);
     } catch (err) {

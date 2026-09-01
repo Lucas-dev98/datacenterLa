@@ -1,22 +1,8 @@
-import { api } from "./client";
-import type { InventoryUnit } from "../types";
+import { api, apiBlob } from "./client";
+import type { InventoryUnit, InventoryUnitReceive } from "../types";
+import { DEFAULT_WAREHOUSE_ID } from "../config";
 
 const STOCK = "/api/v1/stock";
-const PURCHASES = "/api/v1/purchases";
-
-export type PurchaseOrderSummary = {
-  id: string;
-  po_number: string;
-  supplier_name?: string;
-  status: string;
-  created_at: string;
-};
-
-export type SupplierSummary = {
-  id: string;
-  code: string;
-  name: string;
-};
 
 export const stockApi = {
   listUnits: (params?: { status?: string; limit?: number }) => {
@@ -25,22 +11,14 @@ export const stockApi = {
     if (params?.limit) q.set("limit", String(params.limit ?? 100));
     return api<{ items: InventoryUnit[] }>(`${STOCK}/units?${q}`);
   },
+  unitByCode: (code: string) =>
+    api<InventoryUnit>(`${STOCK}/units/code/${encodeURIComponent(code.toUpperCase())}`),
+  availability: (skuId: string, warehouseId = DEFAULT_WAREHOUSE_ID) =>
+    api<{ qty_available: number; available?: number }>(
+      `${STOCK}/availability?sku_id=${skuId}&warehouse_id=${warehouseId}`,
+    ),
+  peekNextUnitCodes: (count: number) =>
+    api<{ codes: string[] }>(`${STOCK}/units/next-codes?count=${count}`),
 };
 
-export const purchasesApi = {
-  listSuppliers: () => api<{ items: SupplierSummary[] }>(`${PURCHASES}/suppliers`),
-  listOrders: (status?: string) => {
-    const q = status ? `?status=${encodeURIComponent(status)}` : "";
-    return api<{ items: PurchaseOrderSummary[] }>(`${PURCHASES}/orders${q}`);
-  },
-  listPendingReceiveOrders: async (): Promise<PurchaseOrderSummary[]> => {
-    const [ordered, partial] = await Promise.all([
-      purchasesApi.listOrders("ordered"),
-      purchasesApi.listOrders("partial"),
-    ]);
-    const merged = [...(ordered.items ?? []), ...(partial.items ?? [])];
-    merged.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-    return merged;
-  },
-  getOrder: (id: string) => api<PurchaseOrderSummary>(`${PURCHASES}/orders/${id}`),
-};
+export type { InventoryUnitReceive };

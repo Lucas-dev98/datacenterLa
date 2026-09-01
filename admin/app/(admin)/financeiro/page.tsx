@@ -1,90 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
-import { api, apiBlob } from "@/lib/api";
+import { FormEvent, useCallback, useState } from "react";
+import { useApiQueryFn } from "@/hooks/use-api-query";
+import { financeApi, type Payable } from "@/lib/api/finance";
 import type { ReceivableListItem } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
-type Payable = {
-  id: string;
-  supplier_name?: string;
-  purchase_order_id?: string;
-  po_number?: string;
-  description: string;
-  amount_usd: number;
-  amount_paid_usd: number;
-  due_date?: string;
-  status: string;
-};
-
-type FinanceSummary = {
-  revenue_usd: number;
-  cogs_usd: number;
-  gross_margin_usd: number;
-  gross_margin_pct: number;
-  receivables_open_usd: number;
-  payables_open_usd: number;
-  shipped_orders_count: number;
-  import_po_open_count: number;
-};
-
-type OrderMarginRow = {
-  order_id: string;
-  order_number: string;
-  channel: string;
-  customer_name: string;
-  revenue_usd: number;
-  cogs_usd: number;
-  margin_usd: number;
-  margin_pct: number;
-  status: string;
-};
-
 export default function FinanceiroPage() {
-  const [items, setItems] = useState<ReceivableListItem[]>([]);
-  const [payables, setPayables] = useState<Payable[]>([]);
-  const [summary, setSummary] = useState<FinanceSummary | null>(null);
-  const [margins, setMargins] = useState<OrderMarginRow[]>([]);
   const [status, setStatus] = useState("open");
-  const [total, setTotal] = useState(0);
-  const [error, setError] = useState("");
+  const fetchDashboard = useCallback(() => financeApi.loadDashboard(status), [status]);
+  const { data, error, loading, refetch } = useApiQueryFn(fetchDashboard, { deps: [status] });
+  const items = data?.receivables ?? [];
+  const payables = data?.payables ?? [];
+  const summary = data?.summary ?? null;
+  const margins = data?.margins ?? [];
+  const total = data?.receivablesTotal ?? 0;
   const [info, setInfo] = useState("");
-  const [loading, setLoading] = useState(true);
   const [payingReceivableId, setPayingReceivableId] = useState<string | null>(null);
   const [payingPayableId, setPayingPayableId] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("transfer");
   const [payRef, setPayRef] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  async function load() {
-    setLoading(true);
-    setError("");
-    try {
-      const q = status ? `&status=${encodeURIComponent(status)}` : "";
-      const res = await api<{ items: ReceivableListItem[]; total: number }>(
-        `/api/v1/sales/receivables?limit=50${q}`,
-      );
-      setItems(res.items ?? []);
-      setTotal(res.total);
-      const ap = await api<{ items: Payable[] }>("/api/v1/sales/payables");
-      setPayables(ap.items ?? []);
-      const sum = await api<FinanceSummary>("/api/v1/sales/finance/summary");
-      setSummary(sum);
-      const m = await api<{ items: OrderMarginRow[] }>("/api/v1/sales/finance/margins?limit=20");
-      setMargins(m.items ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  const [actionError, setActionError] = useState("");
+  const displayError = actionError || error;
 
   const outstanding = items.reduce((sum, r) => sum + (r.amount_usd - r.paid_usd), 0);
 
@@ -108,22 +48,19 @@ export default function FinanceiroPage() {
     e.preventDefault();
     if (!payingReceivableId) return;
     setSubmitting(true);
-    setError("");
+    setActionError("");
     setInfo("");
     try {
-      await api(`/api/v1/sales/receivables/${payingReceivableId}/payments`, {
-        method: "POST",
-        body: JSON.stringify({
-          amount_usd: parseFloat(payAmount) || 0,
-          method: payMethod,
-          reference: payRef || undefined,
-        }),
+      await financeApi.recordReceivablePayment(payingReceivableId, {
+        amount_usd: parseFloat(payAmount) || 0,
+        method: payMethod,
+        reference: payRef || undefined,
       });
       setPayingReceivableId(null);
       setInfo("Pagamento registrado no título a receber");
-      await load();
+      await refetch();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao registrar pagamento");
+      setActionError(err instanceof Error ? err.message : "Erro ao registrar pagamento");
     } finally {
       setSubmitting(false);
     }
@@ -133,27 +70,28 @@ export default function FinanceiroPage() {
     e.preventDefault();
     if (!payingPayableId) return;
     setSubmitting(true);
-    setError("");
+    setActionError("");
     setInfo("");
     try {
-      await api(`/api/v1/sales/payables/${payingPayableId}/payments`, {
-        method: "POST",
-        body: JSON.stringify({ amount_usd: parseFloat(payAmount) || 0 }),
+      await financeApi.payPayable(payingPayableId, {
+        amount_usd: parseFloat(payAmount) || 0,
+        method: payMethod,
+        reference: payRef || undefined,
       });
       setPayingPayableId(null);
       setInfo("Pagamento registrado na conta a pagar");
-      await load();
+      await refetch();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao registrar pagamento");
+      setActionError(err instanceof Error ? err.message : "Erro ao registrar pagamento");
     } finally {
       setSubmitting(false);
     }
   }
 
   async function exportMargins() {
-    setError("");
+    setActionError("");
     try {
-      const blob = await apiBlob("/api/v1/sales/finance/margins/export");
+      const blob = await financeApi.exportMargins();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -161,7 +99,7 @@ export default function FinanceiroPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao exportar");
+      setActionError(err instanceof Error ? err.message : "Erro ao exportar");
     }
   }
 
@@ -180,7 +118,7 @@ export default function FinanceiroPage() {
       </header>
 
       {info ? <Alert tone="success">{info}</Alert> : null}
-      {error ? <Alert tone="error">{error}</Alert> : null}
+      {displayError ? <Alert tone="error">{displayError}</Alert> : null}
 
       {summary ? (
         <Card title="Resumo — margem bruta">

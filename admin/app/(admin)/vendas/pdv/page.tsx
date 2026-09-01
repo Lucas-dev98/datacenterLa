@@ -2,12 +2,16 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, apiText, printHTML } from "@/lib/api";
+import { printHTML } from "@/lib/api";
+import { posApi, type ExchangeRatesToday, type POSPixInitResponse } from "@/lib/api/pos";
+import { pricingApi } from "@/lib/api/pricing";
+import { stockApi } from "@/lib/api/stock";
+import { pimApi } from "@/lib/api/pim";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
-import type { Customer, ExchangeRatesToday, Order, ResolvedPrice, SKU } from "@/lib/types";
+import type { Customer, Order, SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 import { PDVExchangeRatesPanel } from "@/components/pdv-exchange-rates";
-import { PDVPixModal, type POSPixInitResponse } from "@/components/pdv-pix-modal";
+import { PDVPixModal } from "@/components/pdv-pix-modal";
 import { PDVCustomerModal } from "@/components/pdv-customer-modal";
 import { customerMatchesQuery, customerProfileLabel, digitsOnly, documentTypeLabel } from "@/lib/customer-profile";
 import { paraguayanBuyerKindLabel } from "@/lib/paraguay-documents";
@@ -63,10 +67,7 @@ export default function PDVPage() {
   const autoPrintReceiptRef = useRef(false);
 
   useEffect(() => {
-    void Promise.all([
-      api<Customer>("/api/v1/sales/pos/walk-in-customer"),
-      api<ExchangeRatesToday>("/api/v1/sales/pos/exchange-rates"),
-    ])
+    void Promise.all([posApi.getWalkInCustomer(), posApi.getExchangeRates()])
       .then(([walkInCustomer, rates]) => {
         setWalkIn(walkInCustomer);
         setCustomerId(walkInCustomer.id);
@@ -96,12 +97,11 @@ export default function PDVPage() {
   const loadProductMeta = useCallback(async (sku: SKU): Promise<CartLine | null> => {
     try {
       const [price, avail] = await Promise.all([
-        api<ResolvedPrice>(`/api/v1/pricing/skus/${sku.id}/resolve?channel=b2c`),
-        api<Availability>(
-          `/api/v1/stock/availability?sku_id=${sku.id}&warehouse_id=${DEFAULT_WAREHOUSE_ID}`,
-        ),
+        pricingApi.resolveB2C(sku.id),
+        stockApi.availability(sku.id),
       ]);
-      if (avail.qty_available <= 0) {
+      const qty = avail.qty_available ?? 0;
+      if (qty <= 0) {
         setError(`Sem estoque para ${sku.code}`);
         return null;
       }
@@ -110,10 +110,10 @@ export default function PDVPage() {
         code: sku.code,
         name: sku.name,
         base_price_usd: price.base_price_usd,
-        price_with_iva_usd: price.price_with_iva_usd,
+        price_with_iva_usd: price.price_with_iva_usd ?? price.base_price_usd,
         price_pyg: price.price_pyg,
         price_with_iva_pyg: price.price_with_iva_pyg,
-        qty_available: avail.qty_available,
+        qty_available: qty,
         quantity: 1,
       };
     } catch (err) {
@@ -166,31 +166,19 @@ export default function PDVPage() {
         };
 
         if (/^AAA\d+$/i.test(term)) {
-          const unit = await api<{ sku_id: string; sku_code: string; sku_name: string }>(
-            `/api/v1/stock/units/code/${encodeURIComponent(term.toUpperCase())}`,
-          ).catch(() => null);
+          const unit = await stockApi.unitByCode(term).catch(() => null);
           if (unit?.sku_id) {
-            push({
-              id: unit.sku_id,
-              code: unit.sku_code,
-              name: unit.sku_name,
-              is_active: true,
-              publish_compras_paraguai: false,
-              publish_ecommerce: false,
-            });
+            const sku = await pimApi.getSku(unit.sku_id).catch(() => null);
+            push(sku);
           }
         }
 
         if (/^\d{1,6}$/.test(term)) {
-          const byCode = await api<SKU>(`/api/v1/pim/skus/code/${encodeURIComponent(term)}`).catch(
-            () => null,
-          );
+          const byCode = await pimApi.getSkuByCode(term).catch(() => null);
           push(byCode);
         }
 
-        const res = await api<{ items: SKU[] }>(
-          `/api/v1/pim/skus?q=${encodeURIComponent(term)}&active_only=true&limit=25`,
-        );
+        const res = await pimApi.searchSkus(term);
         for (const sku of res.items ?? []) push(sku);
         setSearchResults(out);
       } catch (err) {
@@ -239,9 +227,7 @@ export default function PDVPage() {
         return;
       }
       try {
-        const res = await api<{ items: Customer[] }>(
-          `/api/v1/sales/pos/customers?q=${encodeURIComponent(term)}`,
-        );
+        const res = await posApi.searchCustomers(term);
         const items = (res.items ?? []).filter((c) => c.id !== walkIn?.id && customerMatchesQuery(c, term));
         setCustomers(items);
         const qDigits = digitsOnly(term);
@@ -293,7 +279,7 @@ export default function PDVPage() {
     profile === "paraguayan" ? "Paraguaio" : profile === "foreigner" ? "Estrangeiro" : undefined;
 
   async function loadReceiptHtml(orderId: string) {
-    const html = await apiText(`/api/v1/sales/pos/orders/${orderId}/receipt`);
+    const html = await posApi.orderReceiptHtml(orderId);
     if (!html.trim()) {
       throw new Error("Comprovante vazio");
     }
@@ -395,15 +381,12 @@ export default function PDVPage() {
     setError("");
     setInfo("");
     try {
-      const pix = await api<POSPixInitResponse>("/api/v1/sales/pos/pix/init", {
-        method: "POST",
-        body: JSON.stringify({
-          customer_id: effectiveCustomerId || undefined,
-          buyer_profile: profile,
-          warehouse_id: DEFAULT_WAREHOUSE_ID,
-          items: cart.map((l) => ({ sku_id: l.sku_id, quantity: l.quantity })),
-          discount_pct: discount,
-        }),
+      const pix = await posApi.pixInit({
+        customer_id: effectiveCustomerId || undefined,
+        buyer_profile: profile,
+        warehouse_id: DEFAULT_WAREHOUSE_ID,
+        items: cart.map((l) => ({ sku_id: l.sku_id, quantity: l.quantity })),
+        discount_pct: discount,
       });
       setPixSession(pix);
     } catch (err) {

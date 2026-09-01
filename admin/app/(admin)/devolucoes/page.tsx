@@ -2,34 +2,13 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { api, apiBlob, blobObjectUrl, createCustomerReturnWithPhotos } from "@/lib/api";
+import { apiBlob, blobObjectUrl, createCustomerReturnWithPhotos } from "@/lib/api";
+import { returnsApi, type CustomerReturn, type ReturnWindowCheck } from "@/lib/api/returns";
 import type { Order, OrderItem, OrderListItem } from "@/lib/types";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
 type ReturnPhoto = { id: string; return_id: string; created_at: string };
-
-type CustomerReturn = {
-  id: string;
-  return_number: string;
-  order_number?: string;
-  customer_name?: string;
-  status: string;
-  reason: string;
-  condition_notes?: string;
-  within_return_window: boolean;
-  return_window_days?: number;
-  return_expires_at?: string;
-  photos?: ReturnPhoto[];
-  resolution?: string;
-  created_at: string;
-};
-
-type ReturnWindowCheck = {
-  return_window_days: number;
-  return_expires_at?: string;
-  within_return_window: boolean;
-};
 
 function ReturnPhotoThumb({ returnId, photoId, alt }: { returnId: string; photoId: string; alt: string }) {
   const [url, setUrl] = useState("");
@@ -85,8 +64,7 @@ export default function DevolucoesPage() {
 
   const loadCases = useCallback(async (q?: string) => {
     const term = (q ?? caseSearch).trim();
-    const qs = term ? `?q=${encodeURIComponent(term)}` : "";
-    const res = await api<{ items: CustomerReturn[] }>(`/api/v1/sales/returns${qs}`);
+    const res = await returnsApi.list(term);
     setItems(res.items ?? []);
   }, [caseSearch]);
 
@@ -99,9 +77,7 @@ export default function DevolucoesPage() {
     setSearchingOrders(true);
     setError("");
     try {
-      const res = await api<{ items: OrderListItem[] }>(
-        `/api/v1/sales/orders?status=shipped&q=${encodeURIComponent(q)}&limit=20`,
-      );
+      const res = await returnsApi.searchShippedOrders(q);
       setOrderResults(res.items ?? []);
     } catch (err) {
       setOrderResults([]);
@@ -138,7 +114,7 @@ export default function DevolucoesPage() {
     }
     void (async () => {
       try {
-        setExpandedCase(await api<CustomerReturn>(`/api/v1/sales/returns/${expandedId}`));
+        setExpandedCase(await returnsApi.get(expandedId));
       } catch {
         setExpandedCase(items.find((c) => c.id === expandedId) ?? null);
       }
@@ -156,11 +132,7 @@ export default function DevolucoesPage() {
       setLoadingOrder(true);
       setError("");
       try {
-        const [order, windowRes] = await Promise.all([
-          api<Order>(`/api/v1/sales/orders/${orderId}`),
-          api<ReturnWindowCheck>(`/api/v1/sales/returns/window-check?order_id=${encodeURIComponent(orderId)}`),
-        ]);
-        const lines = order.items ?? [];
+        const { order, orderItems: lines, windowInfo: windowRes } = await returnsApi.loadOrderContext(orderId);
         setOrderItems(lines);
         setOrderItemId(lines[0]?.id ?? "");
         setQuantity(1);
@@ -181,9 +153,7 @@ export default function DevolucoesPage() {
     }
     void (async () => {
       try {
-        const res = await api<{ eligible_units: number }>(
-          `/api/v1/sales/returns/eligibility?order_id=${encodeURIComponent(orderId)}&order_item_id=${encodeURIComponent(orderItemId)}`,
-        );
+        const res = await returnsApi.eligibility(orderId, orderItemId);
         setEligibleUnits(res.eligible_units);
       } catch {
         setEligibleUnits(null);
@@ -262,10 +232,11 @@ export default function DevolucoesPage() {
   async function action(id: string, step: "approve" | "receive" | "resolve", resolution?: string) {
     setError("");
     try {
-      await api(`/api/v1/sales/returns/${id}/${step}`, {
-        method: "POST",
-        body: step === "resolve" ? JSON.stringify({ resolution: resolution ?? "restock" }) : undefined,
-      });
+      await returnsApi.step(
+        id,
+        step,
+        step === "resolve" ? { resolution: resolution ?? "restock" } : undefined,
+      );
       setInfo(`Devolução: ${step}`);
       await loadCases(caseSearch);
     } catch (err) {
