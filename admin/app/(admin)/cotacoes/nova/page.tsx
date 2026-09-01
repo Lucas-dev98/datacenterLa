@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCreateQuote } from "@/hooks/use-quote-mutations";
 import { salesApi } from "@/lib/api/sales";
 import { pimApi } from "@/lib/api/pim";
 import type { Customer, SKU } from "@/lib/types";
@@ -19,7 +20,7 @@ export default function NovaCotacaoPage() {
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<Line[]>([{ sku_id: "", quantity: 1 }]);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const { run: createQuote, loading } = useCreateQuote();
 
   useEffect(() => {
     void Promise.all([salesApi.listCustomers(), pimApi.listAllSkus()]).then(([c, s]) => {
@@ -41,9 +42,8 @@ export default function NovaCotacaoPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
-    setLoading(true);
     try {
-      const quote = await salesApi.createQuote({
+      const quote = await createQuote({
         customer_id: customerId,
         channel,
         discount_pct: parseFloat(discount) || 0,
@@ -55,8 +55,6 @@ export default function NovaCotacaoPage() {
       router.push(`/cotacoes/${quote.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao criar cotação");
-    } finally {
-      setLoading(false);
     }
   }
 

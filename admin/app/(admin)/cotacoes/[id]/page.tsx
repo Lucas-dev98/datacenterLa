@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useConvertQuote, useSendQuote } from "@/hooks/use-quote-mutations";
 import { salesApi } from "@/lib/api/sales";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
-import type { Order, Quote } from "@/lib/types";
+import type { Quote } from "@/lib/types";
 import { Alert, Button, Card, Table } from "@/components/ui";
 
 export default function CotacaoDetailPage() {
@@ -15,7 +16,8 @@ export default function CotacaoDetailPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(true);
-  const [converting, setConverting] = useState(false);
+  const { run: sendQuoteMutation, loading: sending } = useSendQuote();
+  const { run: convertQuote, loading: converting } = useConvertQuote();
 
   async function load() {
     setLoading(true);
@@ -38,7 +40,7 @@ export default function CotacaoDetailPage() {
   async function sendQuote() {
     setInfo("");
     try {
-      const q = await salesApi.sendQuote(params.id);
+      const q = await sendQuoteMutation(params.id);
       setQuote(q);
       setInfo("Cotação enviada — pronta para converter em pedido");
     } catch (err) {
@@ -47,17 +49,14 @@ export default function CotacaoDetailPage() {
   }
 
   async function convertToOrder() {
-    setConverting(true);
     setError("");
     setInfo("");
     try {
-      const o = await salesApi.convertQuote(params.id, { warehouse_id: DEFAULT_WAREHOUSE_ID });
+      const o = await convertQuote({ id: params.id, body: { warehouse_id: DEFAULT_WAREHOUSE_ID } });
       setInfo(`Pedido ${o.order_number} criado`);
       router.push(`/pedidos/${o.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao converter");
-    } finally {
-      setConverting(false);
     }
   }
 
@@ -95,8 +94,8 @@ export default function CotacaoDetailPage() {
 
       <div className="flex flex-wrap gap-3">
         {quote.status === "draft" ? (
-          <Button type="button" onClick={() => void sendQuote()}>
-            Enviar cotação
+          <Button type="button" disabled={sending} onClick={() => void sendQuote()}>
+            {sending ? "Enviando…" : "Enviar cotação"}
           </Button>
         ) : null}
         {canConvert ? (

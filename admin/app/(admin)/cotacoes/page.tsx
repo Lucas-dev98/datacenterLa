@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { useUpdateWebsiteRequestStatus } from "@/hooks/use-quote-mutations";
 import { salesApi, type WebsiteRequest } from "@/lib/api/sales";
 import type { QuoteListItem } from "@/lib/types";
 import { Alert, Button, Card, Select, Table } from "@/components/ui";
@@ -19,6 +20,8 @@ export default function CotacoesPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [websiteError, setWebsiteError] = useState("");
+  const { run: updateWebsiteStatus, loading: updatingWebsite } = useUpdateWebsiteRequestStatus();
+  const [pendingWebsiteId, setPendingWebsiteId] = useState<string | null>(null);
 
   const loadWebsite = useCallback(async () => {
     setWebsiteError("");
@@ -52,11 +55,15 @@ export default function CotacoesPage() {
   }, [loadWebsite]);
 
   async function setWebsiteStatus(id: string, next: string) {
+    setPendingWebsiteId(id);
+    setWebsiteError("");
     try {
-      await salesApi.updateWebsiteRequestStatus(id, next);
+      await updateWebsiteStatus({ id, status: next });
       await loadWebsite();
     } catch (err) {
       setWebsiteError(err instanceof Error ? err.message : "Erro ao atualizar status");
+    } finally {
+      setPendingWebsiteId(null);
     }
   }
 
@@ -114,13 +121,27 @@ export default function CotacoesPage() {
                 <p className="mt-3 whitespace-pre-wrap text-sm text-slate-800">{cleanNotes(w.notes)}</p>
                 {w.status === "new" ? (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button type="button" onClick={() => void setWebsiteStatus(w.id, "contacted")}>
+                    <Button
+                      type="button"
+                      disabled={updatingWebsite && pendingWebsiteId === w.id}
+                      onClick={() => void setWebsiteStatus(w.id, "contacted")}
+                    >
                       Marcar contato
                     </Button>
-                    <Button type="button" variant="secondary" onClick={() => void setWebsiteStatus(w.id, "qualified")}>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={updatingWebsite && pendingWebsiteId === w.id}
+                      onClick={() => void setWebsiteStatus(w.id, "qualified")}
+                    >
                       Qualificar
                     </Button>
-                    <Button type="button" variant="secondary" onClick={() => void setWebsiteStatus(w.id, "lost")}>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={updatingWebsite && pendingWebsiteId === w.id}
+                      onClick={() => void setWebsiteStatus(w.id, "lost")}
+                    >
                       Perdido
                     </Button>
                   </div>

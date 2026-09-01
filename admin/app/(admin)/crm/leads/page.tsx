@@ -1,8 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { useCreateLead, useUpdateLeadStatus } from "@/hooks/use-lead-mutations";
 import { salesApi } from "@/lib/api/sales";
-import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
+import { Alert, Button, Card, Field, Input, Table } from "@/components/ui";
 
 type Lead = {
   id: string;
@@ -20,6 +21,9 @@ export default function LeadsPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
+  const { run: createLead, loading: creating } = useCreateLead();
+  const { run: updateStatus, loading: updating } = useUpdateLeadStatus();
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   async function load() {
     const res = await salesApi.listLeads();
@@ -32,8 +36,9 @@ export default function LeadsPage() {
 
   async function create(e: FormEvent) {
     e.preventDefault();
+    setError("");
     try {
-      await salesApi.createLead({ name, email: email || undefined, source: "admin" });
+      await createLead({ name, email: email || undefined, source: "admin" });
       setName("");
       setEmail("");
       await load();
@@ -43,8 +48,16 @@ export default function LeadsPage() {
   }
 
   async function setStatus(id: string, status: string) {
-    await salesApi.updateLeadStatus(id, status);
-    await load();
+    setPendingId(id);
+    setError("");
+    try {
+      await updateStatus({ id, status });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao atualizar status");
+    } finally {
+      setPendingId(null);
+    }
   }
 
   return (
@@ -58,7 +71,11 @@ export default function LeadsPage() {
         <form className="grid gap-4 sm:grid-cols-3" onSubmit={create}>
           <Field label="Nome"><Input value={name} onChange={(e) => setName(e.target.value)} required /></Field>
           <Field label="E-mail"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
-          <div className="flex items-end"><Button type="submit">Salvar</Button></div>
+          <div className="flex items-end">
+            <Button type="submit" disabled={creating}>
+              {creating ? "Salvando…" : "Salvar"}
+            </Button>
+          </div>
         </form>
       </Card>
 
@@ -72,7 +89,15 @@ export default function LeadsPage() {
             l.source,
             new Date(l.created_at).toLocaleDateString("pt-BR"),
             l.status === "new" ? (
-              <button key="q" type="button" className="text-blue-600 hover:underline" onClick={() => void setStatus(l.id, "qualified")}>Qualificar</button>
+              <button
+                key="q"
+                type="button"
+                className="text-blue-600 hover:underline disabled:opacity-50"
+                disabled={updating && pendingId === l.id}
+                onClick={() => void setStatus(l.id, "qualified")}
+              >
+                Qualificar
+              </button>
             ) : "—",
           ])}
         />

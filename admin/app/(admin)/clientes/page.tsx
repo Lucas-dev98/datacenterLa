@@ -2,7 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useCustomersList } from "@/hooks/use-customers-list";
-import { salesApi } from "@/lib/api/sales";
+import { useCreateCustomer } from "@/hooks/use-customer-mutations";
 import { documentTypeLabel } from "@/lib/customer-profile";
 import { PARAGUAY_BUYER_KINDS } from "@/lib/paraguay-documents";
 import type { Customer } from "@/lib/types";
@@ -23,6 +23,7 @@ export default function ClientesPage() {
   const [documentType, setDocumentType] = useState("ci_py");
   const [creditLimit, setCreditLimit] = useState("50000");
   const [terms, setTerms] = useState("30");
+  const { run: createCustomer, loading: creating } = useCreateCustomer();
 
   const documentOptions = useMemo(() => {
     if (residency === "paraguayan") {
@@ -45,7 +46,7 @@ export default function ClientesPage() {
     setInfo("");
     setCreateError("");
     try {
-      await salesApi.createCustomer({
+      await createCustomer({
           type,
           name,
           email: email || undefined,
@@ -167,7 +168,9 @@ export default function ClientesPage() {
             <Input type="number" value={terms} onChange={(e) => setTerms(e.target.value)} />
           </Field>
           <div className="flex items-end">
-            <Button type="submit">Criar cliente</Button>
+            <Button type="submit" disabled={creating}>
+              {creating ? "Criando…" : "Criar cliente"}
+            </Button>
           </div>
         </form>
       </Card>

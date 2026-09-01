@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { blobObjectUrl } from "@/lib/api/client";
 import { useCreateCustomerReturn } from "@/hooks/use-create-customer-return";
+import { useReturnStep } from "@/hooks/use-return-step";
 import { returnsApi, type CustomerReturn, type ReturnWindowCheck } from "@/lib/api/returns";
 import type { Order, OrderItem, OrderListItem } from "@/lib/types";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
@@ -60,6 +61,8 @@ export default function DevolucoesPage() {
   const [loadingOrder, setLoadingOrder] = useState(false);
   const { run: submitReturn, loading: submitting, setError: setReturnMutationError } =
     useCreateCustomerReturn();
+  const { run: returnStep, loading: stepping } = useReturnStep();
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
   const [selectedOrderLabel, setSelectedOrderLabel] = useState("");
   const [expandedId, setExpandedId] = useState("");
   const [expandedCase, setExpandedCase] = useState<CustomerReturn | null>(null);
@@ -230,17 +233,20 @@ export default function DevolucoesPage() {
   }
 
   async function action(id: string, step: "approve" | "receive" | "resolve", resolution?: string) {
+    setPendingActionId(id);
     setError("");
     try {
-      await returnsApi.step(
+      await returnStep({
         id,
         step,
-        step === "resolve" ? { resolution: resolution ?? "restock" } : undefined,
-      );
+        body: step === "resolve" ? { resolution: resolution ?? "restock" } : undefined,
+      });
       setInfo(`Devolução: ${step}`);
       await loadCases(caseSearch);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro na ação");
+    } finally {
+      setPendingActionId(null);
     }
   }
 
@@ -403,10 +409,10 @@ export default function DevolucoesPage() {
               r.reason,
               <div key={`a-${r.id}`} className="flex flex-wrap gap-2">
                 {r.status === "requested" ? (
-                  <button type="button" className="text-blue-600 hover:underline disabled:text-slate-400" disabled={!r.within_return_window} onClick={() => void action(r.id, "approve")}>Aprovar</button>
+                  <button type="button" className="text-blue-600 hover:underline disabled:text-slate-400 disabled:opacity-50" disabled={(!r.within_return_window) || (stepping && pendingActionId === r.id)} onClick={() => void action(r.id, "approve")}>Aprovar</button>
                 ) : null}
                 {r.status === "approved" ? (
-                  <button type="button" className="text-blue-600 hover:underline" onClick={() => void action(r.id, "receive")}>Receber</button>
+                  <button type="button" className="text-blue-600 hover:underline disabled:opacity-50" disabled={stepping && pendingActionId === r.id} onClick={() => void action(r.id, "receive")}>Receber</button>
                 ) : null}
                 {r.status === "received" ? (
                   <span className="flex flex-wrap items-center gap-2">
@@ -420,7 +426,8 @@ export default function DevolucoesPage() {
                     </Select>
                     <button
                       type="button"
-                      className="text-blue-600 hover:underline"
+                      className="text-blue-600 hover:underline disabled:opacity-50"
+                      disabled={stepping && pendingActionId === r.id}
                       onClick={() => void action(r.id, "resolve", resolveById[r.id] ?? "restock")}
                     >
                       Resolver

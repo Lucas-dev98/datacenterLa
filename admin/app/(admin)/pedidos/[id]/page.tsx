@@ -9,6 +9,12 @@ import { salesApi } from "@/lib/api/sales";
 import { hasPermission } from "@/lib/permissions";
 import { useAuth } from "@/components/auth-provider";
 import { useOrderDetail } from "@/hooks/use-order-detail";
+import {
+  useCancelOrder,
+  useConfirmOrder,
+  useConfirmOrderCredit,
+  useRecordOrderPayment,
+} from "@/hooks/use-sales-order-mutations";
 import { orderChannelLabel } from "@/lib/order-channels";
 import type { PaymentIntent } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
@@ -29,6 +35,10 @@ export default function PedidoDetailPage() {
   const [paymentConfig, setPaymentConfig] = useState<{ provider: string; stripe_publishable_key?: string } | null>(null);
   const [gatewayIntent, setGatewayIntent] = useState<PaymentIntent | null>(null);
   const [shipModalOpen, setShipModalOpen] = useState(false);
+  const { run: confirmOrderMutation, loading: confirming } = useConfirmOrder();
+  const { run: confirmCreditMutation, loading: confirmingCredit } = useConfirmOrderCredit();
+  const { run: submitPayment, loading: recordingPayment } = useRecordOrderPayment();
+  const { run: cancelOrderMutation, loading: cancelling } = useCancelOrder();
 
   useEffect(() => {
     if (order) setPayAmount(order.total_usd.toFixed(2));
@@ -42,7 +52,7 @@ export default function PedidoDetailPage() {
     setInfo("");
     setActionError("");
     try {
-      setOrder(await salesApi.confirmOrder(params.id));
+      setOrder(await confirmOrderMutation(params.id));
       setInfo("Pedido confirmado — estoque reservado");
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao confirmar");
@@ -53,7 +63,7 @@ export default function PedidoDetailPage() {
     setInfo("");
     setActionError("");
     try {
-      setOrder(await salesApi.confirmCredit(params.id));
+      setOrder(await confirmCreditMutation(params.id));
       setInfo("Pedido confirmado com crédito B2B — estoque reservado");
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao confirmar crédito");
@@ -65,7 +75,8 @@ export default function PedidoDetailPage() {
     setInfo("");
     setActionError("");
     try {
-      const o = await salesApi.recordPayment(params.id, {
+      const o = await submitPayment({
+        id: params.id,
         amount_usd: parseFloat(payAmount) || 0,
         method: payMethod,
         reference: payRef || undefined,
@@ -122,7 +133,7 @@ export default function PedidoDetailPage() {
     setInfo("");
     setActionError("");
     try {
-      setOrder(await salesApi.cancelOrder(params.id));
+      setOrder(await cancelOrderMutation(params.id));
       setInfo("Pedido cancelado");
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao cancelar");
@@ -209,12 +220,12 @@ export default function PedidoDetailPage() {
             Confirmação reserva estoque disponível no depósito.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Button type="button" onClick={() => void confirmOrder()}>
-              Confirmar (pagamento à vista)
+            <Button type="button" disabled={confirming} onClick={() => void confirmOrder()}>
+              {confirming ? "Confirmando…" : "Confirmar (pagamento à vista)"}
             </Button>
             {isB2B ? (
-              <Button type="button" variant="secondary" onClick={() => void confirmCredit()}>
-                Confirmar com crédito B2B
+              <Button type="button" variant="secondary" disabled={confirmingCredit} onClick={() => void confirmCredit()}>
+                {confirmingCredit ? "Confirmando…" : "Confirmar com crédito B2B"}
               </Button>
             ) : null}
           </div>
@@ -238,7 +249,9 @@ export default function PedidoDetailPage() {
               <Input value={payRef} onChange={(e) => setPayRef(e.target.value)} placeholder="opcional" />
             </Field>
             <div className="flex items-end">
-              <Button type="submit">Registrar pagamento</Button>
+              <Button type="submit" disabled={recordingPayment}>
+                {recordingPayment ? "Registrando…" : "Registrar pagamento"}
+              </Button>
             </div>
           </form>
         </Card>
@@ -299,8 +312,8 @@ export default function PedidoDetailPage() {
                 ? "Libera reservas de estoque e cancela título em aberto."
                 : "Cancela o rascunho sem impacto no estoque."}
           </p>
-          <Button type="button" variant="secondary" onClick={() => void cancelOrder()}>
-            Cancelar pedido
+          <Button type="button" variant="secondary" disabled={cancelling} onClick={() => void cancelOrder()}>
+            {cancelling ? "Cancelando…" : "Cancelar pedido"}
           </Button>
         </Card>
       ) : null}
