@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { printHTML } from "@/lib/api";
+import { printHTML } from "@/lib/api/client";
 import { posApi, type ExchangeRatesToday, type POSPixInitResponse } from "@/lib/api/pos";
 import { pricingApi } from "@/lib/api/pricing";
 import { stockApi } from "@/lib/api/stock";

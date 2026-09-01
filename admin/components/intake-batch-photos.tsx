@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, apiBlob, blobObjectUrl } from "@/lib/api";
+import { stockApi } from "@/lib/api/stock";
+import { blobObjectUrl } from "@/lib/api/client";
 import type { IntakeBatchPhoto } from "@/lib/types";
 import { DocumentScanCapture } from "@/components/document-scan-capture";
 
@@ -19,9 +20,7 @@ export function IntakeBatchPhotoGallery({ batchId, label = "Fotos do lote" }: Pr
     let cancelled = false;
     void (async () => {
       try {
-        const res = await api<{ items: IntakeBatchPhoto[] }>(
-          `/api/v1/stock/intake-batches/${batchId}/photos`,
-        );
+        const res = await stockApi.listIntakeBatchPhotos(batchId);
         if (!cancelled) setPhotos(res.items ?? []);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Erro ao carregar fotos");
@@ -40,9 +39,7 @@ export function IntakeBatchPhotoGallery({ batchId, label = "Fotos do lote" }: Pr
       const next: Record<string, string> = {};
       for (const photo of photos) {
         try {
-          const blob = await apiBlob(
-            `/api/v1/stock/intake-batches/${batchId}/photos/${photo.id}/file`,
-          );
+          const blob = await stockApi.intakeBatchPhotoBlob(batchId, photo.id);
           if (cancelled) return;
           const url = blobObjectUrl(blob);
           created.push(url);
@@ -109,20 +106,16 @@ export function IntakePhotoThumb({ batchId, unitId, alt }: ThumbProps) {
     void (async () => {
       try {
         if (batchId) {
-          const res = await api<{ items: IntakeBatchPhoto[] }>(
-            `/api/v1/stock/intake-batches/${batchId}/photos`,
-          );
+          const res = await stockApi.listIntakeBatchPhotos(batchId);
           const first = res.items?.[0];
           if (!first) return;
-          const blob = await apiBlob(
-            `/api/v1/stock/intake-batches/${batchId}/photos/${first.id}/file`,
-          );
+          const blob = await stockApi.intakeBatchPhotoBlob(batchId, first.id);
           if (cancelled) return;
           objectUrl = blobObjectUrl(blob);
           setUrl(objectUrl);
           return;
         }
-        const blob = await apiBlob(`/api/v1/stock/units/${unitId}/intake-photo/file`);
+        const blob = await stockApi.unitIntakePhotoBlob(unitId);
         if (cancelled) return;
         objectUrl = blobObjectUrl(blob);
         setUrl(objectUrl);

@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { api, shipOrderWithPhotos } from "@/lib/api";
+import { salesApi } from "@/lib/api/sales";
 import type { Order, OrderItem } from "@/lib/types";
 import { DocumentScanCapture } from "@/components/document-scan-capture";
 import { Alert, Button } from "@/components/ui";
@@ -28,7 +28,7 @@ export function ShipExpeditionModal({ orderId, orderNumber, onClose, onShipped }
   useEffect(() => {
     setLoading(true);
     setError("");
-    void api<Order>(`/api/v1/sales/orders/${orderId}`)
+    void salesApi.getOrder(orderId)
       .then((o) => {
         setOrder(o);
         const initial: Record<string, ItemPhoto> = {};
@@ -76,7 +76,7 @@ export function ShipExpeditionModal({ orderId, orderNumber, onClose, onShipped }
         if (!file) continue;
         form.append(`photo_${item.id}`, file);
       }
-      await shipOrderWithPhotos(order.id, form);
+      await salesApi.shipWithPhotos(order.id, form);
       onShipped();
       onClose();
     } catch (err) {

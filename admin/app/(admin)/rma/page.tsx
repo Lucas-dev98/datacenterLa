@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { apiBlob, blobObjectUrl, createRMAWithPhotos, ApiClientError } from "@/lib/api";
+import { ApiClientError, blobObjectUrl } from "@/lib/api/client";
 import { rmaApi, type RMACase, type WarrantyCheck } from "@/lib/api/rma";
 import type { Order, OrderItem, OrderListItem } from "@/lib/types";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
@@ -16,7 +16,7 @@ function RMATestPhotoThumb({ caseId, photoId, alt }: { caseId: string; photoId: 
     let objectUrl = "";
     void (async () => {
       try {
-        const blob = await apiBlob(`/api/v1/sales/rma/${caseId}/test-photos/${photoId}/file`);
+        const blob = await rmaApi.testPhotoBlob(caseId, photoId);
         if (cancelled) return;
         objectUrl = blobObjectUrl(blob);
         setUrl(objectUrl);
@@ -270,7 +270,7 @@ export default function RMAPage() {
       testPhotos.forEach((photo, index) => {
         form.set(`test_photo_${index}`, photo.file, photo.file.name || `test-${index + 1}.jpg`);
       });
-      await createRMAWithPhotos(form);
+      await rmaApi.createWithPhotos(form);
       setInfo("Caso RMA aberto — aguardando aprovação após revisão do teste.");
       clearSelectedOrder();
       setReason("");

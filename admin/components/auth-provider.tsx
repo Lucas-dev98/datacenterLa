@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { authApi } from "@/lib/api/auth";
 import {
   clearTokens,
   getStoredUser,
@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       return;
     }
-    const me = await api<User>("/api/v1/auth/me");
+    const me = await authApi.me();
     saveUser(me);
     setUser(me);
   };

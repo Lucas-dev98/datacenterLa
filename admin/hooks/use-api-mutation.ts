@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { api } from "@/lib/api";
+import { api } from "@/lib/api/client";
 
 export function useApiMutation<TBody, TResult>(
   mutate: (body: TBody) => Promise<TResult>,

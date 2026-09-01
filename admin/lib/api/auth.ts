@@ -10,6 +10,7 @@ export type Role = {
 };
 
 export const authApi = {
+  me: () => api<User>(`${BASE}/me`),
   listUsers: () => api<{ items: User[] }>(`${BASE}/users`),
   listRoles: () => api<{ items: Role[] }>(`${BASE}/roles`),
   createUser: (body: Record<string, unknown>) =>

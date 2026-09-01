@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
-import { failIntakeTest, passIntakeTest } from "@/lib/api";
+import { stockApi } from "@/lib/api/stock";
 import { Alert, Button, Field, Input } from "@/components/ui";
 
 type Props = {
@@ -36,7 +36,7 @@ export function IntakeTestPanel({ unitId, unitCode, onDone }: Props) {
     setBusy(true);
     setError("");
     try {
-      await passIntakeTest(unitId, buildForm());
+      await stockApi.passIntakeTest(unitId, buildForm());
       photos.forEach((p) => URL.revokeObjectURL(p.preview));
       setPhotos([]);
       onDone();
@@ -62,7 +62,7 @@ export function IntakeTestPanel({ unitId, unitCode, onDone }: Props) {
     try {
       const form = buildForm();
       form.append("reason", reason.trim());
-      await failIntakeTest(unitId, form);
+      await stockApi.failIntakeTest(unitId, form);
       photos.forEach((p) => URL.revokeObjectURL(p.preview));
       setPhotos([]);
       setShowFail(false);

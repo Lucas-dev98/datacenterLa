@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { salesApi } from "@/lib/api/sales";
 import { orderChannelBadgeClass, orderChannelLabel } from "@/lib/order-channels";
 import type { OrderListItem } from "@/lib/types";
 import { ShipExpeditionModal } from "@/components/ship-expedition-modal";
@@ -15,8 +15,6 @@ const STATUS_LABEL: Record<string, string> = {
   paid: "Pago — aguardando separação",
   picking: "Em separação",
 };
-
-const QUEUE_STATUSES = ["confirmed", "paid", "picking"] as const;
 
 type Props = {
   sectionLabel?: string;
@@ -45,16 +43,7 @@ export function ExpeditionQueuePanel({
     setLoading(true);
     setError("");
     try {
-      const batches = await Promise.all(
-        QUEUE_STATUSES.map((status) =>
-          api<{ items: OrderListItem[] }>(`/api/v1/sales/orders?limit=100&status=${status}`),
-        ),
-      );
-      const merged = batches.flatMap((b) => b.items ?? []);
-      const byId = new Map<string, OrderListItem>();
-      for (const o of merged) byId.set(o.id, o);
-      const list = [...byId.values()];
-      list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      const list = await salesApi.listExpeditionQueue();
       setItems(list);
       setSelected(new Set());
     } catch (err) {

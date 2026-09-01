@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { uploadSKUImage } from "@/lib/api";
 import { pimApi } from "@/lib/api/pim";
 import { pricingApi } from "@/lib/api/pricing";
 import { API_URL } from "@/lib/config";
@@ -120,7 +119,7 @@ export default function ProdutoEditPage() {
     if (localPreview) URL.revokeObjectURL(localPreview);
     setLocalPreview(preview);
     try {
-      const updated = await uploadSKUImage(sku.id, file);
+      const updated = await pimApi.uploadSkuImage(sku.id, file);
       if (updated.image_url) {
         setImageUrl(updated.image_url);
         setSku({ ...sku, image_url: updated.image_url });

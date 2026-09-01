@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { apiBlob, blobObjectUrl, createCustomerReturnWithPhotos } from "@/lib/api";
+import { blobObjectUrl, ApiClientError } from "@/lib/api/client";
 import { returnsApi, type CustomerReturn, type ReturnWindowCheck } from "@/lib/api/returns";
 import type { Order, OrderItem, OrderListItem } from "@/lib/types";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
@@ -17,7 +17,7 @@ function ReturnPhotoThumb({ returnId, photoId, alt }: { returnId: string; photoI
     let objectUrl = "";
     void (async () => {
       try {
-        const blob = await apiBlob(`/api/v1/sales/returns/${returnId}/photos/${photoId}/file`);
+        const blob = await returnsApi.photoBlob(returnId, photoId);
         if (cancelled) return;
         objectUrl = blobObjectUrl(blob);
         setUrl(objectUrl);
@@ -214,7 +214,7 @@ export default function DevolucoesPage() {
       photos.forEach((photo, index) => {
         form.set(`photo_${index}`, photo.file, photo.file.name || `return-${index + 1}.jpg`);
       });
-      await createCustomerReturnWithPhotos(form);
+      await returnsApi.createWithPhotos(form);
       setInfo("Devolução registrada — aguardando aprovação.");
       clearOrder();
       setReason("");

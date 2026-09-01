@@ -26,4 +26,5 @@ export { pricingApi } from "./pricing";
 export { authApi } from "./auth";
 export type { Role } from "./auth";
 export { integrationsApi } from "./integrations";
-export { api, ApiClientError } from "./client";
+export { labelsApi } from "./labels";
+export { api, ApiClientError, blobObjectUrl, downloadBlob, printHTML } from "./client";

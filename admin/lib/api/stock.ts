@@ -1,9 +1,10 @@
-import { receiveIntakeWithPhotos, updateSupplierReturnStatus } from "../api";
+import { failIntakeTest, passIntakeTest, receiveIntakeWithPhotos, updateSupplierReturnStatus } from "../api";
 import { api, apiBlob } from "./client";
 import type {
   InventoryUnit,
   InventoryUnitDetail,
   InventoryUnitReceive,
+  IntakeBatchPhoto,
   IntakeQueueItem,
   LowStockSKU,
   StockBalanceRow,
@@ -158,6 +159,13 @@ export const stockApi = {
       body: JSON.stringify(body),
     }),
   receiveIntakeWithPhotos: (form: FormData) => receiveIntakeWithPhotos(form),
+  passIntakeTest: (unitId: string, form: FormData) => passIntakeTest(unitId, form),
+  failIntakeTest: (unitId: string, form: FormData) => failIntakeTest(unitId, form),
+  listIntakeBatchPhotos: (batchId: string) =>
+    api<{ items: IntakeBatchPhoto[] }>(`${STOCK}/intake-batches/${batchId}/photos`),
+  intakeBatchPhotoBlob: (batchId: string, photoId: string) =>
+    apiBlob(`${STOCK}/intake-batches/${batchId}/photos/${photoId}/file`),
+  unitIntakePhotoBlob: (unitId: string) => apiBlob(`${STOCK}/units/${unitId}/intake-photo/file`),
   listSupplierReturns: (status?: string) => {
     const qs = status ? `?status=${encodeURIComponent(status)}` : "";
     return api<{ items: SupplierReturn[] }>(`${STOCK}/supplier-returns${qs}`);

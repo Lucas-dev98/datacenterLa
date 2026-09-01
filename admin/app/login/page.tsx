@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { login } from "@/lib/api";
+import { login } from "@/lib/api/client";
 import { saveTokens } from "@/lib/auth";
 import type { TokenPair } from "@/lib/types";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";

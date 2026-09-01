@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiBlob, blobObjectUrl } from "@/lib/api";
+import { stockApi } from "@/lib/api/stock";
+import { blobObjectUrl } from "@/lib/api/client";
 
 type Props = {
   unitId: string;
@@ -23,7 +24,7 @@ export function IntakeUnitPhoto({
 
     void (async () => {
       try {
-        const blob = await apiBlob(`/api/v1/stock/units/${unitId}/intake-photo/file`);
+        const blob = await stockApi.unitIntakePhotoBlob(unitId);
         if (cancelled) return;
         objectUrl = blobObjectUrl(blob);
         setUrl(objectUrl);

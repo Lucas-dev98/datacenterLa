@@ -1,4 +1,5 @@
-import { api, apiText } from "../api";
+import { api, apiText, shipOrderWithPhotos } from "../api";
+import { apiBlob } from "./client";
 import type {
   AnalyticsDashboard,
   Customer,
@@ -97,6 +98,21 @@ export const salesApi = {
       method: "PATCH",
       body: JSON.stringify({ status }),
     }),
+  listExpeditionQueue: async () => {
+    const statuses = ["confirmed", "paid", "picking"] as const;
+    const batches = await Promise.all(
+      statuses.map((status) => salesApi.listOrders({ status, limit: 100 })),
+    );
+    const merged = batches.flatMap((b) => b.items ?? []);
+    const byId = new Map<string, OrderListItem>();
+    for (const o of merged) byId.set(o.id, o);
+    const list = [...byId.values()];
+    list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    return list;
+  },
+  shipWithPhotos: (orderId: string, form: FormData) => shipOrderWithPhotos(orderId, form),
+  shipPhotoBlob: (orderId: string, photoId: string) =>
+    apiBlob(`${BASE}/orders/${orderId}/ship-photos/${photoId}/file`),
   listCustomers: (activeOnly = true) =>
     api<{ items: Customer[] }>(`${BASE}/customers?active_only=${activeOnly}`),
   getCustomer: (id: string) => api<Customer>(`${BASE}/customers/${id}`),

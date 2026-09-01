@@ -47,6 +47,10 @@ export const posApi = {
       body: body ? JSON.stringify(body) : undefined,
     }),
   pixCancel: (orderId: string) => api<Order>(`${BASE}/pix/${orderId}/cancel`, { method: "POST" }),
+  createCustomer: (body: Record<string, unknown>) =>
+    api<Customer>(`${BASE}/customers`, { method: "POST", body: JSON.stringify(body) }),
+  uploadDocumentScan: (customerId: string, form: FormData) =>
+    api<Customer>(`${BASE}/customers/${customerId}/document-scan`, { method: "POST", body: form }),
   resolveSkuForSale: async (sku: SKU) => {
     const [price, avail] = await Promise.all([
       pricingApi.resolveB2C(sku.id),

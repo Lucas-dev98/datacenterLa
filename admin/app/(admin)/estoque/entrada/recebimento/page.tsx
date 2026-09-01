@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { downloadBlob } from "@/lib/api";
+import { downloadBlob } from "@/lib/api/client";
 import { stockApi } from "@/lib/api/stock";
 import { DEFAULT_LOCATION_ID } from "@/lib/config";
 import type { IntakeQueueItem, InventoryUnit } from "@/lib/types";

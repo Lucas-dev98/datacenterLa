@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiBlob, blobObjectUrl } from "@/lib/api";
+import { salesApi } from "@/lib/api/sales";
+import { blobObjectUrl } from "@/lib/api/client";
 import type { OrderShipPhoto } from "@/lib/types";
 import { Card } from "@/components/ui";
 
@@ -34,7 +35,7 @@ function ShipPhotoTile({ orderId, photo }: { orderId: string; photo: OrderShipPh
   useEffect(() => {
     let active = true;
     let objectUrl = "";
-    void apiBlob(`/api/v1/sales/orders/${orderId}/ship-photos/${photo.id}/file`)
+    void salesApi.shipPhotoBlob(orderId, photo.id)
       .then((blob) => {
         if (!active) return;
         objectUrl = blobObjectUrl(blob);

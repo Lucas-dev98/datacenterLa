@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { apiBlob, downloadBlob } from "@/lib/api";
+import { downloadBlob } from "@/lib/api/client";
+import { labelsApi } from "@/lib/api/labels";
 import { pimApi } from "@/lib/api/pim";
 import type { SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
@@ -78,10 +79,7 @@ export default function EtiquetasPage() {
       const items = queue.flatMap((row) =>
         Array.from({ length: row.copies }, () => ({ type: "cadastro", code: row.sku.code })),
       );
-      const blob = await apiBlob("/api/v1/labels/batch", {
-        method: "POST",
-        body: JSON.stringify({ format, items }),
-      });
+      const blob = await labelsApi.batch({ format, items });
       const ext = format === "html" ? "html" : "pdf";
       downloadBlob(blob, `etiquetas-gaveta.${ext}`);
     } catch (err) {

@@ -1,4 +1,5 @@
 import { api, createCustomerReturnWithPhotos } from "../api";
+import { apiBlob } from "./client";
 import type { Order, OrderItem, OrderListItem } from "../types";
 import { salesApi } from "./sales";
 
@@ -53,6 +54,8 @@ export const returnsApi = {
   },
   searchShippedOrders: (q: string) => salesApi.searchShippedOrders(q),
   createWithPhotos: (form: FormData) => createCustomerReturnWithPhotos(form),
+  photoBlob: (returnId: string, photoId: string) =>
+    apiBlob(`${BASE}/${returnId}/photos/${photoId}/file`),
   step: (id: string, step: string, body?: Record<string, unknown>) =>
     api(`${BASE}/${id}/${step}`, {
       method: "POST",

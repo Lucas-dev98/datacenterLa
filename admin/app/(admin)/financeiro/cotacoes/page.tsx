@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { ApiClientError } from "@/lib/api";
+import { ApiClientError } from "@/lib/api/client";
 import { pricingApi } from "@/lib/api/pricing";
 import { formatExchangeRate } from "@/lib/exchange-rates";
 import { useAuth } from "@/components/auth-provider";

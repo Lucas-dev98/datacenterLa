@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { printHTML } from "@/lib/api";
+import { printHTML } from "@/lib/api/client";
 import { paymentsApi } from "@/lib/api/payments";
 import { salesApi } from "@/lib/api/sales";
 import { hasPermission } from "@/lib/permissions";

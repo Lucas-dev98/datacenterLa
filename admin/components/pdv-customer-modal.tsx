@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { api } from "@/lib/api";
+import { posApi } from "@/lib/api/pos";
 import type { Customer } from "@/lib/types";
 import {
   PARAGUAY_BUYER_KINDS,
@@ -124,25 +124,19 @@ export function PDVCustomerModal({ onCreated, onClose, initialResidency = "", in
     setError("");
     try {
       const effectiveDocType = residency === "paraguayan" ? paraguayanMeta.documentType : documentType;
-      const customer = await api<Customer>("/api/v1/sales/pos/customers", {
-        method: "POST",
-        body: JSON.stringify({
-          name,
-          phone: phone.trim() || undefined,
-          document_id: documentId.trim() || undefined,
-          residency,
-          nationality: residency === "paraguayan" ? "PY" : nationality,
-          document_type: effectiveDocType,
-          type: effectiveDocType === "ruc_pj" ? "b2b" : "b2c",
-        }),
+      const customer = await posApi.createCustomer({
+        name,
+        phone: phone.trim() || undefined,
+        document_id: documentId.trim() || undefined,
+        residency,
+        nationality: residency === "paraguayan" ? "PY" : nationality,
+        document_type: effectiveDocType,
+        type: effectiveDocType === "ruc_pj" ? "b2b" : "b2c",
       });
       if (scanFile) {
         const form = new FormData();
         form.append("file", scanFile);
-        await api<Customer>(`/api/v1/sales/pos/customers/${customer.id}/document-scan`, {
-          method: "POST",
-          body: form,
-        });
+        await posApi.uploadDocumentScan(customer.id, form);
         customer.has_document_scan = true;
       }
       onCreated(customer);
