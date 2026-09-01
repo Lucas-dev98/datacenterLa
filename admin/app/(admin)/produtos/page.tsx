@@ -185,7 +185,7 @@ export default function ProdutosPage() {
               "",
             ]}
             rows={skus.map((s) => {
-              const product = productsById[s.product_id];
+              const product = s.product_id ? productsById[s.product_id] : undefined;
               const hasEs = product?.description_es || product?.name_es || product?.generated_description_es;
               return [
                 <input

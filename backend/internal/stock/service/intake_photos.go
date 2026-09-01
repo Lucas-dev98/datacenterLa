@@ -49,8 +49,31 @@ func (s *Service) ReceiveWithIntake(ctx context.Context, in ReceiveIntakeInput) 
 
 	var created []domain.InventoryUnit
 	err := s.repo.WithTx(ctx, func(tx pgx.Tx) error {
-		now := time.Now().UTC()
-		for _, item := range in.Items {
+		return s.receiveIntakeInTx(ctx, tx, in, &created)
+	})
+	return created, err
+}
+
+func (s *Service) ReceiveWithIntakeTx(ctx context.Context, tx pgx.Tx, in ReceiveIntakeInput) ([]domain.InventoryUnit, error) {
+	if in.WarehouseID == uuid.Nil || len(in.Items) == 0 {
+		return nil, domain.ErrInvalidInput
+	}
+	if len(in.BatchPhotos) == 0 {
+		return nil, domain.NewRuleViolation("PHOTO_REQUIRED", "pelo menos uma foto do lote é obrigatória")
+	}
+	if len(in.BatchPhotos) > maxBatchPhotos {
+		return nil, domain.ErrInvalidInput
+	}
+	var created []domain.InventoryUnit
+	if err := s.receiveIntakeInTx(ctx, tx, in, &created); err != nil {
+		return nil, err
+	}
+	return created, nil
+}
+
+func (s *Service) receiveIntakeInTx(ctx context.Context, tx pgx.Tx, in ReceiveIntakeInput, created *[]domain.InventoryUnit) error {
+	now := time.Now().UTC()
+	for _, item := range in.Items {
 			if item.SKUID == uuid.Nil || item.Quantity <= 0 {
 				return domain.ErrInvalidInput
 			}
@@ -104,7 +127,7 @@ func (s *Service) ReceiveWithIntake(ctx context.Context, in ReceiveIntakeInput) 
 					return err
 				}
 				batchUnits = append(batchUnits, unit)
-				created = append(created, unit)
+				*created = append(*created, unit)
 			}
 
 			if len(batchUnits) > 0 {
@@ -129,9 +152,7 @@ func (s *Service) ReceiveWithIntake(ctx context.Context, in ReceiveIntakeInput) 
 				}
 			}
 		}
-		return nil
-	})
-	return created, err
+	return nil
 }
 
 func (s *Service) ListIntakeBatchPhotos(ctx context.Context, batchID uuid.UUID) ([]domain.IntakeBatchPhoto, error) {

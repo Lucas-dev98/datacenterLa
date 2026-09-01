@@ -2,32 +2,27 @@
 
 Painel ERP/CRM em **Next.js 15 + React + Tailwind**.
 
-## Módulos (MVP)
+## Arquitetura
 
-- **Cadastros** — produto + SKU + campos ES (feed Compras Paraguai)
-- **Produtos / SKUs** — listagem, edição (ES, canais)
-- **Preços** — consulta e alteração por SKU
-- **Estoque** — disponibilidade, recebimento, reservas
-- **Cotações** — listagem, criar, buscar, enviar, converter em pedido
-- **Pedidos** — listagem, confirmar, pagamento, crédito B2B, expedir
-- **Clientes** — listagem e cadastro CRM
-- **Dashboard** — métricas operacionais, pedidos pendentes, estoque baixo
-- **Financeiro** — contas a receber
-- **Etiquetas de gaveta** — descrição, QR e SKU (registro no sistema)
+```
+app/(admin)/     → páginas por módulo (client components)
+hooks/           → useApiQuery, useApiMutation (fetch padronizado)
+lib/api/         → módulos tipados (sales, stock, purchases, pim)
+lib/api.ts       → cliente HTTP com refresh JWT
+middleware.ts    → redirect para /login sem cookie de sessão
+components/      → UI reutilizável + fluxos complexos (PDV, expedição, intake)
+```
+
+## Módulos
+
+Cadastros, produtos, preços, estoque, compras, cotações, pedidos, PDV, RMA, devoluções, financeiro, integrações.
 
 ## Pré-requisitos
 
-Backend rodando em `:8080` com seed:
+Backend em `:8080` ou `:8082` (ver `lib/config.ts`):
 
 ```bash
-cd ../backend
-make run   # ou: docker compose up -d && go run ./cmd/server
-```
-
-## Configuração
-
-```bash
-cp .env.local.example .env.local
+cd ../backend && make run
 ```
 
 ## Desenvolvimento
@@ -37,28 +32,14 @@ npm install
 npm run dev
 ```
 
-Abrir [http://localhost:3000/login](http://localhost:3000/login)
+[http://localhost:3000/login](http://localhost:3000/login) — `admin@datacenterla.local` / `Admin@12345678`
 
-Credenciais seed: `admin@datacenterla.local` / `Admin@12345678`
+## Variáveis
+
+| Variável | Default |
+|----------|---------|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8082` |
 
 ## Stack
 
-- Next.js App Router
-- TypeScript
-- Tailwind CSS v4
-- Auth JWT (access + refresh em localStorage)
-
-## Estrutura
-
-```
-admin/
-  app/
-    login/           # login público
-    (admin)/         # rotas protegidas + sidebar
-      cadastros/
-      produtos/
-      estoque/
-      cotacoes/
-  lib/               # api client, auth, types
-  components/        # UI + layout
-```
+Next.js App Router · TypeScript · Tailwind v4 · JWT (localStorage + cookie `dcla_session` para middleware)

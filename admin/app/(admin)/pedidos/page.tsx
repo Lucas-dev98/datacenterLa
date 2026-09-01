@@ -1,40 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { api } from "@/lib/api";
+import { useApiQuery } from "@/hooks/use-api-query";
 import type { OrderListItem } from "@/lib/types";
 import { orderChannelLabel } from "@/lib/order-channels";
 import { Alert, Card, Select, Table } from "@/components/ui";
 
 export default function PedidosPage() {
   const searchParams = useSearchParams();
-  const [items, setItems] = useState<OrderListItem[]>([]);
   const [status, setStatus] = useState(() => searchParams.get("status") ?? "");
-  const [total, setTotal] = useState(0);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const q = status ? `&status=${encodeURIComponent(status)}` : "";
-        const res = await api<{ items: OrderListItem[]; total: number }>(
-          `/api/v1/sales/orders?limit=50${q}`,
-        );
-        setItems(res.items);
-        setTotal(res.total);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Erro ao carregar");
-      } finally {
-        setLoading(false);
-      }
-    };
-    void load();
-  }, [status]);
+  const path = useMemo(
+    () => `/api/v1/sales/orders?limit=50${status ? `&status=${encodeURIComponent(status)}` : ""}`,
+    [status],
+  );
+  const { data, error, loading } = useApiQuery<{ items: OrderListItem[]; total: number }>(path, {
+    deps: [status],
+  });
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">

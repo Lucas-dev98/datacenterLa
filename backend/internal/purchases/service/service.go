@@ -9,6 +9,7 @@ import (
 	stockdomain "github.com/datacenterla/platform/internal/stock/domain"
 	stockservice "github.com/datacenterla/platform/internal/stock/service"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type Service struct {
@@ -103,36 +104,38 @@ func (s *Service) ReceivePurchaseOrder(ctx context.Context, id uuid.UUID, in dom
 	}
 
 	poID := po.ID
-	for _, line := range in.Items {
-		if line.SKUID == uuid.Nil || line.Quantity <= 0 {
-			return nil, domain.ErrInvalidInput
+	err = s.stock.RunInTransaction(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		for _, line := range in.Items {
+			if line.SKUID == uuid.Nil || line.Quantity <= 0 {
+				return domain.ErrInvalidInput
+			}
+			cost, err := s.repo.POItemCost(ctx, id, line.SKUID)
+			if err != nil {
+				return domain.ErrInvalidInput
+			}
+			landed := itemLandedUnitCost(po, line.SKUID, cost)
+			costPtr := landed
+			items := []stockdomain.ReceiveItemInput{{
+				SKUID:       line.SKUID,
+				Quantity:    line.Quantity,
+				UnitCostUSD: &costPtr,
+				PurchaseID:  &poID,
+			}}
+			if _, err := s.stock.ReceiveWithTx(ctx, tx, stockservice.ReceiveInput{
+				WarehouseID: po.WarehouseID,
+				PurchaseID:  &poID,
+				Items:       items,
+				CreatedBy:   receivedBy,
+			}); err != nil {
+				return err
+			}
+			if err := s.repo.IncrementReceivedTx(ctx, tx, id, line.SKUID, line.Quantity); err != nil {
+				return err
+			}
 		}
-		cost, err := s.repo.POItemCost(ctx, id, line.SKUID)
-		if err != nil {
-			return nil, domain.ErrInvalidInput
-		}
-		landed := itemLandedUnitCost(po, line.SKUID, cost)
-		costPtr := landed
-		items := make([]stockdomain.ReceiveItemInput, 1)
-		items[0] = stockdomain.ReceiveItemInput{
-			SKUID:       line.SKUID,
-			Quantity:    line.Quantity,
-			UnitCostUSD: &costPtr,
-			PurchaseID:  &poID,
-		}
-		if _, err := s.stock.Receive(ctx, stockservice.ReceiveInput{
-			WarehouseID: po.WarehouseID,
-			PurchaseID:  &poID,
-			Items:       items,
-			CreatedBy:   receivedBy,
-		}); err != nil {
-			return nil, err
-		}
-		if err := s.repo.IncrementReceived(ctx, id, line.SKUID, line.Quantity); err != nil {
-			return nil, err
-		}
-	}
-	if err := s.repo.RefreshPOStatus(ctx, id); err != nil {
+		return s.repo.RefreshPOStatusTx(ctx, tx, id)
+	})
+	if err != nil {
 		return nil, err
 	}
 	updated, err := s.repo.GetPurchaseOrder(ctx, id)

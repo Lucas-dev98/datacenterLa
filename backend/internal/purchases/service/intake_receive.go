@@ -7,6 +7,7 @@ import (
 	stockdomain "github.com/datacenterla/platform/internal/stock/domain"
 	stockservice "github.com/datacenterla/platform/internal/stock/service"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type POReceiveIntakeResult struct {
@@ -59,23 +60,27 @@ func (s *Service) ReceivePurchaseOrderWithIntake(
 		})
 	}
 
-	units, err := s.stock.ReceiveWithIntake(ctx, stockservice.ReceiveIntakeInput{
-		WarehouseID: po.WarehouseID,
-		PurchaseID:  &poID,
-		Items:       intakeItems,
-		BatchPhotos: batchPhotos,
-		CreatedBy:   receivedBy,
+	var units []stockdomain.InventoryUnit
+	err = s.stock.RunInTransaction(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		var receiveErr error
+		units, receiveErr = s.stock.ReceiveWithIntakeTx(ctx, tx, stockservice.ReceiveIntakeInput{
+			WarehouseID: po.WarehouseID,
+			PurchaseID:  &poID,
+			Items:       intakeItems,
+			BatchPhotos: batchPhotos,
+			CreatedBy:   receivedBy,
+		})
+		if receiveErr != nil {
+			return receiveErr
+		}
+		for _, line := range in.Items {
+			if err := s.repo.IncrementReceivedTx(ctx, tx, poID, line.SKUID, line.Quantity); err != nil {
+				return err
+			}
+		}
+		return s.repo.RefreshPOStatusTx(ctx, tx, poID)
 	})
 	if err != nil {
-		return nil, err
-	}
-
-	for _, line := range in.Items {
-		if err := s.repo.IncrementReceived(ctx, poID, line.SKUID, line.Quantity); err != nil {
-			return nil, err
-		}
-	}
-	if err := s.repo.RefreshPOStatus(ctx, poID); err != nil {
 		return nil, err
 	}
 	updated, err := s.repo.GetPurchaseOrder(ctx, poID)

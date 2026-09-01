@@ -48,3 +48,42 @@ jobs:
       - name: Shop typecheck
         working-directory: shop
         run: npm ci && npx tsc --noEmit
+
+  e2e-smoke:
+    runs-on: ubuntu-latest
+    needs: [backend]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: datacenterla
+          POSTGRES_PASSWORD: datacenterla
+          POSTGRES_DB: datacenterla
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U datacenterla"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Seed and start API
+        working-directory: backend
+        env:
+          DATABASE_URL: postgres://datacenterla:datacenterla@localhost:5434/datacenterla?sslmode=disable
+          HTTP_ADDR: ":8082"
+        run: |
+          go run ./cmd/seed
+          go run ./cmd/server &
+          sleep 3
+      - name: API smoke tests
+        run: python3 scripts/e2e_api_smoke.py
+        env:
+          API_URL: http://localhost:8082

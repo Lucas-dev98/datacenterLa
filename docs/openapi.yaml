@@ -1,0 +1,41 @@
+openapi: 3.0.3
+info:
+  title: Data Center LA API
+  version: 1.0.0
+  description: REST API for ERP admin, ecommerce shop, and partner integrations.
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development
+paths:
+  /auth/login:
+    post:
+      summary: Admin login
+  /auth/me:
+    get:
+      summary: Current admin user
+  /pim/products:
+    get:
+      summary: List products
+  /stock/units:
+    get:
+      summary: List inventory units
+  /purchases/orders:
+    get:
+      summary: List purchase orders
+    post:
+      summary: Create purchase order
+  /purchases/orders/{id}/receive-intake:
+    post:
+      summary: Receive PO with intake photos
+  /sales/orders:
+    get:
+      summary: List sales orders
+  /ecommerce/catalog:
+    get:
+      summary: Public catalog
+  /ecommerce/cart:
+    get:
+      summary: Get cart by session_id
+  /ecommerce/checkout:
+    post:
+      summary: Checkout cart

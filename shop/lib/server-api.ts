@@ -41,3 +41,14 @@ export async function fetchCatalogByCodesServer(
   const data = await serverGet<{ items?: CatalogProduct[] }>(`/api/v1/ecommerce/catalog?${params}`);
   return data?.items ?? [];
 }
+
+export async function fetchProductServer(
+  skuIdOrCode: string,
+  warehouseId = DEFAULT_WAREHOUSE_ID,
+): Promise<CatalogProduct | null> {
+  const params = new URLSearchParams({ warehouse_id: warehouseId });
+  const data = await serverGet<CatalogProduct>(
+    `/api/v1/ecommerce/catalog/${encodeURIComponent(skuIdOrCode)}?${params}`,
+  );
+  return data;
+}

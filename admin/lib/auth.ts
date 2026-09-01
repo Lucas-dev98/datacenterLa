@@ -4,6 +4,16 @@ import type { TokenPair, User } from "./types";
 
 const ACCESS_KEY = "dcla_access_token";
 const REFRESH_KEY = "dcla_refresh_token";
+const SESSION_COOKIE = "dcla_session";
+
+function setSessionCookie(active: boolean) {
+  if (typeof document === "undefined") return;
+  if (active) {
+    document.cookie = `${SESSION_COOKIE}=1; path=/; max-age=604800; SameSite=Lax`;
+  } else {
+    document.cookie = `${SESSION_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+  }
+}
 
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -18,12 +28,14 @@ export function getRefreshToken(): string | null {
 export function saveTokens(tokens: TokenPair) {
   localStorage.setItem(ACCESS_KEY, tokens.access_token);
   localStorage.setItem(REFRESH_KEY, tokens.refresh_token);
+  setSessionCookie(true);
 }
 
 export function clearTokens() {
   localStorage.removeItem(ACCESS_KEY);
   localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem("dcla_user");
+  setSessionCookie(false);
 }
 
 export function saveUser(user: User) {

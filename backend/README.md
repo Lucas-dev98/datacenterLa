@@ -186,16 +186,22 @@ make test-integration   # sobe Postgres, seed e roda todos os testes -tags=integ
 
 ```
 backend/internal/
-  auth/          # JWT, MFA, roles, permissions
-  pricing/       # Preços SKU + histórico
-  sales/         # CRM, cotações, pedidos, financeiro integrado
-  pim/           # Produtos / PIM
-  stock/         # Estoque
-  labels/        # Batch print handler
-  platform/
-    labels/      # Templates HTML/PDF/QR
-    worker/      # Outbox consumer
+  auth/          # JWT admin, MFA, RBAC
+  shopauth/      # OTP clientes loja
+  pim/           # Produtos, categorias, SKUs
+  pricing/       # Preços e câmbio
+  sales/         # CRM, cotações, pedidos, POS, RMA, ecommerce
+  stock/         # Unidades, movimentos, intake, inventário
+  purchases/     # Fornecedores, PO, recebimento
+  payments/      # Stripe/mock, PIX
+  integrations/  # Feed Compras Paraguai
+  platform/      # HTTP, outbox, labels, storage, email
+  cmd/server/    # Composition root + workers
 ```
+
+Camadas por domínio: `handler → service → repository`. Erros HTTP mapeados em `platform/http/response/mapper_*.go`.
+
+Contrato OpenAPI base: [`docs/openapi.yaml`](../docs/openapi.yaml)
 
 ## Documentação
 
