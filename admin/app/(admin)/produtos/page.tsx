@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useDeleteSkuProduct } from "@/hooks/use-pim-product-mutations";
 import { pimApi } from "@/lib/api/pim";
 import type { Product, SKU } from "@/lib/types";
 import { Alert, Button, Card, Input, Table } from "@/components/ui";
@@ -21,7 +22,7 @@ export default function ProdutosPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const { run: deleteSkuProduct, loading: deleting } = useDeleteSkuProduct();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,24 +71,19 @@ export default function ProdutosPage() {
 
   async function deleteSelected() {
     if (selectedSkus.length === 0) return;
-    setDeleting(true);
     setError("");
     setInfo("");
     const failed: string[] = [];
     let ok = 0;
     for (const sku of selectedSkus) {
       try {
-        await pimApi.deleteSku(sku.id);
-        if (sku.product_id) {
-          await pimApi.deleteProduct(sku.product_id).catch(() => undefined);
-        }
+        await deleteSkuProduct({ skuId: sku.id, productId: sku.product_id });
         ok += 1;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "erro";
         failed.push(`${sku.code}: ${msg}`);
       }
     }
-    setDeleting(false);
     setConfirmDelete(false);
     if (ok > 0) {
       setInfo(`${ok} produto(s) removido(s).`);

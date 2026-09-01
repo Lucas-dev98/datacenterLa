@@ -4,7 +4,12 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { pimApi } from "@/lib/api/pim";
-import { pricingApi } from "@/lib/api/pricing";
+import {
+  useUpdateProduct,
+  useUpdateSku,
+  useUploadSkuImage,
+} from "@/hooks/use-pim-product-mutations";
+import { useSetSkuPrice } from "@/hooks/use-pricing-mutations";
 import { API_URL } from "@/lib/config";
 import type { CategoryAttribute, Product, ProductAttributeValue, SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Textarea } from "@/components/ui";
@@ -40,7 +45,6 @@ export default function ProdutoEditPage() {
   const [generatedEs, setGeneratedEs] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [localPreview, setLocalPreview] = useState("");
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [publishCp, setPublishCp] = useState(false);
   const [publishEcom, setPublishEcom] = useState(false);
   const [costUsd, setCostUsd] = useState("");
@@ -51,7 +55,11 @@ export default function ProdutoEditPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const { run: updateProduct, loading: savingProduct } = useUpdateProduct();
+  const { run: updateSku, loading: savingSku } = useUpdateSku();
+  const { run: uploadSkuImage, loading: uploadingImage } = useUploadSkuImage();
+  const { run: setSkuPrice, loading: savingPrice } = useSetSkuPrice();
+  const saving = savingProduct || savingSku || savingPrice;
 
   useEffect(() => {
     const load = async () => {
@@ -114,12 +122,11 @@ export default function ProdutoEditPage() {
     }
     setError("");
     setInfo("");
-    setUploadingImage(true);
     const preview = URL.createObjectURL(file);
     if (localPreview) URL.revokeObjectURL(localPreview);
     setLocalPreview(preview);
     try {
-      const updated = await pimApi.uploadSkuImage(sku.id, file);
+      const updated = await uploadSkuImage({ skuId: sku.id, file });
       if (updated.image_url) {
         setImageUrl(updated.image_url);
         setSku({ ...sku, image_url: updated.image_url });
@@ -127,14 +134,11 @@ export default function ProdutoEditPage() {
       setInfo("Foto enviada e salva no cadastro.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao enviar foto");
-    } finally {
-      setUploadingImage(false);
     }
   }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setSaving(true);
     setError("");
     setInfo("");
     try {
@@ -158,20 +162,26 @@ export default function ProdutoEditPage() {
             "value_boolean" in a,
         );
 
-      await pimApi.updateProduct(params.id, {
-        name,
-        brand: brand || undefined,
-        description: description || undefined,
-        name_es: nameEs || undefined,
-        description_es: descriptionEs || undefined,
-        generated_description_es: generatedEs || undefined,
-        attributes,
+      await updateProduct({
+        id: params.id,
+        body: {
+          name,
+          brand: brand || undefined,
+          description: description || undefined,
+          name_es: nameEs || undefined,
+          description_es: descriptionEs || undefined,
+          generated_description_es: generatedEs || undefined,
+          attributes,
+        },
       });
       if (sku) {
-        await pimApi.updateSku(sku.id, {
-          publish_compras_paraguai: publishCp,
-          publish_ecommerce: publishEcom,
-          image_url: imageUrl || undefined,
+        await updateSku({
+          id: sku.id,
+          body: {
+            publish_compras_paraguai: publishCp,
+            publish_ecommerce: publishEcom,
+            image_url: imageUrl || undefined,
+          },
         });
         const prices: Record<string, number> = {};
         const cost = parseFloat(costUsd);
@@ -185,14 +195,12 @@ export default function ProdutoEditPage() {
         if (Number.isFinite(b2b)) prices.price_b2b_usd = b2b;
         if (Number.isFinite(reseller)) prices.price_reseller_usd = reseller;
         if (Object.keys(prices).length) {
-          await pricingApi.setSkuPrice(sku.id, prices);
+          await setSkuPrice({ skuId: sku.id, body: prices });
         }
       }
       setInfo("Produto atualizado");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar");
-    } finally {
-      setSaving(false);
     }
   }
 

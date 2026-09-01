@@ -6,6 +6,10 @@ import { useParams } from "next/navigation";
 import { printHTML } from "@/lib/api/client";
 import { paymentsApi } from "@/lib/api/payments";
 import { salesApi } from "@/lib/api/sales";
+import {
+  useConfirmPaymentIntent,
+  useCreatePaymentIntent,
+} from "@/hooks/use-payment-mutations";
 import { hasPermission } from "@/lib/permissions";
 import { useAuth } from "@/components/auth-provider";
 import { useOrderDetail } from "@/hooks/use-order-detail";
@@ -31,7 +35,8 @@ export default function PedidoDetailPage() {
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("transfer");
   const [payRef, setPayRef] = useState("");
-  const [gatewayLoading, setGatewayLoading] = useState(false);
+  const { run: createPaymentIntent, loading: gatewayLoading } = useCreatePaymentIntent();
+  const { run: confirmPaymentIntent, loading: confirmingIntent } = useConfirmPaymentIntent();
   const [paymentConfig, setPaymentConfig] = useState<{ provider: string; stripe_publishable_key?: string } | null>(null);
   const [gatewayIntent, setGatewayIntent] = useState<PaymentIntent | null>(null);
   const [shipModalOpen, setShipModalOpen] = useState(false);
@@ -89,12 +94,11 @@ export default function PedidoDetailPage() {
   }
 
   async function payViaGateway() {
-    setGatewayLoading(true);
     setInfo("");
     setActionError("");
     setGatewayIntent(null);
     try {
-      const intent = await paymentsApi.createIntent(params.id);
+      const intent = await createPaymentIntent(params.id);
       if (intent.provider === "stripe") {
         if (!paymentConfig?.stripe_publishable_key) {
           setActionError("Stripe configurado no servidor, mas chave publicável ausente.");
@@ -104,22 +108,25 @@ export default function PedidoDetailPage() {
         setInfo("Informe o cartão abaixo para concluir a cobrança.");
         return;
       }
-      await paymentsApi.confirmIntent(intent.id);
+      await confirmPaymentIntent(intent.id);
       await refetch();
       setInfo("Pagamento via gateway confirmado — pedido atualizado");
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro no gateway");
-    } finally {
-      setGatewayLoading(false);
     }
   }
 
   async function confirmGatewayIntent() {
     if (!gatewayIntent) return;
-    await paymentsApi.confirmIntent(gatewayIntent.id);
-    setGatewayIntent(null);
-    await refetch();
-    setInfo("Pagamento via Stripe confirmado — pedido atualizado");
+    setActionError("");
+    try {
+      await confirmPaymentIntent(gatewayIntent.id);
+      setGatewayIntent(null);
+      await refetch();
+      setInfo("Pagamento via Stripe confirmado — pedido atualizado");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Erro ao confirmar pagamento");
+    }
   }
 
   async function onShipped() {
@@ -281,7 +288,7 @@ export default function PedidoDetailPage() {
               </Button>
             </div>
           ) : (
-            <Button type="button" disabled={gatewayLoading} onClick={() => void payViaGateway()}>
+            <Button type="button" disabled={gatewayLoading || confirmingIntent} onClick={() => void payViaGateway()}>
               {gatewayLoading ? "Processando…" : "Cobrar via gateway"}
             </Button>
           )}

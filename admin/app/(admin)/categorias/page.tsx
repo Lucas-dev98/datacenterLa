@@ -3,6 +3,11 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { pimApi } from "@/lib/api/pim";
+import {
+  useCreateCategory,
+  useDeleteCategory,
+  useUpdateCategory,
+} from "@/hooks/use-pim-category-mutations";
 import type { Category } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
@@ -84,10 +89,12 @@ export default function CategoriasPage() {
   const [childName, setChildName] = useState("");
   const [childCode, setChildCode] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const { run: createCategory, loading: creating } = useCreateCategory();
+  const { run: updateCategory, loading: updating } = useUpdateCategory();
+  const { run: deleteCategory, loading: deleting } = useDeleteCategory();
 
   const parentOptions = useMemo(() => sortCategoryTree(items), [items]);
   const treeRows = useMemo(() => sortCategoryTree(items), [items]);
@@ -191,7 +198,7 @@ export default function CategoriasPage() {
     e.preventDefault();
     setError("");
     try {
-      await pimApi.createCategory({
+      await createCategory({
         code: code.trim().toUpperCase(),
         name: name.trim(),
         parent_id: parentId || null,
@@ -211,7 +218,7 @@ export default function CategoriasPage() {
     if (!managingParentId) return;
     setError("");
     try {
-      await pimApi.createCategory({
+      await createCategory({
         code: childCode.trim().toUpperCase(),
         name: childName.trim(),
         parent_id: managingParentId,
@@ -228,15 +235,12 @@ export default function CategoriasPage() {
 
   async function removeChild(child: Category) {
     setError("");
-    setDeleting(true);
     try {
-      await pimApi.deleteCategory(child.id);
+      await deleteCategory(child.id);
       flash(`Subcategoria ${child.code} removida.`);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao remover filho");
-    } finally {
-      setDeleting(false);
     }
   }
 
@@ -254,10 +258,13 @@ export default function CategoriasPage() {
     if (!editing) return;
     setError("");
     try {
-      await pimApi.updateCategory(editing.id, {
-        name: editName.trim(),
-        parent_id: editParentId || null,
-        is_active: editActive,
+      await updateCategory({
+        id: editing.id,
+        body: {
+          name: editName.trim(),
+          parent_id: editParentId || null,
+          is_active: editActive,
+        },
       });
       setEditing(null);
       flash("Categoria atualizada.");
@@ -269,7 +276,6 @@ export default function CategoriasPage() {
 
   async function deleteSelected() {
     if (selectedRows.length === 0) return;
-    setDeleting(true);
     setError("");
     setSuccess("");
     const failed: string[] = [];
@@ -277,14 +283,13 @@ export default function CategoriasPage() {
     const ordered = [...selectedRows].sort((a, b) => b.depth - a.depth);
     for (const cat of ordered) {
       try {
-        await pimApi.deleteCategory(cat.id);
+        await deleteCategory(cat.id);
         ok += 1;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "erro";
         failed.push(`${cat.code}: ${msg}`);
       }
     }
-    setDeleting(false);
     setConfirmDelete(false);
     if (ok > 0) flash(`${ok} categoria(s) removida(s).`);
     if (failed.length > 0) {
@@ -339,7 +344,9 @@ export default function CategoriasPage() {
             </Select>
           </Field>
           <div className="flex items-end">
-            <Button type="submit">Criar categoria</Button>
+            <Button type="submit" disabled={creating}>
+              {creating ? "Criando…" : "Criar categoria"}
+            </Button>
           </div>
         </form>
       </Card>
@@ -380,7 +387,9 @@ export default function CategoriasPage() {
               />
             </Field>
             <div className="flex items-end">
-              <Button type="submit">Incluir filho</Button>
+              <Button type="submit" disabled={creating}>
+                {creating ? "Incluindo…" : "Incluir filho"}
+              </Button>
             </div>
           </form>
 
@@ -442,7 +451,9 @@ export default function CategoriasPage() {
               </Select>
             </Field>
             <div className="flex flex-wrap items-end gap-2">
-              <Button type="submit">Salvar</Button>
+              <Button type="submit" disabled={updating}>
+                {updating ? "Salvando…" : "Salvar"}
+              </Button>
               <Button type="button" variant="secondary" onClick={() => setEditing(null)}>
                 Cancelar
               </Button>

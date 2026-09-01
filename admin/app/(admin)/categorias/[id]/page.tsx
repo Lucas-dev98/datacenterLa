@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useCreateCategoryAttribute } from "@/hooks/use-pim-category-mutations";
 import { pimApi } from "@/lib/api/pim";
 import type { CategoryAttribute } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
@@ -14,6 +15,7 @@ export default function CategoriaDetailPage() {
   const [name, setName] = useState("");
   const [dataType, setDataType] = useState("text");
   const [error, setError] = useState("");
+  const { run: createAttribute, loading: creating } = useCreateCategoryAttribute();
 
   async function load() {
     try {
@@ -31,13 +33,17 @@ export default function CategoriaDetailPage() {
 
   async function create(e: FormEvent) {
     e.preventDefault();
+    setError("");
     try {
-      await pimApi.createCategoryAttribute(params.id, {
-        code,
-        name,
-        data_type: dataType,
-        is_required: false,
-        sort_order: attrs.length,
+      await createAttribute({
+        categoryId: params.id,
+        body: {
+          code,
+          name,
+          data_type: dataType,
+          is_required: false,
+          sort_order: attrs.length,
+        },
       });
       setCode("");
       setName("");
@@ -64,7 +70,11 @@ export default function CategoriaDetailPage() {
               <option value="boolean">Sim/Não</option>
             </Select>
           </Field>
-          <div className="flex items-end"><Button type="submit">Adicionar</Button></div>
+          <div className="flex items-end">
+            <Button type="submit" disabled={creating}>
+              {creating ? "Adicionando…" : "Adicionar"}
+            </Button>
+          </div>
         </form>
       </Card>
 

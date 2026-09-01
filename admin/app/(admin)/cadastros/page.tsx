@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { useBulkCadastro } from "@/hooks/use-pim-product-mutations";
 import { pimApi } from "@/lib/api/pim";
 import { DEFAULT_CATEGORY_ID } from "@/lib/config";
 import type { CadastroResult, Category } from "@/lib/types";
@@ -211,7 +212,7 @@ export default function CadastrosPage() {
   const [generatedEs, setGeneratedEs] = useState("");
   const [publishCp, setPublishCp] = useState(true);
   const [publishEcom, setPublishEcom] = useState(true);
-  const [loading, setLoading] = useState(false);
+  const { run: bulkCadastro, loading } = useBulkCadastro();
   const [error, setError] = useState("");
   const [result, setResult] = useState<CadastroResult | null>(null);
 
@@ -245,7 +246,6 @@ export default function CadastrosPage() {
     e.preventDefault();
     setError("");
     setResult(null);
-    setLoading(true);
     try {
       const body = {
         name,
@@ -262,7 +262,7 @@ export default function CadastrosPage() {
           value_text: attrValues[a.id] || undefined,
         })).filter((a) => a.value_text),
       };
-      const res = await pimApi.bulkCadastro(body);
+      const res = await bulkCadastro(body);
       setResult(res);
       setName("");
       setBrand("");
@@ -272,8 +272,6 @@ export default function CadastrosPage() {
       setGeneratedEs("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao criar cadastro");
-    } finally {
-      setLoading(false);
     }
   }
 
