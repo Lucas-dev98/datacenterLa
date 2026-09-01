@@ -3,6 +3,11 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { downloadBlob } from "@/lib/api/client";
+import {
+  useIntakeAdvance,
+  useIntakeComplete,
+  useUnitByCode,
+} from "@/hooks/use-stock-intake-mutations";
 import { stockApi } from "@/lib/api/stock";
 import { DEFAULT_LOCATION_ID } from "@/lib/config";
 import type { IntakeQueueItem, InventoryUnit } from "@/lib/types";
@@ -34,7 +39,10 @@ export default function RecebimentoPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const { run: intakeAdvance, loading: advancing } = useIntakeAdvance();
+  const { run: intakeComplete, loading: completing } = useIntakeComplete();
+  const { run: lookupUnit, loading: scanning } = useUnitByCode();
+  const submitting = advancing || completing || scanning;
   const [activeTestUnit, setActiveTestUnit] = useState<{ id: string; code: string } | null>(null);
 
   const batchIds = useMemo(() => {
@@ -73,13 +81,12 @@ export default function RecebimentoPage() {
   async function advanceOne(unitId: string, unitCode: string, nextAction: string) {
     setError("");
     setInfo("");
-    setSubmitting(true);
     try {
       const body: { unit_id: string; location_id?: string } = { unit_id: unitId };
       if (nextAction === "liberar") {
         body.location_id = DEFAULT_LOCATION_ID;
       }
-      const res = await stockApi.intakeAdvance(body);
+      const res = await intakeAdvance(body);
       if (res.unit.status === "available" && printOnRelease) {
         await printUnitLabel(unitCode);
       }
@@ -87,8 +94,6 @@ export default function RecebimentoPage() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao avançar");
-    } finally {
-      setSubmitting(false);
     }
   }
 
@@ -96,14 +101,13 @@ export default function RecebimentoPage() {
     if (unitIds.length === 0) return;
     setError("");
     setInfo("");
-    setSubmitting(true);
     try {
       const released: string[] = [];
       let ok = 0;
       let failed = 0;
 
       if (mode === "complete") {
-        const res = await stockApi.intakeComplete({
+        const res = await intakeComplete({
           unit_ids: unitIds,
           location_id: DEFAULT_LOCATION_ID,
         });
@@ -121,7 +125,7 @@ export default function RecebimentoPage() {
             if (item?.next_action === "liberar") {
               body.location_id = DEFAULT_LOCATION_ID;
             }
-            const res = await stockApi.intakeAdvance(body);
+            const res = await intakeAdvance(body);
             ok++;
             if (res.unit.status === "available") released.push(res.unit.unit_code);
           } catch {
@@ -140,8 +144,6 @@ export default function RecebimentoPage() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao processar");
-    } finally {
-      setSubmitting(false);
     }
   }
 
@@ -151,9 +153,8 @@ export default function RecebimentoPage() {
     if (!code) return;
     setError("");
     setInfo("");
-    setSubmitting(true);
     try {
-      const unit = await stockApi.unitByCode(code);
+      const unit = await lookupUnit(code);
       const status = unit.status ?? unit.Status ?? "";
       if (!["received", "inspecting", "identified"].includes(status)) {
         setError(`Unidade ${code} não está na fila (status: ${status || "?"})`);
@@ -171,8 +172,6 @@ export default function RecebimentoPage() {
       setScanCode("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Código não encontrado");
-    } finally {
-      setSubmitting(false);
     }
   }
 

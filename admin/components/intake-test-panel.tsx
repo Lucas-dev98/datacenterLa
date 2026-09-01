@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
-import { stockApi } from "@/lib/api/stock";
+import { useIntakeTestFail, useIntakeTestPass } from "@/hooks/use-stock-intake-mutations";
 import { Alert, Button, Field, Input } from "@/components/ui";
 
 type Props = {
@@ -17,7 +17,9 @@ export function IntakeTestPanel({ unitId, unitCode, onDone }: Props) {
   const [reason, setReason] = useState("");
   const [showFail, setShowFail] = useState(false);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const { run: passTest, loading: passing } = useIntakeTestPass();
+  const { run: failTest, loading: failing } = useIntakeTestFail();
+  const busy = passing || failing;
 
   function buildForm() {
     const form = new FormData();
@@ -33,17 +35,14 @@ export function IntakeTestPanel({ unitId, unitCode, onDone }: Props) {
       setError("Anexe ao menos uma foto do teste.");
       return;
     }
-    setBusy(true);
     setError("");
     try {
-      await stockApi.passIntakeTest(unitId, buildForm());
+      await passTest({ unitId, form: buildForm() });
       photos.forEach((p) => URL.revokeObjectURL(p.preview));
       setPhotos([]);
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao aprovar teste");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -57,20 +56,17 @@ export function IntakeTestPanel({ unitId, unitCode, onDone }: Props) {
       setError("Informe o motivo da reprovação.");
       return;
     }
-    setBusy(true);
     setError("");
     try {
       const form = buildForm();
       form.append("reason", reason.trim());
-      await stockApi.failIntakeTest(unitId, form);
+      await failTest({ unitId, form });
       photos.forEach((p) => URL.revokeObjectURL(p.preview));
       setPhotos([]);
       setShowFail(false);
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao registrar reprovação");
-    } finally {
-      setBusy(false);
     }
   }
 

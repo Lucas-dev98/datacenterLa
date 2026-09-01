@@ -4,8 +4,9 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
+import { usePurchaseReceiveIntake } from "@/hooks/use-purchase-receive-intake";
 import { usePurchaseOrderReceive } from "@/hooks/use-purchase-order-receive";
-import { purchasesApi, type PurchaseOrderDetail, type PurchaseOrderItem } from "@/lib/api/purchases";
+import { type PurchaseOrderDetail, type PurchaseOrderItem } from "@/lib/api/purchases";
 import { stockApi } from "@/lib/api/stock";
 import { API_URL } from "@/lib/config";
 import type { InventoryUnitReceive } from "@/lib/types";
@@ -32,6 +33,8 @@ export default function ReceberPOPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { data, error: loadError, loading, refetch } = usePurchaseOrderReceive(params.id);
+  const { run: receiveIntake, loading: submitting, error: receiveError, setError: setReceiveError } =
+    usePurchaseReceiveIntake();
   const po = data?.po ?? null;
   const skuById = data?.skuById ?? {};
   const [view, setView] = useState<View>("lista");
@@ -43,9 +46,8 @@ export default function ReceberPOPage() {
   const [nextCodes, setNextCodes] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [codesLoading, setCodesLoading] = useState(false);
-  const displayError = error || loadError;
+  const displayError = error || loadError || receiveError;
 
   const pendingItems = useMemo(
     () => (po?.items ?? []).filter((i) => itemPending(i) > 0),
@@ -130,8 +132,8 @@ export default function ReceberPOPage() {
   async function submitSkuReceive(e: FormEvent) {
     e.preventDefault();
     if (!po || !activeSkuId || skuQty < 1 || batchPhotos.length === 0) return;
-    setSubmitting(true);
     setError("");
+    setReceiveError("");
     try {
       const payload = { items: [{ sku_id: activeSkuId, quantity: skuQty }] };
       const form = new FormData();
@@ -140,7 +142,7 @@ export default function ReceberPOPage() {
         form.append(`batch_photo_${index}`, photo.file);
       });
 
-      const res = await purchasesApi.receiveIntake(po.id, form);
+      const res = await receiveIntake({ poId: po.id, form });
       setLastUnits(res.units ?? []);
       batchPhotos.forEach((p) => URL.revokeObjectURL(p.preview));
       setBatchPhotos([]);
@@ -149,8 +151,6 @@ export default function ReceberPOPage() {
       setInfo(`${res.units?.length ?? 0} unidade(s) de ${activeSku?.name ?? "SKU"} registrada(s).`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro no recebimento");
-    } finally {
-      setSubmitting(false);
     }
   }
 

@@ -2,6 +2,10 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  useCreateAndSubmitPurchaseOrder,
+  useSaveSupplier,
+} from "@/hooks/use-purchase-order-mutations";
 import { purchasesApi, type PurchaseOrderSummary, type Supplier } from "@/lib/api/purchases";
 import { pimApi } from "@/lib/api/pim";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
@@ -26,7 +30,8 @@ export default function ComprasPage() {
   const [orders, setOrders] = useState<PO[]>([]);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const { run: saveSupplierMutation, loading: savingSupplier } = useSaveSupplier();
+  const { run: createAndSubmitPO, loading: submitting } = useCreateAndSubmitPurchaseOrder();
   const [supplierId, setSupplierId] = useState("");
   const [importOrigin, setImportOrigin] = useState("local");
   const [originCountryCode, setOriginCountryCode] = useState("");
@@ -115,29 +120,30 @@ export default function ComprasPage() {
     e.preventDefault();
     setError("");
     try {
-      if (editingSupplierId) {
-        const updated = await purchasesApi.updateSupplier(editingSupplierId, {
-          name: supName,
-          legal_name: supLegalName.trim() || undefined,
-          country: supCountry,
-          kind: supKind,
-          notes: supNotes.trim() || undefined,
-        });
-        setInfo(`Exportador atualizado: ${updated.legal_name ?? updated.name}`);
-        resetSupplierForm();
-      } else {
-        const created = await purchasesApi.createSupplier({
-          code: supCode,
-          name: supName,
-          legal_name: supLegalName.trim() || undefined,
-          country: supCountry,
-          kind: supKind,
-          notes: supNotes.trim() || undefined,
-        });
-        setInfo(`Exportador cadastrado: ${created.legal_name ?? created.name}`);
-        resetSupplierForm();
-        setSupplierId(created.id);
-      }
+      const body = editingSupplierId
+        ? {
+            name: supName,
+            legal_name: supLegalName.trim() || undefined,
+            country: supCountry,
+            kind: supKind,
+            notes: supNotes.trim() || undefined,
+          }
+        : {
+            code: supCode,
+            name: supName,
+            legal_name: supLegalName.trim() || undefined,
+            country: supCountry,
+            kind: supKind,
+            notes: supNotes.trim() || undefined,
+          };
+      const saved = await saveSupplierMutation({ editingId: editingSupplierId, body });
+      setInfo(
+        editingSupplierId
+          ? `Exportador atualizado: ${saved.legal_name ?? saved.name}`
+          : `Exportador cadastrado: ${saved.legal_name ?? saved.name}`,
+      );
+      resetSupplierForm();
+      if (!editingSupplierId) setSupplierId(saved.id);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
@@ -146,7 +152,6 @@ export default function ComprasPage() {
 
   async function createPO(e: FormEvent) {
     e.preventDefault();
-    setSubmitting(true);
     setError("");
     try {
       const items = lines
@@ -164,7 +169,7 @@ export default function ComprasPage() {
         setError("Selecione ou cadastre a empresa exportadora");
         return;
       }
-      const po = await purchasesApi.createOrder({
+      await createAndSubmitPO({
         supplier_id: supplierId,
         warehouse_id: DEFAULT_WAREHOUSE_ID,
         import_origin: importOrigin,
@@ -176,14 +181,11 @@ export default function ComprasPage() {
         duties_usd: parseFloat(dutiesUsd) || 0,
         items,
       });
-      await purchasesApi.submitOrder(po.id);
       setInfo(`Pedido de compra criado (${items.length} itens) e enviado`);
       setLines([{ sku_id: skus[0]?.id ?? "", quantity: 1, unit_cost_usd: "0", sku_code: skus[0]?.code }]);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao criar PO");
-    } finally {
-      setSubmitting(false);
     }
   }
 
@@ -235,7 +237,13 @@ export default function ComprasPage() {
             <Input value={supNotes} onChange={(e) => setSupNotes(e.target.value)} placeholder="opcional" />
           </Field>
           <div className="sm:col-span-2 flex flex-wrap gap-2">
-            <Button type="submit">{editingSupplierId ? "Salvar alterações" : "Salvar exportador"}</Button>
+            <Button type="submit" disabled={savingSupplier}>
+              {savingSupplier
+                ? "Salvando…"
+                : editingSupplierId
+                  ? "Salvar alterações"
+                  : "Salvar exportador"}
+            </Button>
             {editingSupplierId ? (
               <Button type="button" variant="secondary" onClick={resetSupplierForm}>Cancelar edição</Button>
             ) : null}

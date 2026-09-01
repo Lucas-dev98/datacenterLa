@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useShipOrder } from "@/hooks/use-ship-order";
 import { salesApi } from "@/lib/api/sales";
 import type { Order, OrderItem } from "@/lib/types";
 import { DocumentScanCapture } from "@/components/document-scan-capture";
@@ -23,7 +24,7 @@ export function ShipExpeditionModal({ orderId, orderNumber, onClose, onShipped }
   const [photos, setPhotos] = useState<Record<string, ItemPhoto>>({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const { run: shipOrder, loading: submitting, setError: setShipError } = useShipOrder();
 
   useEffect(() => {
     setLoading(true);
@@ -67,8 +68,8 @@ export function ShipExpeditionModal({ orderId, orderNumber, onClose, onShipped }
       setError("Fotografe todos os itens antes de liberar a expedição");
       return;
     }
-    setSubmitting(true);
     setError("");
+    setShipError("");
     try {
       const form = new FormData();
       for (const item of items) {
@@ -76,13 +77,11 @@ export function ShipExpeditionModal({ orderId, orderNumber, onClose, onShipped }
         if (!file) continue;
         form.append(`photo_${item.id}`, file);
       }
-      await salesApi.shipWithPhotos(order.id, form);
+      await shipOrder({ orderId: order.id, form });
       onShipped();
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao expedir pedido");
-    } finally {
-      setSubmitting(false);
     }
   }
 
