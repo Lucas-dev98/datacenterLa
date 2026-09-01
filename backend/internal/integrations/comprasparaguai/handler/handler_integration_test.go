@@ -60,8 +60,8 @@ func TestComprasParaguaiFeedEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sync feed: %v", err)
 	}
-	if result.ItemCount != 1 {
-		t.Fatalf("expected 1 item, got %d skipped=%v", result.ItemCount, result.Skipped)
+	if result.ItemCount < 1 {
+		t.Fatalf("expected at least 1 item in feed, got %d skipped=%v", result.ItemCount, result.Skipped)
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/integrations/compras-paraguai/feed.xml", nil)

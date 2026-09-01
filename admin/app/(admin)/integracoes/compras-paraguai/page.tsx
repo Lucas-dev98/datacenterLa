@@ -1,57 +1,39 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useComprasParaguaiDashboard } from "@/hooks/use-compras-paraguai-dashboard";
+import { useRunComprasParaguaiSync } from "@/hooks/use-compras-paraguai-mutations";
 import { integrationsApi } from "@/lib/api/integrations";
 import { hasPermission } from "@/lib/permissions";
 import { useAuth } from "@/components/auth-provider";
-import type { FeedSyncLog, FeedSyncLogDetail, FeedDiagnostics } from "@/lib/types";
+import type { FeedSyncLogDetail } from "@/lib/types";
 import { Alert, Button, Card, Table } from "@/components/ui";
 
 export default function ComprasParaguaiPage() {
   const { user } = useAuth();
-  const [logs, setLogs] = useState<FeedSyncLog[]>([]);
-  const [diagnostics, setDiagnostics] = useState<FeedDiagnostics | null>(null);
+  const { data, error: loadError, loading, refetch } = useComprasParaguaiDashboard();
+  const logs = data?.logs ?? [];
+  const diagnostics = data?.diagnostics ?? null;
   const [selected, setSelected] = useState<FeedSyncLogDetail | null>(null);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
+  const { run: runSync, loading: syncing } = useRunComprasParaguaiSync();
 
   const canRun = hasPermission(user, "pim.products.write");
 
-  async function loadLogs() {
-    setLoading(true);
-    setError("");
-    try {
-      const [res, diag] = await Promise.all([
-        integrationsApi.listSyncLogs(30),
-        integrationsApi.getSyncDiagnostics(),
-      ]);
-      setLogs(res.items ?? []);
-      setDiagnostics(diag);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar logs");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    void loadLogs();
-  }, []);
+    if (loadError) setError(loadError);
+  }, [loadError]);
 
-  async function runSync() {
-    setSyncing(true);
+  async function handleSync() {
     setInfo("");
     setError("");
     try {
-      await integrationsApi.runSync();
+      await runSync({});
       setInfo("Sincronização concluída");
-      await loadLogs();
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao sincronizar");
-    } finally {
-      setSyncing(false);
     }
   }
 
@@ -83,7 +65,7 @@ export default function ComprasParaguaiPage() {
           </p>
         </div>
         {canRun ? (
-          <Button type="button" disabled={syncing} onClick={() => void runSync()}>
+          <Button type="button" disabled={syncing} onClick={() => void handleSync()}>
             {syncing ? "Sincronizando…" : "Sincronizar agora"}
           </Button>
         ) : null}

@@ -4,9 +4,10 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { blobObjectUrl } from "@/lib/api/client";
 import { useCreateCustomerReturn } from "@/hooks/use-create-customer-return";
+import { useCustomerReturnsList } from "@/hooks/use-customer-returns-list";
 import { useReturnStep } from "@/hooks/use-return-step";
 import { returnsApi, type CustomerReturn, type ReturnWindowCheck } from "@/lib/api/returns";
-import type { Order, OrderItem, OrderListItem } from "@/lib/types";
+import type { OrderItem, OrderListItem } from "@/lib/types";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
@@ -41,8 +42,10 @@ function ReturnPhotoThumb({ returnId, photoId, alt }: { returnId: string; photoI
 }
 
 export default function DevolucoesPage() {
-  const [items, setItems] = useState<CustomerReturn[]>([]);
   const [caseSearch, setCaseSearch] = useState("");
+  const [caseSearchTerm, setCaseSearchTerm] = useState("");
+  const { data: casesData, error: listError, refetch: refetchCases } = useCustomerReturnsList(caseSearchTerm);
+  const items = casesData ?? [];
   const [orderSearch, setOrderSearch] = useState("");
   const [orderResults, setOrderResults] = useState<OrderListItem[]>([]);
   const [searchingOrders, setSearchingOrders] = useState(false);
@@ -67,10 +70,14 @@ export default function DevolucoesPage() {
   const [expandedId, setExpandedId] = useState("");
   const [expandedCase, setExpandedCase] = useState<CustomerReturn | null>(null);
 
-  const loadCases = useCallback(async (q?: string) => {
-    const term = (q ?? caseSearch).trim();
-    const res = await returnsApi.list(term);
-    setItems(res.items ?? []);
+  useEffect(() => {
+    if (listError) setError(listError);
+  }, [listError]);
+
+  useEffect(() => {
+    const term = caseSearch.trim();
+    const t = setTimeout(() => setCaseSearchTerm(term), term ? 300 : 0);
+    return () => clearTimeout(t);
   }, [caseSearch]);
 
   const searchOrders = useCallback(async (term: string) => {
@@ -91,16 +98,6 @@ export default function DevolucoesPage() {
       setSearchingOrders(false);
     }
   }, []);
-
-  useEffect(() => {
-    const term = caseSearch.trim();
-    const t = setTimeout(() => {
-      void loadCases(term).catch((err) => {
-        setError(err instanceof Error ? err.message : "Erro ao carregar devoluções");
-      });
-    }, term ? 300 : 0);
-    return () => clearTimeout(t);
-  }, [caseSearch, loadCases]);
 
   useEffect(() => {
     const term = orderSearch.trim();
@@ -226,7 +223,7 @@ export default function DevolucoesPage() {
       setConditionNotes("");
       setPhotos([]);
       setQuantity(1);
-      await loadCases(caseSearch);
+      await refetchCases();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao registrar devolução");
     }
@@ -242,7 +239,7 @@ export default function DevolucoesPage() {
         body: step === "resolve" ? { resolution: resolution ?? "restock" } : undefined,
       });
       setInfo(`Devolução: ${step}`);
-      await loadCases(caseSearch);
+      await refetchCases();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro na ação");
     } finally {

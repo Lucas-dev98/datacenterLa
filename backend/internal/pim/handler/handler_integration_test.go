@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"github.com/datacenterla/platform/internal/pim/repository"
 	"github.com/datacenterla/platform/internal/pim/service"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 func TestCreateCadastroEndpoint(t *testing.T) {
@@ -43,7 +45,10 @@ func TestCreateCadastroEndpoint(t *testing.T) {
 	r.Use(authmiddleware.InjectPermissions("00000000-0000-0000-0000-000000000001", "pim.products.read", "pim.products.write"))
 	r.Mount("/api/v1/pim", h.Routes())
 
-	cat, err := svc.CreateCategory(ctx, domain.CreateCategoryInput{Code: "MEM-INT", Name: "Memória"})
+	cat, err := svc.CreateCategory(ctx, domain.CreateCategoryInput{
+		Code: fmt.Sprintf("MEM-INT-%s", uuid.New().String()[:8]),
+		Name: "Memória",
+	})
 	if err != nil {
 		t.Fatalf("category: %v", err)
 	}

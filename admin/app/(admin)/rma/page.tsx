@@ -4,9 +4,10 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ApiClientError, blobObjectUrl } from "@/lib/api/client";
 import { useCreateRMA } from "@/hooks/use-create-rma";
+import { useRmaCasesList } from "@/hooks/use-rma-cases-list";
 import { useRmaStep } from "@/hooks/use-rma-step";
 import { rmaApi, type RMACase, type WarrantyCheck } from "@/lib/api/rma";
-import type { Order, OrderItem, OrderListItem } from "@/lib/types";
+import type { OrderItem, OrderListItem } from "@/lib/types";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
@@ -41,8 +42,10 @@ function RMATestPhotoThumb({ caseId, photoId, alt }: { caseId: string; photoId: 
 }
 
 export default function RMAPage() {
-  const [items, setItems] = useState<RMACase[]>([]);
   const [caseSearch, setCaseSearch] = useState("");
+  const [caseSearchTerm, setCaseSearchTerm] = useState("");
+  const { data: casesData, error: listError, refetch: refetchCases } = useRmaCasesList(caseSearchTerm);
+  const items = casesData ?? [];
   const [orderSearch, setOrderSearch] = useState("");
   const [orderResults, setOrderResults] = useState<OrderListItem[]>([]);
   const [searchingOrders, setSearchingOrders] = useState(false);
@@ -67,6 +70,16 @@ export default function RMAPage() {
   const [expandedCase, setExpandedCase] = useState<RMACase | null>(null);
 
   useEffect(() => {
+    if (listError) setError(listError);
+  }, [listError]);
+
+  useEffect(() => {
+    const term = caseSearch.trim();
+    const t = setTimeout(() => setCaseSearchTerm(term), term ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [caseSearch]);
+
+  useEffect(() => {
     if (!expandedCaseId) {
       setExpandedCase(null);
       return;
@@ -80,17 +93,6 @@ export default function RMAPage() {
       }
     })();
   }, [expandedCaseId, items]);
-
-  const loadCases = useCallback(async (q?: string) => {
-    try {
-      const term = (q ?? caseSearch).trim();
-      const qs = term ? `?q=${encodeURIComponent(term)}` : "";
-      const res = await rmaApi.list(term);
-      setItems(res.items ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar casos RMA");
-    }
-  }, [caseSearch]);
 
   const searchOrders = useCallback(async (term: string) => {
     const q = term.trim();
@@ -113,12 +115,6 @@ export default function RMAPage() {
       setSearchingOrders(false);
     }
   }, []);
-
-  useEffect(() => {
-    const term = caseSearch.trim();
-    const t = setTimeout(() => void loadCases(term), term ? 300 : 0);
-    return () => clearTimeout(t);
-  }, [caseSearch, loadCases]);
 
   useEffect(() => {
     const term = orderSearch.trim();
@@ -281,7 +277,7 @@ export default function RMAPage() {
       setTestPhotos([]);
       setDefectConfirmed(true);
       setQuantity(1);
-      await loadCases(caseSearch);
+      await refetchCases();
     } catch (err) {
       if (err instanceof ApiClientError) {
         setError(err.message);
@@ -302,7 +298,7 @@ export default function RMAPage() {
         body: step === "resolve" ? { resolution: bodyResolution } : undefined,
       });
       setInfo(`RMA ${step}${step === "resolve" ? ` (${bodyResolution})` : ""}`);
-      await loadCases(caseSearch);
+      await refetchCases();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro na ação");
     }

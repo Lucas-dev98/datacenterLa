@@ -17,6 +17,8 @@ const items = data?.items ?? [];
 
 Coloque fetchers em `admin/hooks/use-*.ts` chamando módulos `@/lib/api/*`.
 
+Hooks recentes: `useProductDetail`, `useComprasParaguaiDashboard`, `useCustomerReturnsList`, `useRmaCasesList`.
+
 ## `useApiMutation` — escritas
 
 Use para POST/PUT/delete via hooks em `use-*-mutations.ts`:

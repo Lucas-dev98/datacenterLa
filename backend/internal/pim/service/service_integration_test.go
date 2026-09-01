@@ -4,6 +4,7 @@ package service_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/datacenterla/platform/internal/pim/domain"
 	"github.com/datacenterla/platform/internal/pim/repository"
 	"github.com/datacenterla/platform/internal/pim/service"
+	"github.com/google/uuid"
 )
 
 func TestPIMCadastroSKUFlow(t *testing.T) {
@@ -29,7 +31,10 @@ func TestPIMCadastroSKUFlow(t *testing.T) {
 
 	svc := service.New(repository.NewPostgres(pool))
 
-	cat, err := svc.CreateCategory(ctx, domain.CreateCategoryInput{Code: "SSD", Name: "SSD"})
+	cat, err := svc.CreateCategory(ctx, domain.CreateCategoryInput{
+		Code: fmt.Sprintf("SSD-%s", uuid.New().String()[:8]),
+		Name: "SSD",
+	})
 	if err != nil {
 		t.Fatalf("category: %v", err)
 	}

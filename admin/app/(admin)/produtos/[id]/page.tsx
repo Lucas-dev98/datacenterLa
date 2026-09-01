@@ -3,15 +3,15 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { pimApi } from "@/lib/api/pim";
 import {
   useUpdateProduct,
   useUpdateSku,
   useUploadSkuImage,
 } from "@/hooks/use-pim-product-mutations";
+import { useProductDetail } from "@/hooks/use-product-detail";
 import { useSetSkuPrice } from "@/hooks/use-pricing-mutations";
 import { API_URL } from "@/lib/config";
-import type { CategoryAttribute, Product, ProductAttributeValue, SKU } from "@/lib/types";
+import type { ProductAttributeValue, SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Textarea } from "@/components/ui";
 
 function attrValue(attrs: ProductAttributeValue[], attrId: string): string {
@@ -33,9 +33,10 @@ function resolveImageSrc(url: string): string {
 export default function ProdutoEditPage() {
   const params = useParams<{ id: string }>();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [product, setProduct] = useState<Product | null>(null);
+  const { data: detail, error: loadError, loading, refetch } = useProductDetail(params.id);
+  const product = detail?.product ?? null;
   const [sku, setSku] = useState<SKU | null>(null);
-  const [catAttrs, setCatAttrs] = useState<CategoryAttribute[]>([]);
+  const catAttrs = detail?.categoryAttributes ?? [];
   const [attrValues, setAttrValues] = useState<Record<string, string>>({});
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("");
@@ -54,7 +55,6 @@ export default function ProdutoEditPage() {
   const [resellerUsd, setResellerUsd] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [loading, setLoading] = useState(true);
   const { run: updateProduct, loading: savingProduct } = useUpdateProduct();
   const { run: updateSku, loading: savingSku } = useUpdateSku();
   const { run: uploadSkuImage, loading: uploadingImage } = useUploadSkuImage();
@@ -62,51 +62,40 @@ export default function ProdutoEditPage() {
   const saving = savingProduct || savingSku || savingPrice;
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const p = await pimApi.getProduct(params.id);
-        setProduct(p);
-        setName(p.name);
-        setBrand(p.brand ?? "");
-        setDescription(p.description ?? "");
-        setNameEs(p.name_es ?? "");
-        setDescriptionEs(p.description_es ?? "");
-        setGeneratedEs(p.generated_description_es ?? "");
-        const firstSku = p.skus?.[0] ?? null;
-        setSku(firstSku);
-        if (firstSku) {
-          setPublishCp(firstSku.publish_compras_paraguai);
-          setPublishEcom(firstSku.publish_ecommerce);
-          setImageUrl(firstSku.image_url ?? "");
-          setCostUsd(firstSku.cost_usd?.toString() ?? "");
-          setMinPriceUsd(firstSku.min_price_usd?.toString() ?? "");
-          setB2cUsd(firstSku.price_b2c_usd?.toString() ?? "");
-          setB2bUsd(firstSku.price_b2b_usd?.toString() ?? "");
-          setResellerUsd(firstSku.price_reseller_usd?.toString() ?? "");
-        }
-        const values: Record<string, string> = {};
-        for (const a of p.attributes ?? []) {
-          values[a.category_attribute_id] = attrValue(p.attributes ?? [], a.category_attribute_id);
-        }
-        setAttrValues(values);
-        if (p.category_id) {
-          const res = await pimApi.listCategoryAttributes(p.category_id);
-          setCatAttrs(res.items ?? []);
-          for (const def of res.items ?? []) {
-            if (!(def.id in values)) values[def.id] = "";
-          }
-          setAttrValues({ ...values });
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Erro ao carregar");
-      } finally {
-        setLoading(false);
-      }
-    };
-    void load();
-  }, [params.id]);
+    if (loadError) setError(loadError);
+  }, [loadError]);
+
+  useEffect(() => {
+    if (!detail) return;
+    const p = detail.product;
+    const firstSku = detail.sku;
+    setError("");
+    setSku(firstSku);
+    setName(p.name);
+    setBrand(p.brand ?? "");
+    setDescription(p.description ?? "");
+    setNameEs(p.name_es ?? "");
+    setDescriptionEs(p.description_es ?? "");
+    setGeneratedEs(p.generated_description_es ?? "");
+    if (firstSku) {
+      setPublishCp(firstSku.publish_compras_paraguai);
+      setPublishEcom(firstSku.publish_ecommerce);
+      setImageUrl(firstSku.image_url ?? "");
+      setCostUsd(firstSku.cost_usd?.toString() ?? "");
+      setMinPriceUsd(firstSku.min_price_usd?.toString() ?? "");
+      setB2cUsd(firstSku.price_b2c_usd?.toString() ?? "");
+      setB2bUsd(firstSku.price_b2b_usd?.toString() ?? "");
+      setResellerUsd(firstSku.price_reseller_usd?.toString() ?? "");
+    }
+    const values: Record<string, string> = {};
+    for (const a of p.attributes ?? []) {
+      values[a.category_attribute_id] = attrValue(p.attributes ?? [], a.category_attribute_id);
+    }
+    for (const def of detail.categoryAttributes) {
+      if (!(def.id in values)) values[def.id] = "";
+    }
+    setAttrValues(values);
+  }, [detail]);
 
   useEffect(() => {
     return () => {
@@ -199,6 +188,7 @@ export default function ProdutoEditPage() {
         }
       }
       setInfo("Produto atualizado");
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar");
     }
