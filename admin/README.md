@@ -6,9 +6,10 @@ Painel ERP/CRM em **Next.js 15 + React + Tailwind**.
 
 ```
 app/(admin)/     → páginas por módulo (client components)
-hooks/           → useApiQuery, useApiMutation (fetch padronizado)
-lib/api/         → módulos tipados (sales, stock, purchases, pim)
-lib/api.ts       → cliente HTTP com refresh JWT
+hooks/           → use*List, useApiQueryFn, useApiMutation + hooks de domínio
+lib/api/         → módulos tipados (sales, stock, purchases, pim, …)
+lib/api.ts       → cliente HTTP com refresh JWT + apiForm (multipart)
+lib/api/client.ts → re-export do cliente para módulos de domínio
 middleware.ts    → redirect para /login sem cookie de sessão
 components/      → UI reutilizável + fluxos complexos (PDV, expedição, intake)
 ```
