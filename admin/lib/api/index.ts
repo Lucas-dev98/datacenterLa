@@ -1,5 +1,14 @@
 export { salesApi } from "./sales";
 export { stockApi } from "./stock";
+export type {
+  StockCount,
+  StockCountLine,
+  StockAdjustment,
+  SupplierReturn,
+  HealthStats,
+  HealthIssue,
+  ExpiringReservation,
+} from "./stock";
 export { purchasesApi } from "./purchases";
 export type { PurchaseOrderDetail, PurchaseOrderItem, PurchaseOrderSummary } from "./purchases";
 export { pimApi } from "./pim";

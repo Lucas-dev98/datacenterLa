@@ -3,7 +3,8 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { receiveIntakeWithPhotos, api } from "@/lib/api";
+import { stockApi } from "@/lib/api/stock";
+import { pimApi } from "@/lib/api/pim";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
 import type { InventoryUnitReceive, SKU } from "@/lib/types";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
@@ -13,12 +14,10 @@ async function searchSkus(term: string): Promise<SKU[]> {
   const q = term.trim();
   if (!q) return [];
 
-  const byCode = await api<SKU>(`/api/v1/pim/skus/code/${encodeURIComponent(q)}`).catch(() => null);
+  const byCode = await pimApi.getSkuByCode(q).catch(() => null);
   if (byCode?.is_active) return [byCode];
 
-  const res = await api<{ items: SKU[] }>(
-    `/api/v1/pim/skus?q=${encodeURIComponent(q)}&active_only=true&limit=20`,
-  );
+  const res = await pimApi.searchSkus(q, 20);
   return res.items ?? [];
 }
 
@@ -43,7 +42,7 @@ export default function EntradaAvulsaPage() {
   const loadNextCodes = useCallback(async (count: number) => {
     setCodesLoading(true);
     try {
-      const res = await api<{ codes: string[] }>(`/api/v1/stock/units/next-codes?count=${count}`);
+      const res = await stockApi.peekNextUnitCodes(count);
       setNextCodes(res.codes ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao reservar códigos AAA");
@@ -134,7 +133,7 @@ export default function EntradaAvulsaPage() {
       batchPhotos.forEach((photo, index) => {
         form.append(`batch_photo_${index}`, photo.file);
       });
-      const res = await receiveIntakeWithPhotos(form);
+      const res = await stockApi.receiveIntakeWithPhotos(form);
       setUnits(res.units ?? []);
       setInfo(
         `${res.units?.length ?? 0} unidade(s) registrada(s) com ${batchPhotos.length} foto(s) do lote. Prossiga na fila de recebimento.`,

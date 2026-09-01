@@ -2,19 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { api, updateSupplierReturnStatus } from "@/lib/api";
+import { stockApi, type SupplierReturn } from "@/lib/api/stock";
 import { Alert, Button, Card, Table } from "@/components/ui";
-
-type SupplierReturn = {
-  id: string;
-  supplier_name?: string;
-  po_number?: string;
-  unit_code?: string;
-  sku_code?: string;
-  reason: string;
-  status: string;
-  created_at: string;
-};
 
 const STATUS_LABEL: Record<string, string> = {
   open: "Aberta",
@@ -43,8 +32,7 @@ export default function DevolucoesFornecedorPage() {
     setLoading(true);
     setError("");
     try {
-      const qs = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : "";
-      const res = await api<{ items: SupplierReturn[] }>(`/api/v1/stock/supplier-returns${qs}`);
+      const res = await stockApi.listSupplierReturns(statusFilter || undefined);
       setItems(res.items ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao carregar");
@@ -62,7 +50,7 @@ export default function DevolucoesFornecedorPage() {
     setError("");
     setInfo("");
     try {
-      await updateSupplierReturnStatus(id, status);
+      await stockApi.updateSupplierReturnStatus(id, status);
       setInfo(`Devolução atualizada: ${STATUS_LABEL[status] ?? status}`);
       await load();
     } catch (err) {

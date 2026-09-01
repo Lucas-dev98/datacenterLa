@@ -2,35 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { stockApi, type HealthIssue, type HealthStats, type ExpiringReservation } from "@/lib/api/stock";
 import { Alert, Button, Card, Table } from "@/components/ui";
-
-type HealthStats = {
-  total_units: number;
-  available_units: number;
-  reserved_units: number;
-  open_issues: number;
-  expiring_reservations: number;
-  low_stock_skus: number;
-  units_by_status: Record<string, number>;
-};
-
-type ExpiringReservation = {
-  id: string;
-  order_id: string;
-  order_number?: string;
-  sku_code: string;
-  expires_at: string;
-};
-
-type HealthIssue = {
-  id: string;
-  issue_type: string;
-  status: string;
-  unit_code?: string;
-  sku_code?: string;
-  detected_at: string;
-};
 
 export default function EstoqueSaudePage() {
   const [stats, setStats] = useState<HealthStats | null>(null);
@@ -44,11 +17,7 @@ export default function EstoqueSaudePage() {
     setLoading(true);
     setError("");
     try {
-      const data = await api<{
-        stats: HealthStats;
-        expiring_reservations: ExpiringReservation[];
-        open_issues: HealthIssue[];
-      }>("/api/v1/stock/health/dashboard");
+      const data = await stockApi.healthDashboard();
       setStats(data.stats);
       setExpiring(data.expiring_reservations ?? []);
       setIssues(data.open_issues ?? []);
@@ -66,7 +35,7 @@ export default function EstoqueSaudePage() {
   async function scan() {
     setInfo("");
     try {
-      const res = await api<{ detected: number }>("/api/v1/stock/health/scan", { method: "POST" });
+      const res = await stockApi.healthScan();
       setInfo(`${res.detected} nova(s) inconsistência(s) detectada(s)`);
       await load();
     } catch (err) {
@@ -76,10 +45,7 @@ export default function EstoqueSaudePage() {
 
   async function resolve(id: string) {
     try {
-      await api(`/api/v1/stock/health/issues/${id}/resolve`, {
-        method: "POST",
-        body: JSON.stringify({ notes: "Resolvido manualmente" }),
-      });
+      await stockApi.resolveHealthIssue(id);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao resolver");

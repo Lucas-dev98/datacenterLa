@@ -3,35 +3,12 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { QrScanner } from "@/components/qr-scanner";
-import { api } from "@/lib/api";
+import { stockApi, type StockAdjustment, type StockCount } from "@/lib/api/stock";
+import { pimApi } from "@/lib/api/pim";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
 import { parseQrPayload } from "@/lib/qr-decode";
 import { playScanBeep, unlockScanAudio } from "@/lib/scan-beep";
-import type { InventoryUnitDetail, SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Table } from "@/components/ui";
-
-type StockCount = {
-  id: string;
-  warehouse_id: string;
-  status: string;
-  count_type: string;
-  created_at: string;
-  lines?: {
-    sku_code?: string;
-    unit_code?: string;
-    system_qty: number;
-    counted_qty?: number;
-    variance: number;
-  }[];
-};
-
-type Adjustment = {
-  id: string;
-  sku_code?: string;
-  quantity_delta: number;
-  reason: string;
-  status: string;
-};
 
 type ResolvedItem = {
   kind: "unit" | "sku";
@@ -43,7 +20,7 @@ type ResolvedItem = {
 
 export default function InventarioPage() {
   const [counts, setCounts] = useState<StockCount[]>([]);
-  const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
+  const [adjustments, setAdjustments] = useState<StockAdjustment[]>([]);
   const [selectedCount, setSelectedCount] = useState<StockCount | null>(null);
   const [scanInput, setScanInput] = useState("");
   const [skuQty, setSkuQty] = useState("1");
@@ -63,10 +40,7 @@ export default function InventarioPage() {
   async function load() {
     setError("");
     try {
-      const [c, a] = await Promise.all([
-        api<{ items: StockCount[] }>("/api/v1/stock/counts"),
-        api<{ items: Adjustment[] }>("/api/v1/stock/adjustments"),
-      ]);
+      const [c, a] = await Promise.all([stockApi.listCounts(), stockApi.listAdjustments()]);
       setCounts(c.items ?? []);
       setAdjustments(a.items ?? []);
     } catch (err) {
@@ -83,7 +57,7 @@ export default function InventarioPage() {
   }, [counting, selectedCount?.id]);
 
   async function refreshCount(id: string) {
-    const c = await api<StockCount>(`/api/v1/stock/counts/${id}`);
+    const c = await stockApi.getCount(id);
     setSelectedCount(c);
     return c;
   }
@@ -92,10 +66,7 @@ export default function InventarioPage() {
     setBusy(true);
     setError("");
     try {
-      const c = await api<StockCount>("/api/v1/stock/counts", {
-        method: "POST",
-        body: JSON.stringify({ warehouse_id: DEFAULT_WAREHOUSE_ID, count_type: "full" }),
-      });
+      const c = await stockApi.createCount({ warehouse_id: DEFAULT_WAREHOUSE_ID, count_type: "full" });
       setSelectedCount(c);
       setPendingSkuCounts({});
       setResolved(null);
@@ -112,7 +83,7 @@ export default function InventarioPage() {
     setBusy(true);
     unlockScanAudio();
     try {
-      await api(`/api/v1/stock/counts/${id}/start`, { method: "POST" });
+      await stockApi.startCount(id);
       await refreshCount(id);
       setInfo("Contagem iniciada — escaneie QR codes ou digite códigos.");
       setScanInput("");
@@ -124,7 +95,7 @@ export default function InventarioPage() {
   }
 
   const resolveSku = useCallback(async (code: string): Promise<ResolvedItem> => {
-    const sku = await api<SKU>(`/api/v1/pim/skus/code/${encodeURIComponent(code)}`);
+    const sku = await pimApi.getSkuByCode(code);
     return {
       kind: "sku",
       code,
@@ -135,9 +106,7 @@ export default function InventarioPage() {
   }, []);
 
   const resolveUnit = useCallback(async (code: string): Promise<ResolvedItem> => {
-    const unit = await api<InventoryUnitDetail>(
-      `/api/v1/stock/units/code/${encodeURIComponent(code)}`,
-    );
+    const unit = await stockApi.unitDetailByCode(code);
     return {
       kind: "unit",
       code: unit.unit_code,
@@ -150,10 +119,7 @@ export default function InventarioPage() {
   const registerUnit = useCallback(
     async (unitCode: string) => {
       if (!selectedCount) return;
-      const c = await api<StockCount>(`/api/v1/stock/counts/${selectedCount.id}/lines`, {
-        method: "POST",
-        body: JSON.stringify({ unit_code: unitCode }),
-      });
+      const c = await stockApi.addCountLine(selectedCount.id, { unit_code: unitCode });
       setSelectedCount(c);
       setInfo(`Unidade ${unitCode} registrada na contagem.`);
       playScanBeep();
@@ -164,10 +130,7 @@ export default function InventarioPage() {
   const registerSkuQty = useCallback(
     async (item: ResolvedItem, qty: number) => {
       if (!selectedCount || qty < 0) return;
-      const c = await api<StockCount>(`/api/v1/stock/counts/${selectedCount.id}/lines`, {
-        method: "POST",
-        body: JSON.stringify({ sku_id: item.skuId, counted_qty: qty }),
-      });
+      const c = await stockApi.addCountLine(selectedCount.id, { sku_id: item.skuId, counted_qty: qty });
       setSelectedCount(c);
       setPendingSkuCounts((prev) => ({ ...prev, [item.skuId]: qty }));
       setInfo(`SKU ${item.skuCode}: ${qty} unidade(s) registrada(s).`);
@@ -262,7 +225,7 @@ export default function InventarioPage() {
     if (!selectedCount) return;
     setBusy(true);
     try {
-      await api(`/api/v1/stock/counts/${selectedCount.id}/complete`, { method: "POST" });
+      await stockApi.completeCount(selectedCount.id);
       await refreshCount(selectedCount.id);
       setInfo("Contagem finalizada — aguardando aprovação.");
       await load();
@@ -277,9 +240,7 @@ export default function InventarioPage() {
     if (!selectedCount) return;
     setBusy(true);
     try {
-      const c = await api<StockCount>(`/api/v1/stock/counts/${selectedCount.id}/approve`, {
-        method: "POST",
-      });
+      const c = await stockApi.approveCount(selectedCount.id);
       setSelectedCount(c);
       setInfo("Inventário aprovado — ajustes gerados.");
       await load();
@@ -292,26 +253,23 @@ export default function InventarioPage() {
 
   async function createAdjustment(e: FormEvent) {
     e.preventDefault();
-    await api("/api/v1/stock/adjustments", {
-      method: "POST",
-      body: JSON.stringify({
-        warehouse_id: DEFAULT_WAREHOUSE_ID,
-        sku_id: adjSku,
-        quantity_delta: parseInt(adjDelta, 10) || 0,
-        reason: adjReason,
-      }),
+    await stockApi.createAdjustment({
+      warehouse_id: DEFAULT_WAREHOUSE_ID,
+      sku_id: adjSku,
+      quantity_delta: parseInt(adjDelta, 10) || 0,
+      reason: adjReason,
     });
     setInfo("Ajuste solicitado");
     await load();
   }
 
   async function approveAdj(id: string) {
-    await api(`/api/v1/stock/adjustments/${id}/approve`, { method: "POST" });
+    await stockApi.approveAdjustment(id);
     await load();
   }
 
   async function applyAdj(id: string) {
-    await api(`/api/v1/stock/adjustments/${id}/apply`, { method: "POST" });
+    await stockApi.applyAdjustment(id);
     setInfo("Ajuste aplicado no estoque");
     await load();
   }

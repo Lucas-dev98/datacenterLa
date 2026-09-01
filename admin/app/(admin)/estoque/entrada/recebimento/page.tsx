@@ -2,8 +2,9 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { api, apiBlob, downloadBlob } from "@/lib/api";
-import { DEFAULT_LOCATION_ID, DEFAULT_WAREHOUSE_ID } from "@/lib/config";
+import { downloadBlob } from "@/lib/api";
+import { stockApi } from "@/lib/api/stock";
+import { DEFAULT_LOCATION_ID } from "@/lib/config";
 import type { IntakeQueueItem, InventoryUnit } from "@/lib/types";
 import { IntakeBatchPhotoGallery, IntakePhotoThumb } from "@/components/intake-batch-photos";
 import { IntakeTestPanel } from "@/components/intake-test-panel";
@@ -50,9 +51,7 @@ export default function RecebimentoPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await api<{ items: IntakeQueueItem[] }>(
-        `/api/v1/stock/intake/queue?warehouse_id=${DEFAULT_WAREHOUSE_ID}&limit=200`,
-      );
+      const res = await stockApi.intakeQueue();
       setItems(res.items ?? []);
       setSelected(new Set());
     } catch (err) {
@@ -67,9 +66,7 @@ export default function RecebimentoPage() {
   }, [load]);
 
   async function printUnitLabel(unitCode: string) {
-    const blob = await apiBlob(
-      `/api/v1/stock/units/code/${encodeURIComponent(unitCode)}/label?format=pdf`,
-    );
+    const blob = await stockApi.unitLabelPdf(unitCode);
     downloadBlob(blob, `etiqueta-${unitCode}.pdf`);
   }
 
@@ -78,14 +75,11 @@ export default function RecebimentoPage() {
     setInfo("");
     setSubmitting(true);
     try {
-      const body: Record<string, string> = { unit_id: unitId };
+      const body: { unit_id: string; location_id?: string } = { unit_id: unitId };
       if (nextAction === "liberar") {
         body.location_id = DEFAULT_LOCATION_ID;
       }
-      const res = await api<{ unit: InventoryUnit }>("/api/v1/stock/intake/advance", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      const res = await stockApi.intakeAdvance(body);
       if (res.unit.status === "available" && printOnRelease) {
         await printUnitLabel(unitCode);
       }
@@ -109,13 +103,9 @@ export default function RecebimentoPage() {
       let failed = 0;
 
       if (mode === "complete") {
-        const res = await api<{
-          unit?: InventoryUnit;
-          completed?: InventoryUnit[];
-          failed?: { unit_id: string; error: string }[];
-        }>("/api/v1/stock/intake/complete", {
-          method: "POST",
-          body: JSON.stringify({ unit_ids: unitIds, location_id: DEFAULT_LOCATION_ID }),
+        const res = await stockApi.intakeComplete({
+          unit_ids: unitIds,
+          location_id: DEFAULT_LOCATION_ID,
         });
         const done = res.completed ?? (res.unit ? [res.unit] : []);
         ok = done.length;
@@ -127,14 +117,11 @@ export default function RecebimentoPage() {
         for (const id of unitIds) {
           const item = items.find((i) => i.id === id);
           try {
-            const body: Record<string, string> = { unit_id: id };
+            const body: { unit_id: string; location_id?: string } = { unit_id: id };
             if (item?.next_action === "liberar") {
               body.location_id = DEFAULT_LOCATION_ID;
             }
-            const res = await api<{ unit: InventoryUnit }>("/api/v1/stock/intake/advance", {
-              method: "POST",
-              body: JSON.stringify(body),
-            });
+            const res = await stockApi.intakeAdvance(body);
             ok++;
             if (res.unit.status === "available") released.push(res.unit.unit_code);
           } catch {
@@ -166,9 +153,7 @@ export default function RecebimentoPage() {
     setInfo("");
     setSubmitting(true);
     try {
-      const unit = await api<InventoryUnit & { status: string }>(
-        `/api/v1/stock/units/code/${encodeURIComponent(code)}`,
-      );
+      const unit = await stockApi.unitByCode(code);
       const status = unit.status ?? unit.Status ?? "";
       if (!["received", "inspecting", "identified"].includes(status)) {
         setError(`Unidade ${code} não está na fila (status: ${status || "?"})`);

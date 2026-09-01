@@ -3,8 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { api } from "@/lib/api";
-import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
+import { stockApi } from "@/lib/api/stock";
 import type { LowStockSKU, StockBalanceRow } from "@/lib/types";
 import { Alert, Button, Card, Input, Table } from "@/components/ui";
 
@@ -25,26 +24,12 @@ export default function EstoquePosicaoPage() {
     setError("");
     try {
       if (lowStockMode) {
-        const params = new URLSearchParams({
-          threshold: String(LOW_STOCK_THRESHOLD),
-          limit: "200",
-        });
-        if (q.trim()) params.set("q", q.trim());
-        const res = await api<{ items: LowStockSKU[]; total: number; threshold: number }>(
-          `/api/v1/stock/low-stock?${params}`,
-        );
+        const res = await stockApi.listLowStock({ threshold: LOW_STOCK_THRESHOLD, q });
         setLowStockItems(res.items ?? []);
         setItems([]);
         setTotal(res.total ?? 0);
       } else {
-        const params = new URLSearchParams({
-          warehouse_id: DEFAULT_WAREHOUSE_ID,
-          limit: "100",
-        });
-        if (q.trim()) params.set("q", q.trim());
-        const res = await api<{ items: StockBalanceRow[]; total: number }>(
-          `/api/v1/stock/balances?${params}`,
-        );
+        const res = await stockApi.listBalances({ q });
         setItems(res.items ?? []);
         setLowStockItems([]);
         setTotal(res.total ?? 0);

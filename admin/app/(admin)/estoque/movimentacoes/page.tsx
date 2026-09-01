@@ -3,8 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { api } from "@/lib/api";
-import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
+import { stockApi } from "@/lib/api/stock";
 import {
   MOVEMENT_TYPE_OPTIONS,
   movementReferenceHref,
@@ -47,16 +46,12 @@ export default function EstoqueMovimentacoesPage() {
       setLoading(true);
       setError("");
       try {
-        const params = new URLSearchParams({
-          warehouse_id: DEFAULT_WAREHOUSE_ID,
-          limit: String(PAGE_SIZE),
-          offset: String(pageOffset),
+        const res = await stockApi.listMovements({
+          q,
+          movement_type: type,
+          offset: pageOffset,
+          limit: PAGE_SIZE,
         });
-        if (q.trim()) params.set("q", q.trim());
-        if (type) params.set("movement_type", type);
-        const res = await api<{ items: StockMovementRow[]; total: number }>(
-          `/api/v1/stock/movements?${params}`,
-        );
         const next = res.items ?? [];
         setItems((prev) => (append ? [...prev, ...next] : next));
         setTotal(res.total ?? 0);

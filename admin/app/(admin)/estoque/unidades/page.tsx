@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { api } from "@/lib/api";
+import { stockApi } from "@/lib/api/stock";
 import type { InventoryUnitDetail } from "@/lib/types";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 
@@ -60,9 +60,7 @@ export default function EstoqueUnidadesPage() {
     setError("");
     setUnit(null);
     try {
-      const u = await api<InventoryUnitDetail>(
-        `/api/v1/stock/units/code/${encodeURIComponent(normalized)}`,
-      );
+      const u = await stockApi.unitDetailByCode(normalized);
       setUnit(u);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unidade não encontrada");
