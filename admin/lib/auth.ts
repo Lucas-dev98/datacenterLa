@@ -38,6 +38,11 @@ export function clearTokens() {
   setSessionCookie(false);
 }
 
+/** Keeps middleware cookie in sync for sessions created before middleware existed. */
+export function syncSessionCookie() {
+  setSessionCookie(isAuthenticated());
+}
+
 export function saveUser(user: User) {
   localStorage.setItem("dcla_user", JSON.stringify(user));
 }

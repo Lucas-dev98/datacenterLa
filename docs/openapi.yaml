@@ -24,15 +24,26 @@ paths:
       summary: List purchase orders
     post:
       summary: Create purchase order
+  /purchases/orders/{id}/receive:
+    post:
+      summary: Receive PO (simple)
   /purchases/orders/{id}/receive-intake:
     post:
       summary: Receive PO with intake photos
+  /sales/customers:
+    get:
+      summary: List CRM customers
+    post:
+      summary: Create customer
   /sales/orders:
     get:
       summary: List sales orders
   /ecommerce/catalog:
     get:
       summary: Public catalog
+  /ecommerce/catalog/{sku_id}:
+    get:
+      summary: Product detail
   /ecommerce/cart:
     get:
       summary: Get cart by session_id

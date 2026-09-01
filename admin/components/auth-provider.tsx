@@ -8,6 +8,7 @@ import {
   getStoredUser,
   isAuthenticated,
   saveUser,
+  syncSessionCookie,
 } from "@/lib/auth";
 import type { User } from "@/lib/types";
 
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (pathname !== "/login") router.replace("/login");
         return;
       }
+      syncSessionCookie();
       try {
         const cached = getStoredUser();
         if (cached) setUser(cached);

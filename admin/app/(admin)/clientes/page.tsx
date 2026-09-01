@@ -1,17 +1,20 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { api } from "@/lib/api";
-import type { Customer } from "@/lib/types";
+import { FormEvent, useMemo, useState } from "react";
+import { useApiQuery } from "@/hooks/use-api-query";
+import { salesApi } from "@/lib/api/sales";
 import { documentTypeLabel } from "@/lib/customer-profile";
 import { PARAGUAY_BUYER_KINDS } from "@/lib/paraguay-documents";
+import type { Customer } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
 export default function ClientesPage() {
-  const [items, setItems] = useState<Customer[]>([]);
-  const [error, setError] = useState("");
+  const { data, error, loading, refetch } = useApiQuery<{ items: Customer[] }>(
+    "/api/v1/sales/customers?active_only=true",
+  );
+  const items = data?.items ?? [];
+  const [createError, setCreateError] = useState("");
   const [info, setInfo] = useState("");
-  const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [type, setType] = useState("b2b");
@@ -39,30 +42,12 @@ export default function ClientesPage() {
   const nameLabel =
     residency === "paraguayan" && documentType === "ruc_pj" ? "Razão social" : "Nome";
 
-  async function load() {
-    setLoading(true);
-    try {
-      const res = await api<{ items: Customer[] }>("/api/v1/sales/customers?active_only=true");
-      setItems(res.items);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void load();
-  }, []);
-
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    setError("");
     setInfo("");
+    setCreateError("");
     try {
-      await api("/api/v1/sales/customers", {
-        method: "POST",
-        body: JSON.stringify({
+      await salesApi.createCustomer({
           type,
           name,
           email: email || undefined,
@@ -73,16 +58,15 @@ export default function ClientesPage() {
           document_type: documentType,
           credit_limit_usd: parseFloat(creditLimit) || 0,
           payment_terms_days: parseInt(terms, 10) || 30,
-        }),
       });
       setInfo("Cliente criado");
       setName("");
       setEmail("");
       setPhone("");
       setDocumentId("");
-      await load();
+      await refetch();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao criar");
+      setCreateError(err instanceof Error ? err.message : "Erro ao criar");
     }
   }
 
@@ -96,6 +80,7 @@ export default function ClientesPage() {
       </header>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
+      {createError ? <Alert tone="error">{createError}</Alert> : null}
       {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card title="Novo cliente">

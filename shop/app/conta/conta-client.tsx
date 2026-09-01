@@ -8,6 +8,7 @@ import {
   getShopEmail,
   isShopAuthenticated,
   saveShopSession,
+  syncShopSessionCookie,
 } from "@/lib/auth";
 import type { PublicOrder } from "@/lib/types";
 import { ShopShell } from "@/components/shop-shell";
@@ -158,6 +159,7 @@ export function ContaPageClient() {
     if (qOrder) setOrderNumber(qOrder);
 
     if (isShopAuthenticated()) {
+      syncShopSessionCookie();
       setLoggedIn(true);
       if (!qEmail && getShopEmail()) setEmail(getShopEmail() ?? "");
       void loadOrders(qOrder ?? undefined);

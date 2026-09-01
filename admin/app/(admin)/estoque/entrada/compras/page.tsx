@@ -3,16 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { useApiQueryFn } from "@/hooks/use-api-query";
+import { purchasesApi, type PurchaseOrderSummary } from "@/lib/api/stock";
 import { Alert, Button, Card, Table } from "@/components/ui";
-
-type PO = {
-  id: string;
-  po_number: string;
-  supplier_name?: string;
-  status: string;
-  created_at: string;
-};
 
 const STATUS_LABEL: Record<string, string> = {
   ordered: "Aguardando recebimento",
@@ -21,35 +14,17 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default function EntradaComprasPage() {
   const router = useRouter();
-  const [orders, setOrders] = useState<PO[]>([]);
+  const fetchOrders = useCallback(() => purchasesApi.listPendingReceiveOrders(), []);
+  const { data, error, loading, refetch } = useApiQueryFn(fetchOrders);
+  const orders = data ?? [];
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const lastClickedIndex = useRef<number | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const [ordered, partial] = await Promise.all([
-        api<{ items: PO[] }>("/api/v1/purchases/orders?status=ordered"),
-        api<{ items: PO[] }>("/api/v1/purchases/orders?status=partial"),
-      ]);
-      const merged = [...(ordered.items ?? []), ...(partial.items ?? [])];
-      merged.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      setOrders(merged);
-      setSelected(new Set());
-      lastClickedIndex.current = null;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar POs");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    setSelected(new Set());
+    lastClickedIndex.current = null;
+  }, [data]);
 
   const selectedIndices = new Set(
     orders.map((po, index) => (selected.has(po.id) ? index : -1)).filter((i) => i >= 0),
@@ -121,7 +96,7 @@ export default function EntradaComprasPage() {
               Nova PO
             </Button>
           </Link>
-          <Button type="button" variant="secondary" onClick={() => void load()} disabled={loading}>
+          <Button type="button" variant="secondary" onClick={() => void refetch()} disabled={loading}>
             Atualizar
           </Button>
         </div>
@@ -187,7 +162,7 @@ export default function EntradaComprasPage() {
                 "Status",
                 "Criada",
               ]}
-              rows={orders.map((po, index) => [
+              rows={orders.map((po: PurchaseOrderSummary, index: number) => [
                 <input
                   key={`cb-${po.id}`}
                   type="checkbox"
