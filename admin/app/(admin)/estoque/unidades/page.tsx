@@ -1,10 +1,9 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { stockApi } from "@/lib/api/stock";
-import type { InventoryUnitDetail } from "@/lib/types";
+import { useInventoryUnitByCode } from "@/hooks/use-inventory-unit";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -49,37 +48,27 @@ function formatDateTime(iso?: string): string {
 export default function EstoqueUnidadesPage() {
   const searchParams = useSearchParams();
   const [code, setCode] = useState("");
-  const [unit, setUnit] = useState<InventoryUnitDetail | null>(null);
+  const [searchCode, setSearchCode] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const searchByCode = useCallback(async (term: string) => {
-    const normalized = term.trim().toUpperCase();
-    if (!normalized) return;
-    setLoading(true);
-    setError("");
-    setUnit(null);
-    try {
-      const u = await stockApi.unitDetailByCode(normalized);
-      setUnit(u);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unidade não encontrada");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data: unit, error: loadError, loading } = useInventoryUnitByCode(searchCode);
 
   useEffect(() => {
     const fromUrl = searchParams.get("code");
     if (fromUrl) {
       setCode(fromUrl);
-      void searchByCode(fromUrl);
+      setSearchCode(fromUrl);
     }
-  }, [searchParams, searchByCode]);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (loadError) setError(loadError);
+    else if (unit) setError("");
+  }, [loadError, unit]);
 
   async function onSearch(e: FormEvent) {
     e.preventDefault();
-    await searchByCode(code);
+    setError("");
+    setSearchCode(code.trim());
   }
 
   const status = unit?.status ?? "";

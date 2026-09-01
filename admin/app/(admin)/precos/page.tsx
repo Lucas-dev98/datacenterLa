@@ -2,10 +2,9 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { pimApi } from "@/lib/api/pim";
-import { pricingApi } from "@/lib/api/pricing";
 import { useSkusList } from "@/hooks/use-pim-list-queries";
 import { useSetSkuPrice } from "@/hooks/use-pricing-mutations";
+import { useSkuPricingDetail } from "@/hooks/use-sku-pricing-detail";
 import type { ResolvedPrice, SKU, SKUPrice } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Table } from "@/components/ui";
 
@@ -32,6 +31,8 @@ export default function PrecosPage() {
   const { data: skusData, error: listError, loading: listing, refetch: refetchList } = useSkusList(searchTerm);
   const skus = skusData ?? [];
   const [sku, setSku] = useState<SKU | null>(null);
+  const [editorSkuId, setEditorSkuId] = useState<string | null>(null);
+  const { data: pricingDetail, error: detailError, refetch: refetchDetail } = useSkuPricingDetail(editorSkuId);
   const [price, setPrice] = useState<SKUPrice | null>(null);
   const [resolved, setResolved] = useState<ResolvedPrice[]>([]);
   const [cost, setCost] = useState("");
@@ -46,6 +47,23 @@ export default function PrecosPage() {
   useEffect(() => {
     if (listError) setError(listError);
   }, [listError]);
+
+  useEffect(() => {
+    if (detailError && editorSkuId) {
+      setResolved([]);
+      setError(
+        detailError ||
+          "Não foi possível carregar preços da API — editando com valores da lista.",
+      );
+    }
+  }, [detailError, editorSkuId]);
+
+  useEffect(() => {
+    if (!pricingDetail) return;
+    fillForm(pricingDetail.price);
+    setResolved(pricingDetail.resolved);
+    setError("");
+  }, [pricingDetail]);
 
   useEffect(() => {
     const term = q.trim();
@@ -64,32 +82,20 @@ export default function PrecosPage() {
     setReseller(p.price_reseller_usd != null ? String(p.price_reseller_usd) : "");
   }
 
-  async function loadPrices(s: SKU) {
+  function loadPrices(s: SKU) {
     setSku(s);
     setInfo("");
     setError("");
-    // Abre o formulário na hora (não depende da API).
     fillForm(priceFromSku(s));
+    setEditorSkuId(s.id);
     requestAnimationFrame(() => {
       editRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-
-    try {
-      const p = await pricingApi.getSkuPrice(s.id);
-      fillForm(p);
-      const channels = ["b2c", "b2b", "reseller"];
-      const resolvedPrices = await Promise.all(
-        channels.map((ch) => pricingApi.resolve(s.id, ch).catch(() => null)),
-      );
-      setResolved(resolvedPrices.filter((r): r is ResolvedPrice => Boolean(r)));
-    } catch (err) {
-      setResolved([]);
-      setError(err instanceof Error ? err.message : "Não foi possível carregar preços da API — editando com valores da lista.");
-    }
   }
 
   function closeEditor() {
     setSku(null);
+    setEditorSkuId(null);
     setPrice(null);
     setResolved([]);
     setInfo("");
@@ -123,7 +129,7 @@ export default function PrecosPage() {
       await refetchList();
       const updated = { ...sku, ...body };
       setSku(updated);
-      await loadPrices(updated);
+      await refetchDetail();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar");
     }
@@ -217,7 +223,7 @@ export default function PrecosPage() {
           <p className="text-sm text-slate-500">Nenhum produto encontrado.</p>
         ) : (
           <Table
-            onRowClick={(index) => void loadPrices(skus[index])}
+            onRowClick={(index) => loadPrices(skus[index])}
             headers={["Código", "Produto", "Custo", "B2C", "B2B", "Revenda", ""]}
             rows={skus.map((s) => {
               const selected = sku?.id === s.id;
@@ -254,7 +260,7 @@ export default function PrecosPage() {
                     className={`text-sm font-medium ${
                       selected ? "text-emerald-700" : "text-blue-600 hover:underline"
                     }`}
-                    onClick={() => void loadPrices(s)}
+                    onClick={() => loadPrices(s)}
                   >
                     {selected ? "Editando…" : "Editar"}
                   </button>

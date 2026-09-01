@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { downloadBlob } from "@/lib/api/client";
 import { labelsApi } from "@/lib/api/labels";
-import { pimApi } from "@/lib/api/pim";
+import { useSkuSearch } from "@/hooks/use-sku-search";
 import type { SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
 
@@ -11,9 +11,10 @@ type QueueItem = { sku: SKU; copies: number };
 
 export default function EtiquetasPage() {
   const [q, setQ] = useState("");
-  const [hits, setHits] = useState<SKU[]>([]);
-  const [searched, setSearched] = useState(false);
-  const [searching, setSearching] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const { data: hitsData, error: searchError, loading: searching } = useSkuSearch(searchTerm);
+  const hits = hitsData ?? [];
+  const searched = searchTerm.trim().length >= 2;
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [format, setFormat] = useState<"pdf" | "html">("pdf");
   const [error, setError] = useState("");
@@ -21,32 +22,13 @@ export default function EtiquetasPage() {
 
   useEffect(() => {
     const term = q.trim();
-    if (term.length < 2) {
-      setHits([]);
-      setSearched(false);
-      return;
-    }
-    const t = setTimeout(() => {
-      void search(term);
-    }, 220);
+    const t = setTimeout(() => setSearchTerm(term), term.length >= 2 ? 220 : 0);
     return () => clearTimeout(t);
   }, [q]);
 
-  async function search(term: string) {
-    setSearching(true);
-    setError("");
-    try {
-      const res = await pimApi.searchSkus(term, 20);
-      setHits(res.items ?? []);
-      setSearched(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro na busca");
-      setHits([]);
-      setSearched(true);
-    } finally {
-      setSearching(false);
-    }
-  }
+  useEffect(() => {
+    if (searchError) setError(searchError);
+  }, [searchError]);
 
   function addSKU(s: SKU) {
     setQueue((prev) => {

@@ -4,32 +4,22 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCreateCategoryAttribute } from "@/hooks/use-pim-category-mutations";
-import { pimApi } from "@/lib/api/pim";
-import type { CategoryAttribute } from "@/lib/types";
+import { useCategoryAttributes } from "@/hooks/use-category-attributes";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
 export default function CategoriaDetailPage() {
   const params = useParams<{ id: string }>();
-  const [attrs, setAttrs] = useState<CategoryAttribute[]>([]);
+  const { data: attrsData, error: loadError, refetch } = useCategoryAttributes(params.id);
+  const attrs = attrsData ?? [];
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [dataType, setDataType] = useState("text");
   const [error, setError] = useState("");
   const { run: createAttribute, loading: creating } = useCreateCategoryAttribute();
 
-  async function load() {
-    try {
-      const res = await pimApi.listCategoryAttributes(params.id);
-      setAttrs(res.items ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro");
-    }
-  }
-
   useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.id]);
+    if (loadError) setError(loadError);
+  }, [loadError]);
 
   async function create(e: FormEvent) {
     e.preventDefault();
@@ -47,7 +37,7 @@ export default function CategoriaDetailPage() {
       });
       setCode("");
       setName("");
-      await load();
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
     }
