@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { blobObjectUrl, ApiClientError } from "@/lib/api/client";
+import { blobObjectUrl } from "@/lib/api/client";
 import { returnsApi, type CustomerReturn, type ReturnWindowCheck } from "@/lib/api/returns";
 import type { Order, OrderItem, OrderListItem } from "@/lib/types";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";

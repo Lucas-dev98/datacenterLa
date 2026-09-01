@@ -1,5 +1,4 @@
-import { api, apiText, shipOrderWithPhotos } from "../api";
-import { apiBlob } from "./client";
+import { api, apiBlob, apiForm, apiText } from "./client";
 import type {
   AnalyticsDashboard,
   Customer,
@@ -110,7 +109,8 @@ export const salesApi = {
     list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     return list;
   },
-  shipWithPhotos: (orderId: string, form: FormData) => shipOrderWithPhotos(orderId, form),
+  shipWithPhotos: (orderId: string, form: FormData) =>
+    apiForm<void>(`${BASE}/orders/${orderId}/ship`, form),
   shipPhotoBlob: (orderId: string, photoId: string) =>
     apiBlob(`${BASE}/orders/${orderId}/ship-photos/${photoId}/file`),
   listCustomers: (activeOnly = true) =>

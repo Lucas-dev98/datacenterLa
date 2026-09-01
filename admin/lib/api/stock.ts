@@ -1,5 +1,4 @@
-import { failIntakeTest, passIntakeTest, receiveIntakeWithPhotos, updateSupplierReturnStatus } from "../api";
-import { api, apiBlob } from "./client";
+import { api, apiBlob, apiForm } from "./client";
 import type {
   InventoryUnit,
   InventoryUnitDetail,
@@ -158,9 +157,12 @@ export const stockApi = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  receiveIntakeWithPhotos: (form: FormData) => receiveIntakeWithPhotos(form),
-  passIntakeTest: (unitId: string, form: FormData) => passIntakeTest(unitId, form),
-  failIntakeTest: (unitId: string, form: FormData) => failIntakeTest(unitId, form),
+  receiveIntakeWithPhotos: (form: FormData) =>
+    apiForm<{ units: InventoryUnitReceive[] }>(`${STOCK}/receive/intake`, form),
+  passIntakeTest: (unitId: string, form: FormData) =>
+    apiForm(`${STOCK}/intake/units/${unitId}/test-pass`, form),
+  failIntakeTest: (unitId: string, form: FormData) =>
+    apiForm(`${STOCK}/intake/units/${unitId}/test-fail`, form),
   listIntakeBatchPhotos: (batchId: string) =>
     api<{ items: IntakeBatchPhoto[] }>(`${STOCK}/intake-batches/${batchId}/photos`),
   intakeBatchPhotoBlob: (batchId: string, photoId: string) =>
@@ -171,7 +173,10 @@ export const stockApi = {
     return api<{ items: SupplierReturn[] }>(`${STOCK}/supplier-returns${qs}`);
   },
   updateSupplierReturnStatus: (id: string, status: "sent" | "closed" | "cancelled") =>
-    updateSupplierReturnStatus(id, status),
+    api(`${STOCK}/supplier-returns/${id}/status`, {
+      method: "POST",
+      body: JSON.stringify({ status }),
+    }),
   listCounts: () => api<{ items: StockCount[] }>(`${STOCK}/counts`),
   getCount: (id: string) => api<StockCount>(`${STOCK}/counts/${id}`),
   createCount: (body: { warehouse_id: string; count_type: string }) =>

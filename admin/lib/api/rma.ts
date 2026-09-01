@@ -1,5 +1,4 @@
-import { api, createRMAWithPhotos } from "../api";
-import { apiBlob } from "./client";
+import { api, apiBlob, apiForm } from "./client";
 import type { Order, OrderItem, OrderListItem } from "../types";
 import { salesApi } from "./sales";
 
@@ -54,7 +53,7 @@ export const rmaApi = {
     return { order, orderItems: (order.items ?? []) as OrderItem[], warranty };
   },
   searchShippedOrders: (q: string) => salesApi.searchShippedOrders(q),
-  createWithPhotos: (form: FormData) => createRMAWithPhotos(form),
+  createWithPhotos: (form: FormData) => apiForm(`${BASE}`, form),
   testPhotoBlob: (caseId: string, photoId: string) =>
     apiBlob(`${BASE}/${caseId}/test-photos/${photoId}/file`),
   step: (id: string, step: string, body?: Record<string, unknown>) =>

@@ -5,7 +5,7 @@ import {
   getRefreshToken,
   saveTokens,
 } from "./auth";
-import type { ApiError, InventoryUnitReceive, TokenPair } from "./types";
+import type { ApiError, TokenPair } from "./types";
 
 export class ApiClientError extends Error {
   code: string;
@@ -86,96 +86,22 @@ export async function apiText(path: string, init: RequestInit = {}): Promise<str
   return res.text();
 }
 
-export async function shipOrderWithPhotos(orderId: string, form: FormData): Promise<void> {
-  const res = await authFetch(`/api/v1/sales/orders/${orderId}/ship`, {
-    method: "POST",
-    body: form,
-  });
-  if (!res.ok) throw await parseError(res);
-}
-
-export async function receiveIntakeWithPhotos(form: FormData): Promise<{ units: InventoryUnitReceive[] }> {
-  const res = await authFetch("/api/v1/stock/receive/intake", {
-    method: "POST",
-    body: form,
-  });
-  if (!res.ok) throw await parseError(res);
-  return (await res.json()) as { units: InventoryUnitReceive[] };
-}
-
-export async function receivePOIntakeWithPhotos(
-  poId: string,
+/** POST/PUT with multipart FormData; parses JSON body when present. */
+export async function apiForm<T = unknown>(
+  path: string,
   form: FormData,
-): Promise<{ order: unknown; units: InventoryUnitReceive[] }> {
-  const res = await authFetch(`/api/v1/purchases/orders/${poId}/receive-intake`, {
-    method: "POST",
+  init: Omit<RequestInit, "body"> = {},
+): Promise<T> {
+  const res = await authFetch(path, {
+    ...init,
+    method: init.method ?? "POST",
     body: form,
   });
   if (!res.ok) throw await parseError(res);
-  return (await res.json()) as { order: unknown; units: InventoryUnitReceive[] };
-}
-
-export async function passIntakeTest(unitId: string, form: FormData): Promise<unknown> {
-  const res = await authFetch(`/api/v1/stock/intake/units/${unitId}/test-pass`, {
-    method: "POST",
-    body: form,
-  });
-  if (!res.ok) throw await parseError(res);
-  return res.json();
-}
-
-export async function failIntakeTest(unitId: string, form: FormData): Promise<unknown> {
-  const res = await authFetch(`/api/v1/stock/intake/units/${unitId}/test-fail`, {
-    method: "POST",
-    body: form,
-  });
-  if (!res.ok) throw await parseError(res);
-  return res.json();
-}
-
-export async function updateSupplierReturnStatus(
-  id: string,
-  status: "sent" | "closed" | "cancelled",
-): Promise<unknown> {
-  const res = await authFetch(`/api/v1/stock/supplier-returns/${id}/status`, {
-    method: "POST",
-    body: JSON.stringify({ status }),
-  });
-  if (!res.ok) throw await parseError(res);
-  return res.json();
-}
-
-export async function createRMAWithPhotos(form: FormData): Promise<unknown> {
-  const res = await authFetch("/api/v1/sales/rma", {
-    method: "POST",
-    body: form,
-  });
-  if (!res.ok) throw await parseError(res);
-  return res.json();
-}
-
-export async function uploadSKUImage(skuId: string, file: File): Promise<{ image_url?: string }> {
-  const form = new FormData();
-  form.set("image", file, file.name || "product.jpg");
-  const res = await authFetch(`/api/v1/pim/skus/${skuId}/image`, {
-    method: "POST",
-    body: form,
-  });
-  if (!res.ok) throw await parseError(res);
-  return (await res.json()) as { image_url?: string };
-}
-
-export async function createCustomerReturnWithPhotos(form: FormData): Promise<unknown> {
-  const res = await authFetch("/api/v1/sales/returns", {
-    method: "POST",
-    body: form,
-  });
-  if (!res.ok) throw await parseError(res);
-  return res.json();
-}
-
-export function rmaTestPhotoUrl(caseId: string, photoId: string): string {
-  return `${API_URL}/api/v1/sales/rma/${caseId}/test-photos/${photoId}/file`;
+  if (res.status === 204) return undefined as T;
+  const text = await res.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 export function blobObjectUrl(blob: Blob): string {

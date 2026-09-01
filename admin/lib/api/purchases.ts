@@ -1,4 +1,4 @@
-import { api, apiText, receivePOIntakeWithPhotos } from "../api";
+import { api, apiForm, apiText } from "./client";
 import type { InventoryUnitReceive } from "../types";
 
 const BASE = "/api/v1/purchases";
@@ -75,7 +75,11 @@ export const purchasesApi = {
   createOrder: (body: Record<string, unknown>) =>
     api<{ id: string }>(`${BASE}/orders`, { method: "POST", body: JSON.stringify(body) }),
   submitOrder: (id: string) => api(`${BASE}/orders/${id}/submit`, { method: "POST" }),
-  receiveIntake: (poId: string, form: FormData) => receivePOIntakeWithPhotos(poId, form),
+  receiveIntake: (poId: string, form: FormData) =>
+    apiForm<{ order: unknown; units: InventoryUnitReceive[] }>(
+      `${BASE}/orders/${poId}/receive-intake`,
+      form,
+    ),
 };
 
 export type { InventoryUnitReceive };

@@ -1,4 +1,4 @@
-import { api, apiText } from "../api";
+import { api, apiText } from "./client";
 import type { Customer, Order, SKU } from "../types";
 import type { ExchangeRatesToday } from "../exchange-rates";
 import { pimApi } from "./pim";

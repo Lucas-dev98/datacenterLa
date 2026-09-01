@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { useApiQuery } from "@/hooks/use-api-query";
+import { useCustomersList } from "@/hooks/use-customers-list";
 import { salesApi } from "@/lib/api/sales";
 import { documentTypeLabel } from "@/lib/customer-profile";
 import { PARAGUAY_BUYER_KINDS } from "@/lib/paraguay-documents";
@@ -9,9 +9,7 @@ import type { Customer } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
 export default function ClientesPage() {
-  const { data, error, loading, refetch } = useApiQuery<{ items: Customer[] }>(
-    "/api/v1/sales/customers?active_only=true",
-  );
+  const { data, error, loading, refetch } = useCustomersList();
   const items = data?.items ?? [];
   const [createError, setCreateError] = useState("");
   const [info, setInfo] = useState("");

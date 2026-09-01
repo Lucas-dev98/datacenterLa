@@ -2,6 +2,7 @@
 export {
   api,
   apiBlob,
+  apiForm,
   apiText,
   ApiClientError,
   blobObjectUrl,

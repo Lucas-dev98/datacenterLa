@@ -10,6 +10,7 @@ type UseApiQueryOptions = {
   deps?: unknown[];
 };
 
+/** @deprecated Prefer useApiQueryFn with a domain API module (salesApi, stockApi, etc.). */
 export function useApiQuery<T>(path: string | null, options: UseApiQueryOptions = {}) {
   const { enabled = true, deps = [] } = options;
   const [data, setData] = useState<T | null>(null);

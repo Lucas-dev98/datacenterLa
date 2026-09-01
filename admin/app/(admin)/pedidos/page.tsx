@@ -1,23 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useApiQuery } from "@/hooks/use-api-query";
-import type { OrderListItem } from "@/lib/types";
+import { useOrdersList } from "@/hooks/use-orders-list";
 import { orderChannelLabel } from "@/lib/order-channels";
 import { Alert, Card, Select, Table } from "@/components/ui";
 
 export default function PedidosPage() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState(() => searchParams.get("status") ?? "");
-  const path = useMemo(
-    () => `/api/v1/sales/orders?limit=50${status ? `&status=${encodeURIComponent(status)}` : ""}`,
-    [status],
-  );
-  const { data, error, loading } = useApiQuery<{ items: OrderListItem[]; total: number }>(path, {
-    deps: [status],
-  });
+  const { data, error, loading } = useOrdersList({ status });
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
 

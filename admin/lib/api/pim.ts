@@ -1,5 +1,4 @@
-import { api } from "./client";
-import { uploadSKUImage } from "../api";
+import { api, apiForm } from "./client";
 import type { CadastroResult, Category, CategoryAttribute, Product, SKU } from "../types";
 
 const BASE = "/api/v1/pim";
@@ -68,5 +67,9 @@ export const pimApi = {
     }),
   bulkCadastro: (body: Record<string, unknown>) =>
     api<CadastroResult>(`${BASE}/cadastros`, { method: "POST", body: JSON.stringify(body) }),
-  uploadSkuImage: (skuId: string, file: File) => uploadSKUImage(skuId, file),
+  uploadSkuImage: (skuId: string, file: File) => {
+    const form = new FormData();
+    form.set("image", file, file.name || "product.jpg");
+    return apiForm<{ image_url?: string }>(`${BASE}/skus/${skuId}/image`, form);
+  },
 };
