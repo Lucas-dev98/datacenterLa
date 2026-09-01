@@ -24,3 +24,5 @@ cd scripts && npm ci && npx playwright install chromium && node run_e2e_ui_flows
 ## Billing
 
 If GitHub Actions shows **“account is locked due to a billing issue”**, jobs never start — fix billing in GitHub Settings → Billing, then re-run the workflow. Failures with ~1s total duration and all jobs skipped/failed without logs usually indicate this.
+
+> **Pendente (2026-09):** conta com dívida GitHub — CI local validado (`tsc`, `e2e_flows.py`, E2E UI 10/10). Re-run após regularizar billing.

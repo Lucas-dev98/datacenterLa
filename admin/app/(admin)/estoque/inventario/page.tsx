@@ -13,6 +13,7 @@ import {
   useCreateStockCount,
   useStartStockCount,
 } from "@/hooks/use-stock-count-mutations";
+import { useInventoryLists } from "@/hooks/use-inventory-lists";
 import { stockApi, type StockAdjustment, type StockCount } from "@/lib/api/stock";
 import { pimApi } from "@/lib/api/pim";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
@@ -29,8 +30,9 @@ type ResolvedItem = {
 };
 
 export default function InventarioPage() {
-  const [counts, setCounts] = useState<StockCount[]>([]);
-  const [adjustments, setAdjustments] = useState<StockAdjustment[]>([]);
+  const { data: lists, error: loadError, refetch } = useInventoryLists();
+  const counts = lists?.counts ?? [];
+  const adjustments = lists?.adjustments ?? [];
   const [selectedCount, setSelectedCount] = useState<StockCount | null>(null);
   const [scanInput, setScanInput] = useState("");
   const [skuQty, setSkuQty] = useState("1");
@@ -67,20 +69,9 @@ export default function InventarioPage() {
 
   const counting = selectedCount?.status === "in_progress";
 
-  async function load() {
-    setError("");
-    try {
-      const [c, a] = await Promise.all([stockApi.listCounts(), stockApi.listAdjustments()]);
-      setCounts(c.items ?? []);
-      setAdjustments(a.items ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar");
-    }
-  }
-
   useEffect(() => {
-    void load();
-  }, []);
+    if (loadError) setError(loadError);
+  }, [loadError]);
 
   useEffect(() => {
     if (counting) scanInputRef.current?.focus();
@@ -100,7 +91,7 @@ export default function InventarioPage() {
       setPendingSkuCounts({});
       setResolved(null);
       setInfo("Sessão de inventário criada — clique em Iniciar para começar a contagem.");
-      await load();
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
     }
@@ -254,7 +245,7 @@ export default function InventarioPage() {
       await completeCount(selectedCount.id);
       await refreshCount(selectedCount.id);
       setInfo("Contagem finalizada — aguardando aprovação.");
-      await load();
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
     }
@@ -266,7 +257,7 @@ export default function InventarioPage() {
       const c = await approveCount(selectedCount.id);
       setSelectedCount(c);
       setInfo("Inventário aprovado — ajustes gerados.");
-      await load();
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
     }
@@ -283,7 +274,7 @@ export default function InventarioPage() {
         reason: adjReason,
       });
       setInfo("Ajuste solicitado");
-      await load();
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao solicitar ajuste");
     }
@@ -293,7 +284,7 @@ export default function InventarioPage() {
     setError("");
     try {
       await approveAdjustment(id);
-      await load();
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao aprovar ajuste");
     }
@@ -304,7 +295,7 @@ export default function InventarioPage() {
     try {
       await applyAdjustment(id);
       setInfo("Ajuste aplicado no estoque");
-      await load();
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao aplicar ajuste");
     }

@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useUpdateSupplierReturnStatus } from "@/hooks/use-supplier-return-mutations";
-import { stockApi, type SupplierReturn } from "@/lib/api/stock";
+import { useSupplierReturnsList } from "@/hooks/use-supplier-returns-list";
+import type { SupplierReturn } from "@/lib/api/stock";
 import { Alert, Button, Card, Table } from "@/components/ui";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -22,30 +23,17 @@ const STATUS_FILTERS = [
 ];
 
 export default function DevolucoesFornecedorPage() {
-  const [items, setItems] = useState<SupplierReturn[]>([]);
   const [statusFilter, setStatusFilter] = useState("");
+  const { data: itemsData, error: loadError, loading, refetch } = useSupplierReturnsList(statusFilter);
+  const items = itemsData ?? [];
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [loading, setLoading] = useState(true);
   const { run: updateStatus, loading: updating } = useUpdateSupplierReturnStatus();
   const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await stockApi.listSupplierReturns(statusFilter || undefined);
-      setItems(res.items ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar");
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter]);
-
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (loadError) setError(loadError);
+  }, [loadError]);
 
   async function changeStatus(id: string, status: "sent" | "closed" | "cancelled") {
     setPendingId(id);
@@ -54,7 +42,7 @@ export default function DevolucoesFornecedorPage() {
     try {
       await updateStatus({ id, status });
       setInfo(`Devolução atualizada: ${STATUS_LABEL[status] ?? status}`);
-      await load();
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao atualizar status");
     } finally {
@@ -105,7 +93,7 @@ export default function DevolucoesFornecedorPage() {
             Unidades reprovadas no teste de recebimento — acompanhe envio e encerramento com o fornecedor.
           </p>
         </div>
-        <Button type="button" variant="secondary" onClick={() => void load()} disabled={loading}>
+        <Button type="button" variant="secondary" onClick={() => void refetch()} disabled={loading}>
           Atualizar
         </Button>
       </header>

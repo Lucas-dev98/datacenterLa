@@ -8,9 +8,10 @@ import {
   useIntakeComplete,
   useUnitByCode,
 } from "@/hooks/use-stock-intake-mutations";
+import { useIntakeQueue } from "@/hooks/use-intake-queue";
 import { stockApi } from "@/lib/api/stock";
 import { DEFAULT_LOCATION_ID } from "@/lib/config";
-import type { IntakeQueueItem, InventoryUnit } from "@/lib/types";
+import type { InventoryUnit } from "@/lib/types";
 import { IntakeBatchPhotoGallery, IntakePhotoThumb } from "@/components/intake-batch-photos";
 import { IntakeTestPanel } from "@/components/intake-test-panel";
 import { Alert, Button, Card, Field, Input, Table } from "@/components/ui";
@@ -32,13 +33,13 @@ function actionButtonLabel(nextAction: string): string {
 }
 
 export default function RecebimentoPage() {
-  const [items, setItems] = useState<IntakeQueueItem[]>([]);
+  const { data: queueItems, error: loadError, loading, refetch } = useIntakeQueue();
+  const items = queueItems ?? [];
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [scanCode, setScanCode] = useState("");
   const [printOnRelease, setPrintOnRelease] = useState(true);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [loading, setLoading] = useState(true);
   const { run: intakeAdvance, loading: advancing } = useIntakeAdvance();
   const { run: intakeComplete, loading: completing } = useIntakeComplete();
   const { run: lookupUnit, loading: scanning } = useUnitByCode();
@@ -55,23 +56,14 @@ export default function RecebimentoPage() {
     return [...ids];
   }, [items]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await stockApi.intakeQueue();
-      setItems(res.items ?? []);
-      setSelected(new Set());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar fila");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (loadError) setError(loadError);
+  }, [loadError]);
+
+  async function reloadQueue() {
+    await refetch();
+    setSelected(new Set());
+  }
 
   async function printUnitLabel(unitCode: string) {
     const blob = await stockApi.unitLabelPdf(unitCode);
@@ -91,7 +83,7 @@ export default function RecebimentoPage() {
         await printUnitLabel(unitCode);
       }
       setInfo(`Unidade ${unitCode}: ${STATUS_LABEL[res.unit.status ?? ""] ?? res.unit.status}`);
-      await load();
+      await reloadQueue();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao avançar");
     }
@@ -141,7 +133,7 @@ export default function RecebimentoPage() {
           await printUnitLabel(code);
         }
       }
-      await load();
+      await reloadQueue();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao processar");
     }
@@ -203,7 +195,7 @@ export default function RecebimentoPage() {
             Inspeção → teste com fotos → identificação → liberação. Reprovação abre devolução ao fornecedor.
           </p>
         </div>
-        <Button type="button" variant="secondary" onClick={() => void load()} disabled={loading}>
+        <Button type="button" variant="secondary" onClick={() => void reloadQueue()} disabled={loading}>
           Atualizar
         </Button>
       </div>
@@ -369,7 +361,7 @@ export default function RecebimentoPage() {
             unitCode={activeTestUnit.code}
             onDone={() => {
               setActiveTestUnit(null);
-              void load();
+              void reloadQueue();
             }}
           />
           <div className="mt-3">

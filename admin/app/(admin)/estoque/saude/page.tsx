@@ -6,37 +6,22 @@ import {
   useResolveStockHealthIssue,
   useStockHealthScan,
 } from "@/hooks/use-stock-health-mutations";
-import { stockApi, type HealthIssue, type HealthStats, type ExpiringReservation } from "@/lib/api/stock";
+import { useStockHealthDashboard } from "@/hooks/use-stock-health-dashboard";
 import { Alert, Button, Card, Table } from "@/components/ui";
 
 export default function EstoqueSaudePage() {
-  const [stats, setStats] = useState<HealthStats | null>(null);
-  const [expiring, setExpiring] = useState<ExpiringReservation[]>([]);
-  const [issues, setIssues] = useState<HealthIssue[]>([]);
+  const { data, error: loadError, loading, refetch } = useStockHealthDashboard();
+  const stats = data?.stats ?? null;
+  const expiring = data?.expiring ?? [];
+  const issues = data?.issues ?? [];
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [loading, setLoading] = useState(true);
   const { run: healthScan, loading: scanning } = useStockHealthScan();
   const { run: resolveIssue, loading: resolving } = useResolveStockHealthIssue();
 
-  async function load() {
-    setLoading(true);
-    setError("");
-    try {
-      const data = await stockApi.healthDashboard();
-      setStats(data.stats);
-      setExpiring(data.expiring_reservations ?? []);
-      setIssues(data.open_issues ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    void load();
-  }, []);
+    if (loadError) setError(loadError);
+  }, [loadError]);
 
   async function scan() {
     setInfo("");
@@ -44,7 +29,7 @@ export default function EstoqueSaudePage() {
     try {
       const res = await healthScan({});
       setInfo(`${res.detected} nova(s) inconsistência(s) detectada(s)`);
-      await load();
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro no scan");
     }
@@ -54,7 +39,7 @@ export default function EstoqueSaudePage() {
     setError("");
     try {
       await resolveIssue(id);
-      await load();
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao resolver");
     }
