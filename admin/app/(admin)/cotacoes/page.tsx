@@ -2,21 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { salesApi, type WebsiteRequest } from "@/lib/api/sales";
 import type { QuoteListItem } from "@/lib/types";
 import { Alert, Button, Card, Select, Table } from "@/components/ui";
-
-type WebsiteRequest = {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  company?: string;
-  source: string;
-  status: string;
-  notes?: string;
-  created_at: string;
-};
 
 function cleanNotes(notes?: string): string {
   if (!notes?.trim()) return "—";
@@ -35,7 +23,7 @@ export default function CotacoesPage() {
   const loadWebsite = useCallback(async () => {
     setWebsiteError("");
     try {
-      const res = await api<{ items: WebsiteRequest[] }>("/api/v1/sales/quotes/website-requests");
+      const res = await salesApi.listWebsiteRequests();
       setWebsite(res.items ?? []);
     } catch (err) {
       setWebsiteError(err instanceof Error ? err.message : "Erro ao carregar solicitações do site");
@@ -47,10 +35,7 @@ export default function CotacoesPage() {
       setLoading(true);
       setError("");
       try {
-        const q = status ? `&status=${encodeURIComponent(status)}` : "";
-        const res = await api<{ items: QuoteListItem[]; total: number }>(
-          `/api/v1/sales/quotes?limit=50${q}`,
-        );
+        const res = await salesApi.listQuotes({ status: status || undefined, limit: 50 });
         setItems(res.items);
         setTotal(res.total);
       } catch (err) {
@@ -68,10 +53,7 @@ export default function CotacoesPage() {
 
   async function setWebsiteStatus(id: string, next: string) {
     try {
-      await api(`/api/v1/sales/quotes/website-requests/${id}/status`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: next }),
-      });
+      await salesApi.updateWebsiteRequestStatus(id, next);
       await loadWebsite();
     } catch (err) {
       setWebsiteError(err instanceof Error ? err.message : "Erro ao atualizar status");

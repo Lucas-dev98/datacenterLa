@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { integrationsApi } from "@/lib/api/integrations";
 import { hasPermission } from "@/lib/permissions";
 import { useAuth } from "@/components/auth-provider";
 import type { FeedSyncLog, FeedSyncLogDetail, FeedDiagnostics } from "@/lib/types";
@@ -24,8 +24,8 @@ export default function ComprasParaguaiPage() {
     setError("");
     try {
       const [res, diag] = await Promise.all([
-        api<{ items: FeedSyncLog[] }>("/api/v1/integrations/compras-paraguai/sync/logs?limit=30"),
-        api<FeedDiagnostics>("/api/v1/integrations/compras-paraguai/sync/diagnostics"),
+        integrationsApi.listSyncLogs(30),
+        integrationsApi.getSyncDiagnostics(),
       ]);
       setLogs(res.items ?? []);
       setDiagnostics(diag);
@@ -45,7 +45,7 @@ export default function ComprasParaguaiPage() {
     setInfo("");
     setError("");
     try {
-      await api("/api/v1/integrations/compras-paraguai/sync/run", { method: "POST" });
+      await integrationsApi.runSync();
       setInfo("Sincronização concluída");
       await loadLogs();
     } catch (err) {
@@ -58,9 +58,7 @@ export default function ComprasParaguaiPage() {
   async function openLog(id: string) {
     setError("");
     try {
-      const log = await api<FeedSyncLogDetail>(
-        `/api/v1/integrations/compras-paraguai/sync/logs/${id}`,
-      );
+      const log = await integrationsApi.getSyncLog(id);
       setSelected(log);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao carregar log");

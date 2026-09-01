@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { authApi } from "@/lib/api/auth";
 import { useAuth } from "@/components/auth-provider";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 
@@ -19,7 +19,7 @@ export default function SegurancaPage() {
   async function startSetup() {
     setError("");
     try {
-      const res = await api<{ secret: string; url: string }>("/api/v1/auth/mfa/setup", { method: "POST" });
+      const res = await authApi.mfaSetup();
       setSecret(res.secret);
       setUrl(res.url);
       setStep("setup");
@@ -32,10 +32,7 @@ export default function SegurancaPage() {
     e.preventDefault();
     setError("");
     try {
-      await api("/api/v1/auth/mfa/enable", {
-        method: "POST",
-        body: JSON.stringify({ code }),
-      });
+      await authApi.mfaEnable(code);
       localStorage.removeItem("dcla_mfa_setup");
       setInfo("MFA ativado com sucesso");
       await refreshUser();

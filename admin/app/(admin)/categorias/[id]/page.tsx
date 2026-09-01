@@ -3,21 +3,13 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api } from "@/lib/api";
+import { pimApi } from "@/lib/api/pim";
+import type { CategoryAttribute } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
-
-type Attribute = {
-  id: string;
-  code: string;
-  name: string;
-  data_type: string;
-  is_required: boolean;
-  sort_order: number;
-};
 
 export default function CategoriaDetailPage() {
   const params = useParams<{ id: string }>();
-  const [attrs, setAttrs] = useState<Attribute[]>([]);
+  const [attrs, setAttrs] = useState<CategoryAttribute[]>([]);
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [dataType, setDataType] = useState("text");
@@ -25,7 +17,7 @@ export default function CategoriaDetailPage() {
 
   async function load() {
     try {
-      const res = await api<{ items: Attribute[] }>(`/api/v1/pim/categories/${params.id}/attributes`);
+      const res = await pimApi.listCategoryAttributes(params.id);
       setAttrs(res.items ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
@@ -40,9 +32,12 @@ export default function CategoriaDetailPage() {
   async function create(e: FormEvent) {
     e.preventDefault();
     try {
-      await api(`/api/v1/pim/categories/${params.id}/attributes`, {
-        method: "POST",
-        body: JSON.stringify({ code, name, data_type: dataType, is_required: false, sort_order: attrs.length }),
+      await pimApi.createCategoryAttribute(params.id, {
+        code,
+        name,
+        data_type: dataType,
+        is_required: false,
+        sort_order: attrs.length,
       });
       setCode("");
       setName("");

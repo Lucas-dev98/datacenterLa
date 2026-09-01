@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { pimApi } from "@/lib/api/pim";
 import type { Category } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
@@ -151,7 +151,7 @@ export default function CategoriasPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await api<{ items: Category[] }>("/api/v1/pim/categories");
+      const res = await pimApi.listCategories();
       setItems(res.items ?? []);
       setSelected(new Set());
       setConfirmDelete(false);
@@ -191,13 +191,10 @@ export default function CategoriasPage() {
     e.preventDefault();
     setError("");
     try {
-      await api("/api/v1/pim/categories", {
-        method: "POST",
-        body: JSON.stringify({
-          code: code.trim().toUpperCase(),
-          name: name.trim(),
-          parent_id: parentId || null,
-        }),
+      await pimApi.createCategory({
+        code: code.trim().toUpperCase(),
+        name: name.trim(),
+        parent_id: parentId || null,
       });
       setCode("");
       setName("");
@@ -214,13 +211,10 @@ export default function CategoriasPage() {
     if (!managingParentId) return;
     setError("");
     try {
-      await api("/api/v1/pim/categories", {
-        method: "POST",
-        body: JSON.stringify({
-          code: childCode.trim().toUpperCase(),
-          name: childName.trim(),
-          parent_id: managingParentId,
-        }),
+      await pimApi.createCategory({
+        code: childCode.trim().toUpperCase(),
+        name: childName.trim(),
+        parent_id: managingParentId,
       });
       setChildName("");
       setChildCode("");
@@ -236,7 +230,7 @@ export default function CategoriasPage() {
     setError("");
     setDeleting(true);
     try {
-      await api(`/api/v1/pim/categories/${child.id}`, { method: "DELETE" });
+      await pimApi.deleteCategory(child.id);
       flash(`Subcategoria ${child.code} removida.`);
       await load();
     } catch (err) {
@@ -260,13 +254,10 @@ export default function CategoriasPage() {
     if (!editing) return;
     setError("");
     try {
-      await api(`/api/v1/pim/categories/${editing.id}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          name: editName.trim(),
-          parent_id: editParentId || null,
-          is_active: editActive,
-        }),
+      await pimApi.updateCategory(editing.id, {
+        name: editName.trim(),
+        parent_id: editParentId || null,
+        is_active: editActive,
       });
       setEditing(null);
       flash("Categoria atualizada.");
@@ -286,7 +277,7 @@ export default function CategoriasPage() {
     const ordered = [...selectedRows].sort((a, b) => b.depth - a.depth);
     for (const cat of ordered) {
       try {
-        await api(`/api/v1/pim/categories/${cat.id}`, { method: "DELETE" });
+        await pimApi.deleteCategory(cat.id);
         ok += 1;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "erro";

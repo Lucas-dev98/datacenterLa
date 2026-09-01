@@ -3,7 +3,9 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api, uploadSKUImage } from "@/lib/api";
+import { uploadSKUImage } from "@/lib/api";
+import { pimApi } from "@/lib/api/pim";
+import { pricingApi } from "@/lib/api/pricing";
 import { API_URL } from "@/lib/config";
 import type { CategoryAttribute, Product, ProductAttributeValue, SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Textarea } from "@/components/ui";
@@ -57,7 +59,7 @@ export default function ProdutoEditPage() {
       setLoading(true);
       setError("");
       try {
-        const p = await api<Product & { skus?: SKU[] }>(`/api/v1/pim/products/${params.id}`);
+        const p = await pimApi.getProduct(params.id);
         setProduct(p);
         setName(p.name);
         setBrand(p.brand ?? "");
@@ -83,7 +85,7 @@ export default function ProdutoEditPage() {
         }
         setAttrValues(values);
         if (p.category_id) {
-          const res = await api<{ items: CategoryAttribute[] }>(`/api/v1/pim/categories/${p.category_id}/attributes`);
+          const res = await pimApi.listCategoryAttributes(p.category_id);
           setCatAttrs(res.items ?? []);
           for (const def of res.items ?? []) {
             if (!(def.id in values)) values[def.id] = "";
@@ -157,26 +159,20 @@ export default function ProdutoEditPage() {
             "value_boolean" in a,
         );
 
-      await api(`/api/v1/pim/products/${params.id}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          name,
-          brand: brand || undefined,
-          description: description || undefined,
-          name_es: nameEs || undefined,
-          description_es: descriptionEs || undefined,
-          generated_description_es: generatedEs || undefined,
-          attributes,
-        }),
+      await pimApi.updateProduct(params.id, {
+        name,
+        brand: brand || undefined,
+        description: description || undefined,
+        name_es: nameEs || undefined,
+        description_es: descriptionEs || undefined,
+        generated_description_es: generatedEs || undefined,
+        attributes,
       });
       if (sku) {
-        await api(`/api/v1/pim/skus/${sku.id}`, {
-          method: "PUT",
-          body: JSON.stringify({
-            publish_compras_paraguai: publishCp,
-            publish_ecommerce: publishEcom,
-            image_url: imageUrl || undefined,
-          }),
+        await pimApi.updateSku(sku.id, {
+          publish_compras_paraguai: publishCp,
+          publish_ecommerce: publishEcom,
+          image_url: imageUrl || undefined,
         });
         const prices: Record<string, number> = {};
         const cost = parseFloat(costUsd);
@@ -190,10 +186,7 @@ export default function ProdutoEditPage() {
         if (Number.isFinite(b2b)) prices.price_b2b_usd = b2b;
         if (Number.isFinite(reseller)) prices.price_reseller_usd = reseller;
         if (Object.keys(prices).length) {
-          await api(`/api/v1/pricing/skus/${sku.id}`, {
-            method: "PUT",
-            body: JSON.stringify(prices),
-          });
+          await pricingApi.setSkuPrice(sku.id, prices);
         }
       }
       setInfo("Produto atualizado");

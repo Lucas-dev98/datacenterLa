@@ -2,7 +2,8 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { salesApi } from "@/lib/api/sales";
+import { pimApi } from "@/lib/api/pim";
 import type { Customer, SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
 
@@ -21,10 +22,7 @@ export default function NovaCotacaoPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    void Promise.all([
-      api<{ items: Customer[] }>("/api/v1/sales/customers?active_only=true"),
-      api<{ items: SKU[] }>("/api/v1/pim/skus?active_only=true&limit=100"),
-    ]).then(([c, s]) => {
+    void Promise.all([salesApi.listCustomers(), pimApi.listAllSkus()]).then(([c, s]) => {
       setCustomers(c.items);
       setSkus(s.items);
       if (c.items.length) setCustomerId(c.items[0].id);
@@ -45,17 +43,14 @@ export default function NovaCotacaoPage() {
     setError("");
     setLoading(true);
     try {
-      const quote = await api<{ id: string }>("/api/v1/sales/quotes", {
-        method: "POST",
-        body: JSON.stringify({
-          customer_id: customerId,
-          channel,
-          discount_pct: parseFloat(discount) || 0,
-          notes: notes || undefined,
-          items: lines
-            .filter((l) => l.sku_id && l.quantity > 0)
-            .map((l) => ({ sku_id: l.sku_id, quantity: l.quantity })),
-        }),
+      const quote = await salesApi.createQuote({
+        customer_id: customerId,
+        channel,
+        discount_pct: parseFloat(discount) || 0,
+        notes: notes || undefined,
+        items: lines
+          .filter((l) => l.sku_id && l.quantity > 0)
+          .map((l) => ({ sku_id: l.sku_id, quantity: l.quantity })),
       });
       router.push(`/cotacoes/${quote.id}`);
     } catch (err) {

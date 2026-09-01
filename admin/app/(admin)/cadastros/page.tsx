@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { pimApi } from "@/lib/api/pim";
 import { DEFAULT_CATEGORY_ID } from "@/lib/config";
 import type { CadastroResult, Category } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Textarea } from "@/components/ui";
@@ -218,7 +218,7 @@ export default function CadastrosPage() {
   const categoryTree = sortCategoryTree(categories.filter((c) => c.is_active));
 
   useEffect(() => {
-    void api<{ items: Category[] }>("/api/v1/pim/categories?active_only=true").then((res) => {
+    void pimApi.listCategories(true).then((res) => {
       setCategories(res.items);
       if (res.items.length && !res.items.find((c) => c.id === categoryId)) {
         setCategoryId(res.items[0].id);
@@ -229,7 +229,7 @@ export default function CadastrosPage() {
   useEffect(() => {
     if (!categoryId) return;
     const cat = categories.find((c) => c.id === categoryId);
-    void api<{ items: CategoryAttribute[] }>(`/api/v1/pim/categories/${categoryId}/attributes`).then((res) => {
+    void pimApi.listCategoryAttributes(categoryId).then((res) => {
       const items = res.items ?? [];
       setAttributes(items);
       const defaults = cat ? CATEGORY_ATTR_DEFAULTS[cat.code] ?? {} : {};
@@ -262,10 +262,7 @@ export default function CadastrosPage() {
           value_text: attrValues[a.id] || undefined,
         })).filter((a) => a.value_text),
       };
-      const res = await api<CadastroResult>("/api/v1/pim/cadastros", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      const res = await pimApi.bulkCadastro(body);
       setResult(res);
       setName("");
       setBrand("");

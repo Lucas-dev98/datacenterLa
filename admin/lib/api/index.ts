@@ -1,4 +1,5 @@
 export { salesApi } from "./sales";
+export type { WebsiteRequest, Lead } from "./sales";
 export { stockApi } from "./stock";
 export type {
   StockCount,
@@ -22,4 +23,7 @@ export { rmaApi } from "./rma";
 export type { RMACase, WarrantyCheck } from "./rma";
 export { posApi } from "./pos";
 export { pricingApi } from "./pricing";
+export { authApi } from "./auth";
+export type { Role } from "./auth";
+export { integrationsApi } from "./integrations";
 export { api, ApiClientError } from "./client";

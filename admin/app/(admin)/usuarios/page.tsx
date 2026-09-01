@@ -1,11 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { authApi, type Role } from "@/lib/api/auth";
 import type { User } from "@/lib/types";
-import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
-
-type Role = { id: string; code: string; name: string };
+import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
 
 function roleIds(user: User): string[] {
   if (!user.roles?.length) return [];
@@ -28,10 +26,7 @@ export default function UsuariosPage() {
   async function load() {
     setError("");
     try {
-      const [u, r] = await Promise.all([
-        api<{ items: User[] }>("/api/v1/auth/users"),
-        api<{ items: Role[] }>("/api/v1/auth/roles"),
-      ]);
+      const [u, r] = await Promise.all([authApi.listUsers(), authApi.listRoles()]);
       const list = u.items ?? [];
       setUsers(list);
       setRoles(r.items ?? []);
@@ -51,14 +46,11 @@ export default function UsuariosPage() {
     e.preventDefault();
     setInfo("");
     try {
-      await api("/api/v1/auth/users", {
-        method: "POST",
-        body: JSON.stringify({
-          email,
-          password,
-          full_name: fullName,
-          role_ids: roleId ? [roleId] : [],
-        }),
+      await authApi.createUser({
+        email,
+        password,
+        full_name: fullName,
+        role_ids: roleId ? [roleId] : [],
       });
       setEmail("");
       setPassword("");
@@ -72,10 +64,7 @@ export default function UsuariosPage() {
 
   async function toggleActive(user: User) {
     try {
-      await api(`/api/v1/auth/users/${user.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ is_active: !user.is_active }),
-      });
+      await authApi.updateUser(user.id, { is_active: !user.is_active });
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao atualizar");
@@ -102,10 +91,7 @@ export default function UsuariosPage() {
     setError("");
     setInfo("");
     try {
-      await api(`/api/v1/auth/users/${userId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ role_ids: ids }),
-      });
+      await authApi.updateUser(userId, { role_ids: ids });
       setInfo("Perfis atualizados");
       await load();
     } catch (err) {

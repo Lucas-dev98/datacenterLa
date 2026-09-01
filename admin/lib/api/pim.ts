@@ -1,29 +1,9 @@
 import { api } from "./client";
-import type { Product, SKU } from "../types";
+import type { CadastroResult, Category, CategoryAttribute, Product, SKU } from "../types";
 
 const BASE = "/api/v1/pim";
 
-export type Category = {
-  id: string;
-  name: string;
-  parent_id?: string | null;
-  is_active?: boolean;
-  children?: Category[];
-};
-
-export type CategoryAttribute = {
-  id: string;
-  category_id: string;
-  name: string;
-  data_type: string;
-  is_required?: boolean;
-};
-
-export type CadastroResult = {
-  product_id: string;
-  sku_id: string;
-  sku_code: string;
-};
+export type { Category, CategoryAttribute, CadastroResult };
 
 export const pimApi = {
   listProducts: (params?: { active_only?: boolean; limit?: number; q?: string }) => {

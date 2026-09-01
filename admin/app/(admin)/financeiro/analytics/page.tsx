@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { salesApi } from "@/lib/api/sales";
 import { orderChannelLabel } from "@/lib/order-channels";
 import type { AnalyticsDashboard } from "@/lib/types";
 import { AbcParetoChart } from "@/components/abc-pareto-chart";
@@ -38,9 +38,7 @@ export default function AnalyticsPage() {
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ from, to, metric });
-      if (channel) params.set("channel", channel);
-      const res = await api<AnalyticsDashboard>(`/api/v1/sales/analytics/dashboard?${params}`);
+      const res = await salesApi.analyticsDashboard({ from, to, metric, channel: channel || undefined });
       setData(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao carregar análise");

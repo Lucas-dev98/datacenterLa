@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { salesApi } from "@/lib/api/sales";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
 type Lead = {
@@ -22,7 +22,7 @@ export default function LeadsPage() {
   const [error, setError] = useState("");
 
   async function load() {
-    const res = await api<{ items: Lead[] }>("/api/v1/sales/leads");
+    const res = await salesApi.listLeads();
     setItems(res.items ?? []);
   }
 
@@ -33,10 +33,7 @@ export default function LeadsPage() {
   async function create(e: FormEvent) {
     e.preventDefault();
     try {
-      await api("/api/v1/sales/leads", {
-        method: "POST",
-        body: JSON.stringify({ name, email: email || undefined, source: "admin" }),
-      });
+      await salesApi.createLead({ name, email: email || undefined, source: "admin" });
       setName("");
       setEmail("");
       await load();
@@ -46,10 +43,7 @@ export default function LeadsPage() {
   }
 
   async function setStatus(id: string, status: string) {
-    await api(`/api/v1/sales/leads/${id}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({ status }),
-    });
+    await salesApi.updateLeadStatus(id, status);
     await load();
   }
 

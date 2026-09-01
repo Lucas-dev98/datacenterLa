@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiClientError } from "@/lib/api";
+import { ApiClientError } from "@/lib/api";
+import { pricingApi } from "@/lib/api/pricing";
 import { formatExchangeRate } from "@/lib/exchange-rates";
 import { useAuth } from "@/components/auth-provider";
 import { hasPermission } from "@/lib/permissions";
@@ -22,7 +23,7 @@ export default function FinanceiroCotacoesPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await api<ExchangeRatesToday>("/api/v1/pricing/exchange-rates/today");
+      const res = await pricingApi.exchangeRatesToday();
       setData(res);
     } catch (err) {
       if (err instanceof ApiClientError && err.status === 404) {
@@ -48,9 +49,7 @@ export default function FinanceiroCotacoesPage() {
     setError("");
     setInfo("");
     try {
-      const res = await api<ExchangeRatesToday>("/api/v1/pricing/exchange-rates/sync", {
-        method: "POST",
-      });
+      const res = await pricingApi.syncExchangeRates();
       setData(res);
       setInfo("Cotações atualizadas automaticamente a partir do mercado.");
     } catch (err) {

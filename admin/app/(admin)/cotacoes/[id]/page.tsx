@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { salesApi } from "@/lib/api/sales";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
 import type { Order, Quote } from "@/lib/types";
 import { Alert, Button, Card, Table } from "@/components/ui";
@@ -21,7 +21,7 @@ export default function CotacaoDetailPage() {
     setLoading(true);
     setError("");
     try {
-      const q = await api<Quote>(`/api/v1/sales/quotes/${params.id}`);
+      const q = await salesApi.getQuote(params.id);
       setQuote(q);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao carregar");
@@ -38,7 +38,7 @@ export default function CotacaoDetailPage() {
   async function sendQuote() {
     setInfo("");
     try {
-      const q = await api<Quote>(`/api/v1/sales/quotes/${params.id}/send`, { method: "POST" });
+      const q = await salesApi.sendQuote(params.id);
       setQuote(q);
       setInfo("Cotação enviada — pronta para converter em pedido");
     } catch (err) {
@@ -51,10 +51,7 @@ export default function CotacaoDetailPage() {
     setError("");
     setInfo("");
     try {
-      const o = await api<Order>(`/api/v1/sales/quotes/${params.id}/convert`, {
-        method: "POST",
-        body: JSON.stringify({ warehouse_id: DEFAULT_WAREHOUSE_ID }),
-      });
+      const o = await salesApi.convertQuote(params.id, { warehouse_id: DEFAULT_WAREHOUSE_ID });
       setInfo(`Pedido ${o.order_number} criado`);
       router.push(`/pedidos/${o.id}`);
     } catch (err) {
