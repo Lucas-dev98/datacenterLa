@@ -1,4 +1,66 @@
 // Interactive UI flow checks — login required before calling run(page).
+const ADMIN_BASE = "http://localhost:3000";
+const SKU_CODE = "000001";
+const MINI_JPG = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+
+async function runPdvToExpeditionFlow(page, apiErrors) {
+  apiErrors.length = 0;
+  try {
+    await page.goto(`${ADMIN_BASE}/vendas/pdv`, {
+      waitUntil: "networkidle",
+      timeout: 25000,
+    });
+    await page.getByRole("heading", { name: /PDV/i }).waitFor({ timeout: 10000 });
+
+    await page.getByPlaceholder(/SKU, nome, marca/).fill(SKU_CODE);
+    await page.waitForTimeout(400);
+    await page.getByRole("button").filter({ hasText: SKU_CODE }).first().click();
+    await page.getByText("Carrinho (1)").waitFor({ timeout: 10000 });
+
+    await page.getByRole("checkbox", { name: /Entregar na hora/i }).uncheck();
+    await page.getByRole("button", { name: /Gerar QR PIX/i }).click();
+
+    await page.getByRole("heading", { name: "Pagamento PIX" }).waitFor({ timeout: 15000 });
+    await page.getByRole("button", { name: "Confirmar recebimento" }).click();
+
+    await page.getByText("Venda concluída").waitFor({ timeout: 15000 });
+    await page.getByText(/pedido na fila de expedição/i).waitFor({ timeout: 5000 });
+    const orderNumber = (await page.locator("h2.text-2xl.font-semibold").innerText()).trim();
+    if (!orderNumber) {
+      return { ok: false, error: "order number not found after PDV sale" };
+    }
+
+    await page.goto(`${ADMIN_BASE}/estoque/saida/expedicao`, {
+      waitUntil: "networkidle",
+      timeout: 25000,
+    });
+    await page.getByRole("heading", { name: /Fila de expedição/i }).waitFor({ timeout: 10000 });
+
+    const row = page.getByRole("row").filter({ hasText: orderNumber });
+    await row.waitFor({ timeout: 10000 });
+    const rowText = await row.innerText();
+    if (!rowText.includes("Loja física") || !rowText.includes("Pago")) {
+      return { ok: false, error: `Unexpected expedition row for ${orderNumber}: ${rowText.slice(0, 240)}` };
+    }
+
+    await page.getByTestId(`ship-order-${orderNumber}`).click();
+    await page.getByTestId("ship-expedition-modal").waitFor({ timeout: 10000 });
+    await page.locator('[data-testid="ship-expedition-modal"] input[type="file"]').setInputFiles({
+      name: "ship.jpg",
+      mimeType: "image/jpeg",
+      buffer: MINI_JPG,
+    });
+    await page.waitForTimeout(300);
+    await page.getByTestId("ship-expedition-submit").click();
+    await page.getByText("Pedido expedido — estoque baixado").waitFor({ timeout: 15000 });
+
+    const hasServerError = apiErrors.some((e) => e.status >= 500);
+    return { ok: !hasServerError, orderNumber, apiErrors: [...apiErrors].slice(0, 3) };
+  } catch (err) {
+    return { ok: false, error: String(err), apiErrors: [...apiErrors].slice(0, 3) };
+  }
+}
+
 export default async function run(page) {
   const apiErrors = [];
   page.on("response", (resp) => {
@@ -67,7 +129,7 @@ export default async function run(page) {
   for (const flow of flows) {
     apiErrors.length = 0;
     try {
-      await page.goto(`http://localhost:3000${flow.path}`, {
+      await page.goto(`${ADMIN_BASE}${flow.path}`, {
         waitUntil: "networkidle",
         timeout: 25000,
       });
@@ -84,6 +146,16 @@ export default async function run(page) {
       results.push({ name: flow.name, path: flow.path, ok: false, error: String(err) });
     }
   }
+
+  const pdvFlow = await runPdvToExpeditionFlow(page, apiErrors);
+  results.push({
+    name: "PDV sale → expedição ship",
+    path: "/vendas/pdv → /estoque/saida/expedicao",
+    ok: pdvFlow.ok,
+    orderNumber: pdvFlow.orderNumber,
+    error: pdvFlow.error,
+    apiErrors: pdvFlow.apiErrors,
+  });
 
   const failed = results.filter((r) => !r.ok);
   return { total: results.length, failed: failed.length, results, failedFlows: failed.map((r) => r.name) };

@@ -147,6 +147,6 @@ jobs:
           API_URL: http://localhost:8082
         run: |
           cd scripts
-          npm install
+          npm ci
           npx playwright install chromium --with-deps
           node run_e2e_ui_flows.mjs
