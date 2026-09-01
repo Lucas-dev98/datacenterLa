@@ -46,7 +46,11 @@ def req(method, path, token=None, body=None, expect=(200,)):
 
 
 def main():
-    code, login = req("POST", "/api/v1/auth/login", body={"email": EMAIL, "password": PASSWORD})
+    for path in ("/health/live", "/health/ready", "/health"):
+        req("GET", path)
+    print("HEALTH OK")
+
+    code, login = req("POST", "/api/v1/auth/login", body={"email": EMAIL, "password": PASSWORD}, expect=(200, 201))
     token = login.get("access_token")
     if not token:
         print("LOGIN FAILED", login)

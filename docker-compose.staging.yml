@@ -1,0 +1,24 @@
+# Staging overrides — use with base compose:
+#   docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+
+services:
+  api:
+    environment:
+      APP_VERSION: ${APP_VERSION:-staging}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.staging}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health/ready"]
+      interval: 10s
+      timeout: 3s
+      start_period: 20s
+      retries: 5
+
+  admin:
+    environment:
+      NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+
+  shop:
+    environment:
+      NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}

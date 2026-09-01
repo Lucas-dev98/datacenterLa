@@ -154,18 +154,41 @@ func main() {
 		})
 	}
 
-	r.Get("/health", func(w http.ResponseWriter, req *http.Request) {
-		ctx, cancel := context.WithTimeout(req.Context(), 2*time.Second)
-		defer cancel()
+	r.Get("/health/live", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if err := pool.Ping(ctx); err != nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = w.Write([]byte(`{"status":"unhealthy"}`))
-			return
-		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
+
+	writeReady := func(w http.ResponseWriter, req *http.Request) {
+		ctx, cancel := context.WithTimeout(req.Context(), 2*time.Second)
+		defer cancel()
+		w.Header().Set("Content-Type", "application/json")
+		version := os.Getenv("APP_VERSION")
+		if version == "" {
+			version = "dev"
+		}
+		if err := pool.Ping(ctx); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			body, _ := json.Marshal(map[string]string{
+				"status":  "unhealthy",
+				"db":      "down",
+				"version": version,
+			})
+			_, _ = w.Write(body)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		body, _ := json.Marshal(map[string]string{
+			"status":  "ok",
+			"db":      "up",
+			"version": version,
+		})
+		_, _ = w.Write(body)
+	}
+
+	r.Get("/health/ready", writeReady)
+	r.Get("/health", writeReady)
 
 	r.Mount("/api/v1/auth", authH.Routes())
 	r.Route("/api/v1/ecommerce", func(r chi.Router) {

@@ -23,9 +23,15 @@ Monólito modular com três processos front-end e um backend Go.
 
 ## Contratos
 
-- OpenAPI base: [`openapi.yaml`](openapi.yaml) (paths aligned with admin `lib/api/*` and E2E flows)
+- OpenAPI: [`openapi.yaml`](openapi.yaml) — schemas + paths operacionais
 - Regras de negócio: [`regras-globais.md`](regras-globais.md)
+
+## Deploy / observabilidade
+
+- Health: `GET /health/live` (liveness), `GET /health/ready` (readiness + Postgres)
+- Staging: [`deploy/README.md`](../deploy/README.md) + `docker-compose.staging.yml`
+- CI staging smoke: `.github/workflows/staging.yml`
 
 ## CI
 
-`.github/workflows/ci.yml` — testes Go (integração), typecheck + build Next.js (admin/shop), smoke/fluxos API (`e2e_*`.py) e crawl UI admin (`run_e2e_admin_crawl.mjs`).
+`.github/workflows/ci.yml` — testes Go, build Next.js, smoke/fluxos API, UI flows+crawl (Playwright), staging smoke (`staging.yml`).
