@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useReceiveIntakeWithPhotos } from "@/hooks/use-stock-intake-mutations";
 import { stockApi } from "@/lib/api/stock";
 import { pimApi } from "@/lib/api/pim";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
@@ -34,7 +35,7 @@ export default function EntradaAvulsaPage() {
   const [codesLoading, setCodesLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [loading, setLoading] = useState(false);
+  const { run: receiveIntake, loading, setError: setReceiveError } = useReceiveIntakeWithPhotos();
   const [units, setUnits] = useState<InventoryUnitReceive[]>([]);
 
   const quantity = Math.max(1, Math.min(100, parseInt(qty, 10) || 1));
@@ -115,8 +116,8 @@ export default function EntradaAvulsaPage() {
     e.preventDefault();
     if (!sku || !ready) return;
     setError("");
+    setReceiveError("");
     setInfo("");
-    setLoading(true);
     try {
       const payload = {
         warehouse_id: DEFAULT_WAREHOUSE_ID,
@@ -133,7 +134,7 @@ export default function EntradaAvulsaPage() {
       batchPhotos.forEach((photo, index) => {
         form.append(`batch_photo_${index}`, photo.file);
       });
-      const res = await stockApi.receiveIntakeWithPhotos(form);
+      const res = await receiveIntake(form);
       setUnits(res.units ?? []);
       setInfo(
         `${res.units?.length ?? 0} unidade(s) registrada(s) com ${batchPhotos.length} foto(s) do lote. Prossiga na fila de recebimento.`,
@@ -145,8 +146,6 @@ export default function EntradaAvulsaPage() {
       setSearchQuery("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro no recebimento");
-    } finally {
-      setLoading(false);
     }
   }
 

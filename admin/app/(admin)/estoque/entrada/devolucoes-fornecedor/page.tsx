@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useUpdateSupplierReturnStatus } from "@/hooks/use-supplier-return-mutations";
 import { stockApi, type SupplierReturn } from "@/lib/api/stock";
 import { Alert, Button, Card, Table } from "@/components/ui";
 
@@ -26,7 +27,8 @@ export default function DevolucoesFornecedorPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const { run: updateStatus, loading: updating } = useUpdateSupplierReturnStatus();
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -46,22 +48,22 @@ export default function DevolucoesFornecedorPage() {
   }, [load]);
 
   async function changeStatus(id: string, status: "sent" | "closed" | "cancelled") {
-    setBusyId(id);
+    setPendingId(id);
     setError("");
     setInfo("");
     try {
-      await stockApi.updateSupplierReturnStatus(id, status);
+      await updateStatus({ id, status });
       setInfo(`Devolução atualizada: ${STATUS_LABEL[status] ?? status}`);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao atualizar status");
     } finally {
-      setBusyId(null);
+      setPendingId(null);
     }
   }
 
   function actionsFor(item: SupplierReturn) {
-    const busy = busyId === item.id;
+    const busy = updating && pendingId === item.id;
     if (item.status === "open") {
       return (
         <span className="flex flex-wrap gap-2">

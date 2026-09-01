@@ -3,6 +3,16 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { QrScanner } from "@/components/qr-scanner";
+import {
+  useAddStockCountLine,
+  useApplyStockAdjustment,
+  useApproveStockAdjustment,
+  useApproveStockCount,
+  useCompleteStockCount,
+  useCreateStockAdjustment,
+  useCreateStockCount,
+  useStartStockCount,
+} from "@/hooks/use-stock-count-mutations";
 import { stockApi, type StockAdjustment, type StockCount } from "@/lib/api/stock";
 import { pimApi } from "@/lib/api/pim";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
@@ -32,8 +42,28 @@ export default function InventarioPage() {
   const [adjReason, setAdjReason] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [busy, setBusy] = useState(false);
   const scanInputRef = useRef<HTMLInputElement>(null);
+
+  const { run: createCount, loading: creating } = useCreateStockCount();
+  const { run: startCount, loading: starting } = useStartStockCount();
+  const { run: addCountLine, loading: addingLine } = useAddStockCountLine();
+  const { run: completeCount, loading: completing } = useCompleteStockCount();
+  const { run: approveCount, loading: approving } = useApproveStockCount();
+  const { run: createAdjustment, loading: creatingAdjustment } = useCreateStockAdjustment();
+  const { run: approveAdjustment, loading: approvingAdjustment } = useApproveStockAdjustment();
+  const { run: applyAdjustment, loading: applyingAdjustment } = useApplyStockAdjustment();
+
+  const [scanning, setScanning] = useState(false);
+  const busy =
+    creating ||
+    starting ||
+    addingLine ||
+    completing ||
+    approving ||
+    scanning ||
+    creatingAdjustment ||
+    approvingAdjustment ||
+    applyingAdjustment;
 
   const counting = selectedCount?.status === "in_progress";
 
@@ -62,11 +92,10 @@ export default function InventarioPage() {
     return c;
   }
 
-  async function createCount() {
-    setBusy(true);
+  async function handleCreateCount() {
     setError("");
     try {
-      const c = await stockApi.createCount({ warehouse_id: DEFAULT_WAREHOUSE_ID, count_type: "full" });
+      const c = await createCount({ warehouse_id: DEFAULT_WAREHOUSE_ID, count_type: "full" });
       setSelectedCount(c);
       setPendingSkuCounts({});
       setResolved(null);
@@ -74,23 +103,18 @@ export default function InventarioPage() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
-    } finally {
-      setBusy(false);
     }
   }
 
-  async function startCount(id: string) {
-    setBusy(true);
+  async function handleStartCount(id: string) {
     unlockScanAudio();
     try {
-      await stockApi.startCount(id);
+      await startCount(id);
       await refreshCount(id);
       setInfo("Contagem iniciada — escaneie QR codes ou digite códigos.");
       setScanInput("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -119,24 +143,30 @@ export default function InventarioPage() {
   const registerUnit = useCallback(
     async (unitCode: string) => {
       if (!selectedCount) return;
-      const c = await stockApi.addCountLine(selectedCount.id, { unit_code: unitCode });
+      const c = await addCountLine({
+        countId: selectedCount.id,
+        body: { unit_code: unitCode },
+      });
       setSelectedCount(c);
       setInfo(`Unidade ${unitCode} registrada na contagem.`);
       playScanBeep();
     },
-    [selectedCount],
+    [selectedCount, addCountLine],
   );
 
   const registerSkuQty = useCallback(
     async (item: ResolvedItem, qty: number) => {
       if (!selectedCount || qty < 0) return;
-      const c = await stockApi.addCountLine(selectedCount.id, { sku_id: item.skuId, counted_qty: qty });
+      const c = await addCountLine({
+        countId: selectedCount.id,
+        body: { sku_id: item.skuId, counted_qty: qty },
+      });
       setSelectedCount(c);
       setPendingSkuCounts((prev) => ({ ...prev, [item.skuId]: qty }));
       setInfo(`SKU ${item.skuCode}: ${qty} unidade(s) registrada(s).`);
       playScanBeep();
     },
-    [selectedCount],
+    [selectedCount, addCountLine],
   );
 
   const processScan = useCallback(
@@ -152,7 +182,7 @@ export default function InventarioPage() {
         return;
       }
 
-      setBusy(true);
+      setScanning(true);
       setError("");
       try {
         if (payload.kind === "unit") {
@@ -181,7 +211,7 @@ export default function InventarioPage() {
       } catch (err) {
         setError(err instanceof Error ? err.message : "Erro ao processar código");
       } finally {
-        setBusy(false);
+        setScanning(false);
       }
     },
     [
@@ -209,69 +239,75 @@ export default function InventarioPage() {
       setError("Informe uma quantidade válida.");
       return;
     }
-    setBusy(true);
     setError("");
     try {
       await registerSkuQty(resolved, qty);
       setScanInput("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao registrar");
-    } finally {
-      setBusy(false);
     }
   }
 
-  async function completeCount() {
+  async function handleCompleteCount() {
     if (!selectedCount) return;
-    setBusy(true);
     try {
-      await stockApi.completeCount(selectedCount.id);
+      await completeCount(selectedCount.id);
       await refreshCount(selectedCount.id);
       setInfo("Contagem finalizada — aguardando aprovação.");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
-    } finally {
-      setBusy(false);
     }
   }
 
-  async function approveCount() {
+  async function handleApproveCount() {
     if (!selectedCount) return;
-    setBusy(true);
     try {
-      const c = await stockApi.approveCount(selectedCount.id);
+      const c = await approveCount(selectedCount.id);
       setSelectedCount(c);
       setInfo("Inventário aprovado — ajustes gerados.");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
-    } finally {
-      setBusy(false);
     }
   }
 
-  async function createAdjustment(e: FormEvent) {
+  async function handleCreateAdjustment(e: FormEvent) {
     e.preventDefault();
-    await stockApi.createAdjustment({
-      warehouse_id: DEFAULT_WAREHOUSE_ID,
-      sku_id: adjSku,
-      quantity_delta: parseInt(adjDelta, 10) || 0,
-      reason: adjReason,
-    });
-    setInfo("Ajuste solicitado");
-    await load();
+    setError("");
+    try {
+      await createAdjustment({
+        warehouse_id: DEFAULT_WAREHOUSE_ID,
+        sku_id: adjSku,
+        quantity_delta: parseInt(adjDelta, 10) || 0,
+        reason: adjReason,
+      });
+      setInfo("Ajuste solicitado");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao solicitar ajuste");
+    }
   }
 
   async function approveAdj(id: string) {
-    await stockApi.approveAdjustment(id);
-    await load();
+    setError("");
+    try {
+      await approveAdjustment(id);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao aprovar ajuste");
+    }
   }
 
   async function applyAdj(id: string) {
-    await stockApi.applyAdjustment(id);
-    setInfo("Ajuste aplicado no estoque");
-    await load();
+    setError("");
+    try {
+      await applyAdjustment(id);
+      setInfo("Ajuste aplicado no estoque");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao aplicar ajuste");
+    }
   }
 
   const lineCount = selectedCount?.lines?.length ?? 0;
@@ -295,7 +331,7 @@ export default function InventarioPage() {
 
       <Card title="Inventário">
         <div className="mb-4 flex flex-wrap gap-2">
-          <Button type="button" onClick={() => void createCount()} disabled={busy}>
+          <Button type="button" onClick={() => void handleCreateCount()} disabled={busy}>
             Nova contagem
           </Button>
           {selectedCount ? (
@@ -305,18 +341,18 @@ export default function InventarioPage() {
                   type="button"
                   variant="secondary"
                   disabled={busy}
-                  onClick={() => void startCount(selectedCount.id)}
+                  onClick={() => void handleStartCount(selectedCount.id)}
                 >
                   Iniciar
                 </Button>
               ) : null}
               {selectedCount.status === "in_progress" ? (
-                <Button type="button" variant="secondary" disabled={busy} onClick={() => void completeCount()}>
+                <Button type="button" variant="secondary" disabled={busy} onClick={() => void handleCompleteCount()}>
                   Finalizar
                 </Button>
               ) : null}
               {selectedCount.status === "pending_review" ? (
-                <Button type="button" disabled={busy} onClick={() => void approveCount()}>
+                <Button type="button" disabled={busy} onClick={() => void handleApproveCount()}>
                   Aprovar
                 </Button>
               ) : null}
@@ -447,7 +483,7 @@ export default function InventarioPage() {
       </Card>
 
       <Card title="Ajustes manuais">
-        <form className="mb-4 grid gap-3 sm:grid-cols-2" onSubmit={createAdjustment}>
+        <form className="mb-4 grid gap-3 sm:grid-cols-2" onSubmit={handleCreateAdjustment}>
           <Field label="SKU ID">
             <Input value={adjSku} onChange={(e) => setAdjSku(e.target.value)} required />
           </Field>
@@ -458,7 +494,9 @@ export default function InventarioPage() {
             <Input value={adjReason} onChange={(e) => setAdjReason(e.target.value)} required />
           </Field>
           <div className="flex items-end">
-            <Button type="submit">Solicitar ajuste</Button>
+            <Button type="submit" disabled={creatingAdjustment}>
+              {creatingAdjustment ? "Solicitando…" : "Solicitar ajuste"}
+            </Button>
           </div>
         </form>
         <Table
@@ -472,7 +510,8 @@ export default function InventarioPage() {
               {a.status === "pending" ? (
                 <button
                   type="button"
-                  className="text-blue-600 hover:underline"
+                  className="text-blue-600 hover:underline disabled:opacity-50"
+                  disabled={approvingAdjustment}
                   onClick={() => void approveAdj(a.id)}
                 >
                   Aprovar
@@ -481,7 +520,8 @@ export default function InventarioPage() {
               {a.status === "approved" ? (
                 <button
                   type="button"
-                  className="text-blue-600 hover:underline"
+                  className="text-blue-600 hover:underline disabled:opacity-50"
+                  disabled={applyingAdjustment}
                   onClick={() => void applyAdj(a.id)}
                 >
                   Aplicar

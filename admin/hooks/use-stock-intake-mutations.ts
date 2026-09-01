@@ -19,6 +19,11 @@ type IntakeTestInput = {
   form: FormData;
 };
 
+export function useReceiveIntakeWithPhotos() {
+  const mutate = useCallback((form: FormData) => stockApi.receiveIntakeWithPhotos(form), []);
+  return useApiMutation(mutate);
+}
+
 export function useIntakeAdvance() {
   const mutate = useCallback((body: IntakeAdvanceBody) => stockApi.intakeAdvance(body), []);
   return useApiMutation(mutate);

@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import {
+  useResolveStockHealthIssue,
+  useStockHealthScan,
+} from "@/hooks/use-stock-health-mutations";
 import { stockApi, type HealthIssue, type HealthStats, type ExpiringReservation } from "@/lib/api/stock";
 import { Alert, Button, Card, Table } from "@/components/ui";
 
@@ -12,6 +16,8 @@ export default function EstoqueSaudePage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(true);
+  const { run: healthScan, loading: scanning } = useStockHealthScan();
+  const { run: resolveIssue, loading: resolving } = useResolveStockHealthIssue();
 
   async function load() {
     setLoading(true);
@@ -34,8 +40,9 @@ export default function EstoqueSaudePage() {
 
   async function scan() {
     setInfo("");
+    setError("");
     try {
-      const res = await stockApi.healthScan();
+      const res = await healthScan({});
       setInfo(`${res.detected} nova(s) inconsistência(s) detectada(s)`);
       await load();
     } catch (err) {
@@ -44,8 +51,9 @@ export default function EstoqueSaudePage() {
   }
 
   async function resolve(id: string) {
+    setError("");
     try {
-      await stockApi.resolveHealthIssue(id);
+      await resolveIssue(id);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao resolver");
@@ -64,7 +72,9 @@ export default function EstoqueSaudePage() {
           <h1 className="text-2xl font-semibold text-slate-900">Saúde do estoque</h1>
           <p className="mt-1 text-sm text-slate-600">KPIs, reservas expirando e inconsistências</p>
         </div>
-        <Button type="button" onClick={() => void scan()}>Executar scan</Button>
+        <Button type="button" onClick={() => void scan()} disabled={scanning}>
+          {scanning ? "Executando…" : "Executar scan"}
+        </Button>
       </header>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
@@ -123,7 +133,13 @@ export default function EstoqueSaudePage() {
                   i.unit_code ?? "—",
                   i.sku_code ?? "—",
                   new Date(i.detected_at).toLocaleString("pt-BR"),
-                  <button key="r" type="button" className="text-blue-600 hover:underline" onClick={() => void resolve(i.id)}>
+                  <button
+                    key="r"
+                    type="button"
+                    className="text-blue-600 hover:underline disabled:opacity-50"
+                    disabled={resolving}
+                    onClick={() => void resolve(i.id)}
+                  >
                     Resolver
                   </button>,
                 ])}
