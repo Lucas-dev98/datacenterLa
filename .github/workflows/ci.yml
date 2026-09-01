@@ -45,9 +45,15 @@ jobs:
       - name: Admin typecheck
         working-directory: admin
         run: npm ci && npx tsc --noEmit
+      - name: Admin production build
+        working-directory: admin
+        run: npm run build
       - name: Shop typecheck
         working-directory: shop
         run: npm ci && npx tsc --noEmit
+      - name: Shop production build
+        working-directory: shop
+        run: npm run build
 
   e2e-smoke:
     runs-on: ubuntu-latest
