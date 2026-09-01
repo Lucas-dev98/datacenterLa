@@ -61,6 +61,79 @@ async function runPdvToExpeditionFlow(page, apiErrors) {
   }
 }
 
+async function runReturnsApproveReceiveFlow(page, apiErrors) {
+  apiErrors.length = 0;
+  try {
+    await page.goto(`${ADMIN_BASE}/devolucoes`, { waitUntil: "networkidle", timeout: 25000 });
+    await page.getByRole("heading", { name: /Devolu/i }).waitFor({ timeout: 10000 });
+    const approve = page.getByRole("button", { name: "Aprovar" }).first();
+    if ((await approve.count()) === 0) {
+      return { ok: true, skipped: "no requested returns" };
+    }
+    await approve.click();
+    await page.getByText(/Devolução: approve/i).waitFor({ timeout: 15000 });
+    const receive = page.getByRole("button", { name: "Receber" }).first();
+    await receive.waitFor({ timeout: 10000 });
+    await receive.click();
+    await page.getByText(/Devolução: receive/i).waitFor({ timeout: 15000 });
+    const hasServerError = apiErrors.some((e) => e.status >= 500);
+    return { ok: !hasServerError, apiErrors: [...apiErrors].slice(0, 3) };
+  } catch (err) {
+    return { ok: false, error: String(err), apiErrors: [...apiErrors].slice(0, 3) };
+  }
+}
+
+async function runRmaOpenFlow(page, apiErrors) {
+  apiErrors.length = 0;
+  try {
+    await page.goto(`${ADMIN_BASE}/rma`, { waitUntil: "networkidle", timeout: 25000 });
+    await page.getByText("Abrir RMA").waitFor({ timeout: 10000 });
+    await page.getByPlaceholder(/PED-001020|Lucas|4567890|AAA0142/).fill("Martín");
+    await page.getByRole("button", { name: "Buscar" }).click();
+    await page.waitForTimeout(800);
+    const orderPick = page.locator("ul.max-h-48 button").first();
+    await orderPick.waitFor({ timeout: 10000 });
+    await orderPick.click();
+    await page.waitForTimeout(800);
+    await page.getByPlaceholder(/memória não é reconhecida/).fill("E2E — falha intermitente no POST");
+    await page.locator("textarea").fill("E2E — teste em bancada confirma defeito reproduzível.");
+    await page.locator('form input[type="file"]').first().setInputFiles({
+      name: "rma-test.jpg",
+      mimeType: "image/jpeg",
+      buffer: MINI_JPG,
+    });
+    await page.getByRole("button", { name: "Abrir caso com teste" }).click();
+    await page.getByText(/Caso RMA aberto/i).waitFor({ timeout: 15000 });
+    const hasServerError = apiErrors.some((e) => e.status >= 500);
+    return { ok: !hasServerError, apiErrors: [...apiErrors].slice(0, 3) };
+  } catch (err) {
+    return { ok: false, error: String(err), apiErrors: [...apiErrors].slice(0, 3) };
+  }
+}
+
+async function runIntakeAdvanceFlow(page, apiErrors) {
+  apiErrors.length = 0;
+  try {
+    await page.goto(`${ADMIN_BASE}/estoque/entrada/recebimento`, {
+      waitUntil: "networkidle",
+      timeout: 25000,
+    });
+    await page.getByRole("heading", { name: /Fila de recebimento/i }).waitFor({ timeout: 10000 });
+    const advanceBtn = page
+      .getByRole("button", { name: /Inspecionar|Identificar|Liberar/i })
+      .first();
+    if ((await advanceBtn.count()) === 0) {
+      return { ok: true, skipped: "empty intake queue" };
+    }
+    await advanceBtn.click();
+    await page.getByText(/Unidade AAA/i).waitFor({ timeout: 15000 });
+    const hasServerError = apiErrors.some((e) => e.status >= 500);
+    return { ok: !hasServerError, apiErrors: [...apiErrors].slice(0, 3) };
+  } catch (err) {
+    return { ok: false, error: String(err), apiErrors: [...apiErrors].slice(0, 3) };
+  }
+}
+
 export default async function run(page) {
   const apiErrors = [];
   page.on("response", (resp) => {
@@ -156,6 +229,15 @@ export default async function run(page) {
     error: pdvFlow.error,
     apiErrors: pdvFlow.apiErrors,
   });
+
+  for (const [name, path, runner] of [
+    ["Devolução approve → receive", "/devolucoes", runReturnsApproveReceiveFlow],
+    ["RMA open case", "/rma", runRmaOpenFlow],
+    ["Intake queue advance", "/estoque/entrada/recebimento", runIntakeAdvanceFlow],
+  ]) {
+    const flow = await runner(page, apiErrors);
+    results.push({ name, path, ok: flow.ok, error: flow.error, skipped: flow.skipped, apiErrors: flow.apiErrors });
+  }
 
   const failed = results.filter((r) => !r.ok);
   return { total: results.length, failed: failed.length, results, failedFlows: failed.map((r) => r.name) };
