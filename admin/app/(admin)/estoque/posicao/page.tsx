@@ -1,10 +1,9 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { stockApi } from "@/lib/api/stock";
-import type { LowStockSKU, StockBalanceRow } from "@/lib/types";
+import { useStockPosition } from "@/hooks/use-stock-position";
 import { Alert, Button, Card, Input, Table } from "@/components/ui";
 
 const LOW_STOCK_THRESHOLD = 2;
@@ -13,41 +12,25 @@ export default function EstoquePosicaoPage() {
   const searchParams = useSearchParams();
   const lowStockMode = searchParams.get("estoque_baixo") === "1";
   const [query, setQuery] = useState("");
-  const [items, setItems] = useState<StockBalanceRow[]>([]);
-  const [lowStockItems, setLowStockItems] = useState<LowStockSKU[]>([]);
-  const [total, setTotal] = useState(0);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const { data, error, loading, refetch } = useStockPosition({
+    lowStockMode,
+    query: searchQuery,
+    threshold: LOW_STOCK_THRESHOLD,
+  });
+  const items = data?.items ?? [];
+  const lowStockItems = data?.lowStockItems ?? [];
+  const total = data?.total ?? 0;
 
-  const load = useCallback(async (q: string) => {
-    setLoading(true);
-    setError("");
-    try {
-      if (lowStockMode) {
-        const res = await stockApi.listLowStock({ threshold: LOW_STOCK_THRESHOLD, q });
-        setLowStockItems(res.items ?? []);
-        setItems([]);
-        setTotal(res.total ?? 0);
-      } else {
-        const res = await stockApi.listBalances({ q });
-        setItems(res.items ?? []);
-        setLowStockItems([]);
-        setTotal(res.total ?? 0);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar posição");
-    } finally {
-      setLoading(false);
-    }
-  }, [lowStockMode]);
-
-  useEffect(() => {
-    void load("");
-  }, [load]);
+  function onRefresh() {
+    const trimmed = query.trim();
+    if (trimmed === searchQuery) void refetch();
+    else setSearchQuery(trimmed);
+  }
 
   function onSearch(e: FormEvent) {
     e.preventDefault();
-    void load(query);
+    setSearchQuery(query.trim());
   }
 
   const totals = items.reduce(
@@ -125,7 +108,7 @@ export default function EstoquePosicaoPage() {
           <Button type="submit" disabled={loading}>
             Buscar
           </Button>
-          <Button type="button" variant="secondary" disabled={loading} onClick={() => void load(query)}>
+          <Button type="button" variant="secondary" disabled={loading} onClick={onRefresh}>
             Atualizar
           </Button>
         </form>

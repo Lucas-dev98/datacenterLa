@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { purchasesApi, type PurchaseOrderDetail } from "@/lib/api/purchases";
+import { usePurchaseOrderDetail } from "@/hooks/use-purchase-order-detail";
+import type { PurchaseOrderDetail } from "@/lib/api/purchases";
 import { Alert, Button, Card, Table } from "@/components/ui";
 
 type PO = PurchaseOrderDetail;
@@ -23,26 +23,7 @@ function originLabel(po: PO): string {
 
 export default function CompraDetailPage() {
   const params = useParams<{ id: string }>();
-  const [po, setPo] = useState<PO | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const data = await purchasesApi.getOrder(params.id);
-      setPo(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.id]);
+  const { data: po, error, loading } = usePurchaseOrderDetail(params.id);
 
   if (loading) return <p className="text-sm text-slate-500">Carregando…</p>;
   if (!po) return <Alert tone="error">{error || "PO não encontrada"}</Alert>;

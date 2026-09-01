@@ -1,49 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { ApiClientError } from "@/lib/api/client";
-import { pricingApi } from "@/lib/api/pricing";
+import { useState } from "react";
 import { useSyncExchangeRates } from "@/hooks/use-pricing-mutations";
+import { useExchangeRatesToday } from "@/hooks/use-exchange-rates-today";
 import { formatExchangeRate } from "@/lib/exchange-rates";
 import { useAuth } from "@/components/auth-provider";
 import { hasPermission } from "@/lib/permissions";
-import type { ExchangeRatesToday } from "@/lib/types";
 import { Alert, Button, Card } from "@/components/ui";
 
 export default function FinanceiroCotacoesPage() {
   const { user } = useAuth();
   const canSync = hasPermission(user, "finance.exchange_rates.write");
-  const [data, setData] = useState<ExchangeRatesToday | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, error: loadError, loading, setData } = useExchangeRatesToday();
   const { run: syncExchangeRates, loading: syncing } = useSyncExchangeRates();
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await pricingApi.exchangeRatesToday();
-      setData(res);
-    } catch (err) {
-      if (err instanceof ApiClientError && err.status === 404) {
-        setError(
-          "Serviço de cotações indisponível. Reinicie o backend (porta 8082) e atualize a página.",
-        );
-      } else if (err instanceof ApiClientError && err.status === 401) {
-        setError("Sessão expirada. Faça login novamente.");
-      } else {
-        setError(err instanceof Error ? err.message : "Erro ao carregar cotações");
-      }
-    } finally {
-      setLoading(false);
+  const displayError = (() => {
+    if (error) return error;
+    if (!loadError) return "";
+    if (loadError.includes("404") || loadError.includes("Not Found")) {
+      return "Serviço de cotações indisponível. Reinicie o backend (porta 8082) e atualize a página.";
     }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+    if (loadError.includes("401")) {
+      return "Sessão expirada. Faça login novamente.";
+    }
+    return loadError;
+  })();
 
   async function syncNow() {
     setError("");
@@ -97,7 +81,7 @@ export default function FinanceiroCotacoesPage() {
         ) : null}
       </header>
 
-      {error ? <Alert tone="error">{error}</Alert> : null}
+      {displayError ? <Alert tone="error">{displayError}</Alert> : null}
       {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card title="Referência atual (1 USD)">

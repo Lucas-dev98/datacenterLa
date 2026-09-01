@@ -1,62 +1,45 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { useConvertQuote, useSendQuote } from "@/hooks/use-quote-mutations";
-import { salesApi } from "@/lib/api/sales";
+import { useQuoteDetail } from "@/hooks/use-quotes-list";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
-import type { Quote } from "@/lib/types";
 import { Alert, Button, Card, Table } from "@/components/ui";
 
 export default function CotacaoDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const [quote, setQuote] = useState<Quote | null>(null);
-  const [error, setError] = useState("");
+  const { data: quote, error: loadError, loading, setData: setQuote } = useQuoteDetail(params.id);
   const [info, setInfo] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [actionError, setActionError] = useState("");
   const { run: sendQuoteMutation, loading: sending } = useSendQuote();
   const { run: convertQuote, loading: converting } = useConvertQuote();
 
-  async function load() {
-    setLoading(true);
-    setError("");
-    try {
-      const q = await salesApi.getQuote(params.id);
-      setQuote(q);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.id]);
+  const error = actionError || loadError;
 
   async function sendQuote() {
     setInfo("");
+    setActionError("");
     try {
       const q = await sendQuoteMutation(params.id);
       setQuote(q);
       setInfo("Cotação enviada — pronta para converter em pedido");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao enviar");
+      setActionError(err instanceof Error ? err.message : "Erro ao enviar");
     }
   }
 
   async function convertToOrder() {
-    setError("");
+    setActionError("");
     setInfo("");
     try {
       const o = await convertQuote({ id: params.id, body: { warehouse_id: DEFAULT_WAREHOUSE_ID } });
       setInfo(`Pedido ${o.order_number} criado`);
       router.push(`/pedidos/${o.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao converter");
+      setActionError(err instanceof Error ? err.message : "Erro ao converter");
     }
   }
 

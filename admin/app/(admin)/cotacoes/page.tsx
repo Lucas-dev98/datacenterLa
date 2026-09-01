@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useUpdateWebsiteRequestStatus } from "@/hooks/use-quote-mutations";
-import { salesApi, type WebsiteRequest } from "@/lib/api/sales";
-import type { QuoteListItem } from "@/lib/types";
+import { useQuotesList, useWebsiteRequestsList } from "@/hooks/use-quotes-list";
 import { Alert, Button, Card, Select, Table } from "@/components/ui";
 
 function cleanNotes(notes?: string): string {
@@ -13,61 +12,39 @@ function cleanNotes(notes?: string): string {
 }
 
 export default function CotacoesPage() {
-  const [items, setItems] = useState<QuoteListItem[]>([]);
-  const [website, setWebsite] = useState<WebsiteRequest[]>([]);
   const [status, setStatus] = useState("");
-  const [total, setTotal] = useState(0);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
   const [websiteError, setWebsiteError] = useState("");
+  const {
+    data: quotesData,
+    error: quotesError,
+    loading: quotesLoading,
+  } = useQuotesList(status);
+  const {
+    data: website,
+    error: websiteLoadError,
+    refetch: refetchWebsite,
+  } = useWebsiteRequestsList();
   const { run: updateWebsiteStatus, loading: updatingWebsite } = useUpdateWebsiteRequestStatus();
   const [pendingWebsiteId, setPendingWebsiteId] = useState<string | null>(null);
 
-  const loadWebsite = useCallback(async () => {
-    setWebsiteError("");
-    try {
-      const res = await salesApi.listWebsiteRequests();
-      setWebsite(res.items ?? []);
-    } catch (err) {
-      setWebsiteError(err instanceof Error ? err.message : "Erro ao carregar solicitações do site");
-    }
-  }, []);
-
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const res = await salesApi.listQuotes({ status: status || undefined, limit: 50 });
-        setItems(res.items);
-        setTotal(res.total);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Erro ao carregar");
-      } finally {
-        setLoading(false);
-      }
-    };
-    void load();
-  }, [status]);
-
-  useEffect(() => {
-    void loadWebsite();
-  }, [loadWebsite]);
+  const items = quotesData?.items ?? [];
+  const total = quotesData?.total ?? 0;
+  const websiteItems = website ?? [];
+  const error = quotesError;
+  const newWebsite = websiteItems.filter((w) => w.status === "new").length;
 
   async function setWebsiteStatus(id: string, next: string) {
     setPendingWebsiteId(id);
     setWebsiteError("");
     try {
       await updateWebsiteStatus({ id, status: next });
-      await loadWebsite();
+      await refetchWebsite();
     } catch (err) {
       setWebsiteError(err instanceof Error ? err.message : "Erro ao atualizar status");
     } finally {
       setPendingWebsiteId(null);
     }
   }
-
-  const newWebsite = website.filter((w) => w.status === "new").length;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -76,8 +53,8 @@ export default function CotacoesPage() {
           <h1 className="text-2xl font-semibold text-slate-900">Cotações</h1>
           <p className="mt-1 text-sm text-slate-600">
             {total} cotação(ões) B2B
-            {website.length > 0
-              ? ` · ${website.length} solicitação(ões) do site${newWebsite ? ` (${newWebsite} nova${newWebsite > 1 ? "s" : ""})` : ""}`
+            {websiteItems.length > 0
+              ? ` · ${websiteItems.length} solicitação(ões) do site${newWebsite ? ` (${newWebsite} nova${newWebsite > 1 ? "s" : ""})` : ""}`
               : ""}
           </p>
         </div>
@@ -90,12 +67,14 @@ export default function CotacoesPage() {
         <p className="mb-4 text-sm text-slate-600">
           Pedidos enviados pelo formulário de cotação da loja (`/contato`).
         </p>
-        {websiteError ? <Alert tone="error">{websiteError}</Alert> : null}
-        {website.length === 0 && !websiteError ? (
+        {websiteError || websiteLoadError ? (
+          <Alert tone="error">{websiteError || websiteLoadError}</Alert>
+        ) : null}
+        {websiteItems.length === 0 && !websiteError && !websiteLoadError ? (
           <p className="text-sm text-slate-500">Nenhuma solicitação do site ainda.</p>
-        ) : website.length > 0 ? (
+        ) : websiteItems.length > 0 ? (
           <div className="space-y-3">
-            {website.map((w) => (
+            {websiteItems.map((w) => (
               <article
                 key={w.id}
                 className={`rounded-lg border p-4 ${
@@ -165,7 +144,7 @@ export default function CotacoesPage() {
 
       <Card title="Cotações B2B">
         {error ? <Alert tone="error">{error}</Alert> : null}
-        {loading ? (
+        {quotesLoading ? (
           <p className="text-sm text-slate-500">Carregando…</p>
         ) : items.length === 0 ? (
           <p className="text-sm text-slate-500">Nenhuma cotação encontrada.</p>

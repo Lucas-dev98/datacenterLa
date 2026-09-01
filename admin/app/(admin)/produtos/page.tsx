@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDeleteSkuProduct } from "@/hooks/use-pim-product-mutations";
-import { pimApi } from "@/lib/api/pim";
+import { useProductCatalog } from "@/hooks/use-pim-list-queries";
 import type { Product, SKU } from "@/lib/types";
 import { Alert, Button, Card, Input, Table } from "@/components/ui";
 
@@ -15,40 +15,18 @@ function usd(n?: number | null): string {
 export default function ProdutosPage() {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [productsById, setProductsById] = useState<Record<string, Product>>({});
-  const [skus, setSkus] = useState<SKU[]>([]);
-  const [error, setError] = useState("");
+  const { data, error: loadError, loading, refetch } = useProductCatalog(query);
+  const productsById = data?.productsById ?? {};
+  const skus = data?.skus ?? [];
   const [info, setInfo] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { run: deleteSkuProduct, loading: deleting } = useDeleteSkuProduct();
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    const qParam = query.trim() || undefined;
-    try {
-      const [p, s] = await Promise.all([
-        pimApi.listProducts({ q: qParam }),
-        pimApi.listAllSkus({ q: qParam }),
-      ]);
-      const map: Record<string, Product> = {};
-      for (const product of p.items) map[product.id] = product;
-      setProductsById(map);
-      setSkus(s.items);
-      setSelected(new Set());
-      setConfirmDelete(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar");
-    } finally {
-      setLoading(false);
-    }
-  }, [query]);
-
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (loadError) setError(loadError);
+  }, [loadError]);
 
   const allSelected = skus.length > 0 && selected.size === skus.length;
   const selectedSkus = useMemo(() => skus.filter((s) => selected.has(s.id)), [skus, selected]);
@@ -91,7 +69,9 @@ export default function ProdutosPage() {
     if (failed.length > 0) {
       setError(`Não foi possível apagar ${failed.length} produto(s): ${failed.join(" · ")}`);
     }
-    await load();
+    await refetch();
+    setSelected(new Set());
+    setConfirmDelete(false);
   }
 
   function openProduct(sku: SKU) {

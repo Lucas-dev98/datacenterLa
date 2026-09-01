@@ -1,13 +1,13 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { pimApi } from "@/lib/api/pim";
 import {
   useCreateCategory,
   useDeleteCategory,
   useUpdateCategory,
 } from "@/hooks/use-pim-category-mutations";
+import { useCategoriesList } from "@/hooks/use-pim-list-queries";
 import type { Category } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
@@ -75,7 +75,8 @@ function visibleCategoryRows(rows: CategoryRow[], expanded: Set<string>): Catego
 }
 
 export default function CategoriasPage() {
-  const [items, setItems] = useState<Category[]>([]);
+  const { data: rawItems, error: loadError, loading, refetch } = useCategoriesList(false);
+  const items = rawItems ?? [];
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [parentId, setParentId] = useState("");
@@ -91,10 +92,13 @@ export default function CategoriasPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [loading, setLoading] = useState(false);
   const { run: createCategory, loading: creating } = useCreateCategory();
   const { run: updateCategory, loading: updating } = useUpdateCategory();
   const { run: deleteCategory, loading: deleting } = useDeleteCategory();
+
+  useEffect(() => {
+    if (loadError) setError(loadError);
+  }, [loadError]);
 
   const parentOptions = useMemo(() => sortCategoryTree(items), [items]);
   const treeRows = useMemo(() => sortCategoryTree(items), [items]);
@@ -154,25 +158,6 @@ export default function CategoriasPage() {
     setExpanded(new Set());
   }
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await pimApi.listCategories();
-      setItems(res.items ?? []);
-      setSelected(new Set());
-      setConfirmDelete(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar categorias");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
   function flash(msg: string) {
     setSuccess(msg);
     setTimeout(() => setSuccess(""), 3000);
@@ -207,7 +192,9 @@ export default function CategoriasPage() {
       setName("");
       setParentId("");
       flash("Categoria criada.");
-      await load();
+      await refetch();
+      setSelected(new Set());
+      setConfirmDelete(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao criar categoria");
     }
@@ -227,7 +214,9 @@ export default function CategoriasPage() {
       setChildCode("");
       flash("Subcategoria incluída.");
       setExpanded((prev) => new Set(prev).add(managingParentId));
-      await load();
+      await refetch();
+      setSelected(new Set());
+      setConfirmDelete(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao incluir filho");
     }
@@ -238,7 +227,9 @@ export default function CategoriasPage() {
     try {
       await deleteCategory(child.id);
       flash(`Subcategoria ${child.code} removida.`);
-      await load();
+      await refetch();
+      setSelected(new Set());
+      setConfirmDelete(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao remover filho");
     }
@@ -268,7 +259,9 @@ export default function CategoriasPage() {
       });
       setEditing(null);
       flash("Categoria atualizada.");
-      await load();
+      await refetch();
+      setSelected(new Set());
+      setConfirmDelete(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar categoria");
     }
@@ -295,7 +288,8 @@ export default function CategoriasPage() {
     if (failed.length > 0) {
       setError(`Não foi possível apagar ${failed.length}: ${failed.join(" · ")}`);
     }
-    await load();
+    await refetch();
+    setSelected(new Set());
   }
 
   return (

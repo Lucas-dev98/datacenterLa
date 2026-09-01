@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { pimApi } from "@/lib/api/pim";
 import { pricingApi } from "@/lib/api/pricing";
+import { useSkusList } from "@/hooks/use-pim-list-queries";
 import { useSetSkuPrice } from "@/hooks/use-pricing-mutations";
 import type { ResolvedPrice, SKU, SKUPrice } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Table } from "@/components/ui";
@@ -27,7 +28,9 @@ function priceFromSku(s: SKU): SKUPrice {
 export default function PrecosPage() {
   const editRef = useRef<HTMLDivElement>(null);
   const [q, setQ] = useState("");
-  const [skus, setSkus] = useState<SKU[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const { data: skusData, error: listError, loading: listing, refetch: refetchList } = useSkusList(searchTerm);
+  const skus = skusData ?? [];
   const [sku, setSku] = useState<SKU | null>(null);
   const [price, setPrice] = useState<SKUPrice | null>(null);
   const [resolved, setResolved] = useState<ResolvedPrice[]>([]);
@@ -39,33 +42,18 @@ export default function PrecosPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const { run: saveSkuPrice, loading } = useSetSkuPrice();
-  const [listing, setListing] = useState(true);
-
-  const loadList = useCallback(async (term = "") => {
-    setListing(true);
-    setError("");
-    try {
-      const res = await pimApi.listAllSkus({ q: term.trim() || undefined });
-      setSkus(res.items ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar produtos");
-      setSkus([]);
-    } finally {
-      setListing(false);
-    }
-  }, []);
 
   useEffect(() => {
-    void loadList();
-  }, [loadList]);
+    if (listError) setError(listError);
+  }, [listError]);
 
   useEffect(() => {
     const term = q.trim();
     const t = setTimeout(() => {
-      void loadList(term);
+      setSearchTerm(term);
     }, term ? 250 : 0);
     return () => clearTimeout(t);
-  }, [q, loadList]);
+  }, [q]);
 
   function fillForm(p: SKUPrice) {
     setPrice(p);
@@ -132,20 +120,7 @@ export default function PrecosPage() {
 
       await saveSkuPrice({ skuId: sku.id, body });
       setInfo("Preços atualizados");
-      setSkus((prev) =>
-        prev.map((h) =>
-          h.id === sku.id
-            ? {
-                ...h,
-                cost_usd: body.cost_usd ?? h.cost_usd,
-                min_price_usd: body.min_price_usd ?? h.min_price_usd,
-                price_b2c_usd: body.price_b2c_usd ?? h.price_b2c_usd,
-                price_b2b_usd: body.price_b2b_usd ?? h.price_b2b_usd,
-                price_reseller_usd: body.price_reseller_usd ?? h.price_reseller_usd,
-              }
-            : h,
-        ),
-      );
+      await refetchList();
       const updated = { ...sku, ...body };
       setSku(updated);
       await loadPrices(updated);
