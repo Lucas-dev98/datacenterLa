@@ -6,8 +6,8 @@ import {
   useCreateAndSubmitPurchaseOrder,
   useSaveSupplier,
 } from "@/hooks/use-purchase-order-mutations";
-import { purchasesApi, type PurchaseOrderSummary, type Supplier } from "@/lib/api/purchases";
-import { pimApi } from "@/lib/api/pim";
+import { usePurchasesPageData } from "@/hooks/use-purchases-page-data";
+import { type PurchaseOrderSummary, type Supplier } from "@/lib/api/purchases";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
 import type { SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
@@ -25,9 +25,10 @@ const IMPORT_LABELS: Record<string, string> = {
 const DESTINATION = "Data Center LA (Paraguai)";
 
 export default function ComprasPage() {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [skus, setSkus] = useState<SKU[]>([]);
-  const [orders, setOrders] = useState<PO[]>([]);
+  const { data, error: loadError, refetch } = usePurchasesPageData();
+  const suppliers = data?.suppliers ?? [];
+  const orders = data?.orders ?? [];
+  const skus = data?.skus ?? [];
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const { run: saveSupplierMutation, loading: savingSupplier } = useSaveSupplier();
@@ -49,35 +50,21 @@ export default function ComprasPage() {
   const [supNotes, setSupNotes] = useState("");
   const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
 
-  async function load() {
-    try {
-      const [s, o, skuRes] = await Promise.all([
-        purchasesApi.listSuppliers(),
-        purchasesApi.listOrders(),
-        pimApi.listAllSkus(),
-      ]);
-      const list = s.items ?? [];
-      setSuppliers(list);
-      setOrders(o.items ?? []);
-      setSkus(skuRes.items ?? []);
-      if (list.length && !supplierId) setSupplierId(list[0].id);
-      if (skuRes.items?.length && !lines[0]?.sku_id) {
-        setLines([{
-          sku_id: skuRes.items[0].id,
-          quantity: 1,
-          unit_cost_usd: "0",
-          sku_code: skuRes.items[0].code,
-        }]);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar");
-    }
-  }
+  useEffect(() => {
+    if (loadError) setError(loadError);
+  }, [loadError]);
 
   useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (suppliers.length && !supplierId) setSupplierId(suppliers[0].id);
+  }, [suppliers, supplierId]);
+
+  useEffect(() => {
+    if (!skus.length) return;
+    setLines((prev) => {
+      if (prev[0]?.sku_id) return prev;
+      return [{ sku_id: skus[0].id, quantity: 1, unit_cost_usd: "0", sku_code: skus[0].code }];
+    });
+  }, [skus]);
 
   function updateLine(index: number, patch: Partial<Line>) {
     setLines((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
@@ -144,7 +131,7 @@ export default function ComprasPage() {
       );
       resetSupplierForm();
       if (!editingSupplierId) setSupplierId(saved.id);
-      await load();
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
     }
@@ -183,7 +170,7 @@ export default function ComprasPage() {
       });
       setInfo(`Pedido de compra criado (${items.length} itens) e enviado`);
       setLines([{ sku_id: skus[0]?.id ?? "", quantity: 1, unit_cost_usd: "0", sku_code: skus[0]?.code }]);
-      await load();
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao criar PO");
     }

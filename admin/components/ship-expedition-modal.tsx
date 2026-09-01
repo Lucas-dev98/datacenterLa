@@ -1,9 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useOrderDetail } from "@/hooks/use-order-detail";
 import { useShipOrder } from "@/hooks/use-ship-order";
-import { salesApi } from "@/lib/api/sales";
-import type { Order, OrderItem } from "@/lib/types";
+import type { OrderItem } from "@/lib/types";
 import { DocumentScanCapture } from "@/components/document-scan-capture";
 import { Alert, Button } from "@/components/ui";
 
@@ -20,27 +20,23 @@ type Props = {
 };
 
 export function ShipExpeditionModal({ orderId, orderNumber, onClose, onShipped }: Props) {
-  const [order, setOrder] = useState<Order | null>(null);
+  const { order, error: loadError, loading } = useOrderDetail(orderId);
   const [photos, setPhotos] = useState<Record<string, ItemPhoto>>({});
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
   const { run: shipOrder, loading: submitting, setError: setShipError } = useShipOrder();
 
   useEffect(() => {
-    setLoading(true);
-    setError("");
-    void salesApi.getOrder(orderId)
-      .then((o) => {
-        setOrder(o);
-        const initial: Record<string, ItemPhoto> = {};
-        for (const item of o.items ?? []) {
-          initial[item.id] = { file: null, preview: "" };
-        }
-        setPhotos(initial);
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : "Erro ao carregar pedido"))
-      .finally(() => setLoading(false));
-  }, [orderId]);
+    if (!order?.items) return;
+    const initial: Record<string, ItemPhoto> = {};
+    for (const item of order.items) {
+      initial[item.id] = { file: null, preview: "" };
+    }
+    setPhotos(initial);
+  }, [order]);
+
+  useEffect(() => {
+    if (loadError) setError(loadError);
+  }, [loadError]);
 
   const items = order?.items ?? [];
   const allCaptured = useMemo(

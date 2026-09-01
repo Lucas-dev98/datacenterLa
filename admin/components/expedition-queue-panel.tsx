@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { salesApi } from "@/lib/api/sales";
+import { useExpeditionQueue } from "@/hooks/use-expedition-queue";
 import { orderChannelBadgeClass, orderChannelLabel } from "@/lib/order-channels";
 import type { OrderListItem } from "@/lib/types";
 import { ShipExpeditionModal } from "@/components/ship-expedition-modal";
@@ -30,32 +30,19 @@ export function ExpeditionQueuePanel({
   const { user } = useAuth();
   const canShip = hasPermission(user, "sales.orders.confirm");
 
-  const [items, setItems] = useState<OrderListItem[]>([]);
+  const { data: queueItems, error: loadError, loading, refetch } = useExpeditionQueue();
+  const items = queueItems ?? [];
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [shipQueue, setShipQueue] = useState<OrderListItem[]>([]);
   const [activeShip, setActiveShip] = useState<OrderListItem | null>(null);
   const [bulkConfirm, setBulkConfirm] = useState<OrderListItem[] | null>(null);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const list = await salesApi.listExpeditionQueue();
-      setItems(list);
-      setSelected(new Set());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar fila");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (loadError) setError(loadError);
+  }, [loadError]);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -86,7 +73,8 @@ export function ExpeditionQueuePanel({
       setActiveShip(rest[0]);
     } else {
       setActiveShip(null);
-      void load();
+      void refetch();
+      setSelected(new Set());
     }
   }
 
@@ -114,7 +102,7 @@ export function ExpeditionQueuePanel({
           <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
           <p className="mt-1 text-sm text-slate-600">{description}</p>
         </div>
-        <Button type="button" variant="secondary" onClick={() => void load()} disabled={loading}>
+        <Button type="button" variant="secondary" onClick={() => void refetch()} disabled={loading}>
           Atualizar
         </Button>
       </div>
