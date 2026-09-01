@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { downloadBlob } from "@/lib/api/client";
-import { labelsApi } from "@/lib/api/labels";
+import { useLabelBatchExport } from "@/hooks/use-label-mutations";
 import { useSkuSearch } from "@/hooks/use-sku-search";
 import type { SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
@@ -18,7 +18,7 @@ export default function EtiquetasPage() {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [format, setFormat] = useState<"pdf" | "html">("pdf");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const { run: exportLabels, loading } = useLabelBatchExport();
 
   useEffect(() => {
     const term = q.trim();
@@ -56,18 +56,15 @@ export default function EtiquetasPage() {
       setError("Adicione ao menos um SKU para imprimir.");
       return;
     }
-    setLoading(true);
     try {
       const items = queue.flatMap((row) =>
         Array.from({ length: row.copies }, () => ({ type: "cadastro", code: row.sku.code })),
       );
-      const blob = await labelsApi.batch({ format, items });
+      const blob = await exportLabels({ format, items });
       const ext = format === "html" ? "html" : "pdf";
       downloadBlob(blob, `etiquetas-gaveta.${ext}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao gerar lote");
-    } finally {
-      setLoading(false);
     }
   }
 

@@ -2,18 +2,19 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCustomersList } from "@/hooks/use-customers-list";
+import { useSkusList } from "@/hooks/use-pim-list-queries";
 import { useCreateQuote } from "@/hooks/use-quote-mutations";
-import { salesApi } from "@/lib/api/sales";
-import { pimApi } from "@/lib/api/pim";
-import type { Customer, SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
 
 type Line = { sku_id: string; quantity: number; sku_code?: string };
 
 export default function NovaCotacaoPage() {
   const router = useRouter();
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [skus, setSkus] = useState<SKU[]>([]);
+  const { data: customersData } = useCustomersList();
+  const { data: skusData } = useSkusList();
+  const customers = customersData?.items ?? [];
+  const skus = skusData ?? [];
   const [customerId, setCustomerId] = useState("");
   const [channel, setChannel] = useState("b2b");
   const [discount, setDiscount] = useState("0");
@@ -23,13 +24,15 @@ export default function NovaCotacaoPage() {
   const { run: createQuote, loading } = useCreateQuote();
 
   useEffect(() => {
-    void Promise.all([salesApi.listCustomers(), pimApi.listAllSkus()]).then(([c, s]) => {
-      setCustomers(c.items);
-      setSkus(s.items);
-      if (c.items.length) setCustomerId(c.items[0].id);
-      if (s.items.length) setLines([{ sku_id: s.items[0].id, quantity: 1, sku_code: s.items[0].code }]);
-    });
-  }, []);
+    if (!customersData && !skusData) return;
+    if (customers.length && !customerId) setCustomerId(customers[0].id);
+    if (skus.length) {
+      setLines((prev) => {
+        if (prev[0]?.sku_id) return prev;
+        return [{ sku_id: skus[0].id, quantity: 1, sku_code: skus[0].code }];
+      });
+    }
+  }, [customersData, skusData, customers, skus, customerId]);
 
   function updateLine(index: number, patch: Partial<Line>) {
     setLines((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
@@ -80,10 +83,11 @@ export default function NovaCotacaoPage() {
               <Select value={channel} onChange={(e) => setChannel(e.target.value)}>
                 <option value="b2b">B2B</option>
                 <option value="b2c">B2C</option>
+                <option value="reseller">Revendedor</option>
               </Select>
             </Field>
-            <Field label="Desconto %">
-              <Input type="number" step="0.01" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+            <Field label="Desconto (%)">
+              <Input type="number" min={0} max={100} value={discount} onChange={(e) => setDiscount(e.target.value)} />
             </Field>
           </div>
           <Field label="Observações">
@@ -92,36 +96,40 @@ export default function NovaCotacaoPage() {
 
           <div className="space-y-3">
             <p className="text-sm font-medium text-slate-700">Itens</p>
-            {lines.map((line, i) => (
-              <div key={i} className="grid gap-2 sm:grid-cols-3">
-                <Select
-                  value={line.sku_id}
-                  onChange={(e) => {
-                    const sku = skus.find((s) => s.id === e.target.value);
-                    updateLine(i, { sku_id: e.target.value, sku_code: sku?.code });
-                  }}
-                >
-                  {skus.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.code} — {s.name}
-                    </option>
-                  ))}
-                </Select>
-                <Input
-                  type="number"
-                  min={1}
-                  value={line.quantity}
-                  onChange={(e) => updateLine(i, { quantity: parseInt(e.target.value, 10) || 1 })}
-                />
+            {lines.map((line, index) => (
+              <div key={index} className="grid gap-3 sm:grid-cols-3">
+                <Field label="SKU">
+                  <Select
+                    value={line.sku_id}
+                    onChange={(e) => {
+                      const sku = skus.find((s) => s.id === e.target.value);
+                      updateLine(index, { sku_id: e.target.value, sku_code: sku?.code });
+                    }}
+                  >
+                    {skus.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.code} — {s.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Qtd">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={line.quantity}
+                    onChange={(e) => updateLine(index, { quantity: parseInt(e.target.value, 10) || 1 })}
+                  />
+                </Field>
               </div>
             ))}
             <Button type="button" variant="secondary" onClick={addLine}>
-              + Item
+              + Linha
             </Button>
           </div>
 
           {error ? <Alert tone="error">{error}</Alert> : null}
-          <Button type="submit" disabled={loading || !customerId}>
+          <Button type="submit" disabled={loading}>
             {loading ? "Criando…" : "Criar cotação"}
           </Button>
         </form>

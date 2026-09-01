@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
-import { salesApi } from "@/lib/api/sales";
+import { useSalesDashboard } from "@/hooks/use-sales-dashboard";
 import { hasPermission } from "@/lib/permissions";
-import type { DashboardData } from "@/lib/types";
 import { Alert, Card, Table } from "@/components/ui";
 
 const EXPEDITION_STATUS: Record<string, string> = {
@@ -16,17 +15,13 @@ const EXPEDITION_STATUS: Record<string, string> = {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [data, setData] = useState<DashboardData | null>(null);
+  const { data, error: loadError, loading } = useSalesDashboard();
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
   const canSeeFinance = hasPermission(user, "finance.receivables.read");
 
   useEffect(() => {
-    void salesApi.dashboard()
-      .then(setData)
-      .catch((err) => setError(err instanceof Error ? err.message : "Erro ao carregar"))
-      .finally(() => setLoading(false));
-  }, []);
+    if (loadError) setError(loadError);
+  }, [loadError]);
 
   if (loading) return <p className="text-slate-500">Carregando…</p>;
 

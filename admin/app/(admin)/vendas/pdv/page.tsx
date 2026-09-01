@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { printHTML } from "@/lib/api/client";
+import { usePdvBootstrap } from "@/hooks/use-pdv-bootstrap";
 import { usePosPixInit } from "@/hooks/use-pos-mutations";
-import { posApi, type ExchangeRatesToday, type POSPixInitResponse } from "@/lib/api/pos";
+import { posApi, type POSPixInitResponse } from "@/lib/api/pos";
 import { pricingApi } from "@/lib/api/pricing";
 import { stockApi } from "@/lib/api/stock";
 import { pimApi } from "@/lib/api/pim";
@@ -46,7 +47,9 @@ export default function PDVPage() {
   const [searchResults, setSearchResults] = useState<SKU[]>([]);
   const [searching, setSearching] = useState(false);
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [walkIn, setWalkIn] = useState<Customer | null>(null);
+  const { data: bootstrap, error: bootstrapError, loading: ratesLoading } = usePdvBootstrap();
+  const walkIn = bootstrap?.walkIn ?? null;
+  const exchangeRates = bootstrap?.exchangeRates ?? null;
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [shipImmediately, setShipImmediately] = useState(true);
@@ -55,8 +58,6 @@ export default function PDVPage() {
   const [info, setInfo] = useState("");
   const { run: initPix, loading: submitting, setError: setPixInitError } = usePosPixInit();
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
-  const [exchangeRates, setExchangeRates] = useState<ExchangeRatesToday | null>(null);
-  const [ratesLoading, setRatesLoading] = useState(true);
   const [pixSession, setPixSession] = useState<POSPixInitResponse | null>(null);
   const [customerModal, setCustomerModal] = useState(false);
   const [customerQuery, setCustomerQuery] = useState("");
@@ -68,15 +69,14 @@ export default function PDVPage() {
   const autoPrintReceiptRef = useRef(false);
 
   useEffect(() => {
-    void Promise.all([posApi.getWalkInCustomer(), posApi.getExchangeRates()])
-      .then(([walkInCustomer, rates]) => {
-        setWalkIn(walkInCustomer);
-        setCustomerId(walkInCustomer.id);
-        setExchangeRates(rates);
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : "Erro ao iniciar PDV"))
-      .finally(() => setRatesLoading(false));
-  }, []);
+    if (bootstrapError) {
+      setError(bootstrapError);
+      return;
+    }
+    if (!bootstrap) return;
+    setCustomerId(bootstrap.walkIn.id);
+    setError("");
+  }, [bootstrap, bootstrapError]);
 
   const chargesIVA = profile === "paraguayan";
 

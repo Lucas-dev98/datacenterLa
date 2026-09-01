@@ -1,8 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { authApi, type Role } from "@/lib/api/auth";
 import { useCreateUser, useUpdateUser } from "@/hooks/use-auth-mutations";
+import { useUsersAdmin } from "@/hooks/use-users-admin";
 import type { User } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
 
@@ -13,8 +13,9 @@ function roleIds(user: User): string[] {
 }
 
 export default function UsuariosPage() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
+  const { data, error: loadError, refetch } = useUsersAdmin();
+  const users = data?.users ?? [];
+  const roles = data?.roles ?? [];
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [email, setEmail] = useState("");
@@ -26,24 +27,15 @@ export default function UsuariosPage() {
   const { run: updateUser, loading: updating } = useUpdateUser();
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
 
-  async function load() {
-    setError("");
-    try {
-      const [u, r] = await Promise.all([authApi.listUsers(), authApi.listRoles()]);
-      const list = u.items ?? [];
-      setUsers(list);
-      setRoles(r.items ?? []);
-      setRoleEdits(Object.fromEntries(list.map((user) => [user.id, roleIds(user)])));
-      if (r.items?.length && !roleId) setRoleId(r.items[0].id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar");
-    }
-  }
+  useEffect(() => {
+    if (loadError) setError(loadError);
+  }, [loadError]);
 
   useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!data) return;
+    setRoleEdits(Object.fromEntries(data.users.map((user) => [user.id, roleIds(user)])));
+    if (data.roles.length && !roleId) setRoleId(data.roles[0].id);
+  }, [data, roleId]);
 
   async function handleCreateUser(e: FormEvent) {
     e.preventDefault();
@@ -60,7 +52,7 @@ export default function UsuariosPage() {
       setPassword("");
       setFullName("");
       setInfo("Usuário criado");
-      await load();
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao criar");
     }
@@ -71,7 +63,7 @@ export default function UsuariosPage() {
     setError("");
     try {
       await updateUser({ id: user.id, body: { is_active: !user.is_active } });
-      await load();
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao atualizar");
     } finally {
@@ -101,7 +93,7 @@ export default function UsuariosPage() {
     try {
       await updateUser({ id: userId, body: { role_ids: ids } });
       setInfo("Perfis atualizados");
-      await load();
+      await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar perfis");
     } finally {

@@ -2,7 +2,8 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useBulkCadastro } from "@/hooks/use-pim-product-mutations";
-import { pimApi } from "@/lib/api/pim";
+import { useCategoryAttributes } from "@/hooks/use-category-attributes";
+import { useCategoriesList } from "@/hooks/use-pim-list-queries";
 import { DEFAULT_CATEGORY_ID } from "@/lib/config";
 import type { CadastroResult, Category } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Textarea } from "@/components/ui";
@@ -200,9 +201,11 @@ const CATEGORY_ATTR_DEFAULTS: Record<string, Record<string, string>> = {
 };
 
 export default function CadastrosPage() {
-  const [categories, setCategories] = useState<Category[]>([]);
+  const { data: categoriesData } = useCategoriesList(true);
+  const categories = categoriesData ?? [];
   const [categoryId, setCategoryId] = useState(DEFAULT_CATEGORY_ID);
-  const [attributes, setAttributes] = useState<CategoryAttribute[]>([]);
+  const { data: attributesData } = useCategoryAttributes(categoryId);
+  const attributes = (attributesData ?? []) as CategoryAttribute[];
   const [attrValues, setAttrValues] = useState<Record<string, string>>({});
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("");
@@ -219,28 +222,21 @@ export default function CadastrosPage() {
   const categoryTree = sortCategoryTree(categories.filter((c) => c.is_active));
 
   useEffect(() => {
-    void pimApi.listCategories(true).then((res) => {
-      setCategories(res.items);
-      if (res.items.length && !res.items.find((c) => c.id === categoryId)) {
-        setCategoryId(res.items[0].id);
-      }
-    });
-  }, [categoryId]);
+    if (categories.length && !categories.find((c) => c.id === categoryId)) {
+      setCategoryId(categories[0].id);
+    }
+  }, [categories, categoryId]);
 
   useEffect(() => {
     if (!categoryId) return;
     const cat = categories.find((c) => c.id === categoryId);
-    void pimApi.listCategoryAttributes(categoryId).then((res) => {
-      const items = res.items ?? [];
-      setAttributes(items);
-      const defaults = cat ? CATEGORY_ATTR_DEFAULTS[cat.code] ?? {} : {};
-      const values: Record<string, string> = {};
-      for (const a of items) {
-        if (defaults[a.code]) values[a.id] = defaults[a.code];
-      }
-      setAttrValues(values);
-    });
-  }, [categoryId, categories]);
+    const defaults = cat ? CATEGORY_ATTR_DEFAULTS[cat.code] ?? {} : {};
+    const values: Record<string, string> = {};
+    for (const a of attributes) {
+      if (defaults[a.code]) values[a.id] = defaults[a.code];
+    }
+    setAttrValues(values);
+  }, [categoryId, categories, attributes]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();

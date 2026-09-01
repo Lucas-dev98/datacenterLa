@@ -17,7 +17,7 @@ const items = data?.items ?? [];
 
 Coloque fetchers em `admin/hooks/use-*.ts` chamando módulos `@/lib/api/*`.
 
-Hooks recentes: `useProductDetail`, `useComprasParaguaiDashboard`, `useCustomerReturnsList`, `useRmaCasesList`.
+Hooks recentes: `useProductDetail`, `useComprasParaguaiDashboard`, `useCustomerReturnsList`, `useRmaCasesList`, `useSalesDashboard`, `useUsersAdmin`, `usePdvBootstrap`.
 
 ## `useApiMutation` — escritas
 
@@ -35,8 +35,9 @@ await refetchList();
 
 ## Quando não migrar
 
-- Integrações de SDK externo (Stripe `confirmPayment`).
-- Busca em tempo real com debounce no PDV (carrinho); mutations PIX já usam hooks.
+- Integrações de SDK externo (Stripe `confirmPayment` e estado `busy` do Elements).
+- Busca em tempo real com debounce no PDV (produtos, clientes, carrinho); bootstrap (`walkIn` + câmbio) e mutations PIX usam hooks.
+- Ações pontuais on-demand (blob download, foto expandida, MFA setup, export CSV).
 
 ## E2E
 
