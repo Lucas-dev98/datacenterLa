@@ -10,8 +10,9 @@ export type {
   ExpiringReservation,
 } from "./stock";
 export { purchasesApi } from "./purchases";
-export type { PurchaseOrderDetail, PurchaseOrderItem, PurchaseOrderSummary } from "./purchases";
+export type { Supplier, PurchaseOrderDetail, PurchaseOrderItem, PurchaseOrderSummary } from "./purchases";
 export { pimApi } from "./pim";
+export type { Category, CategoryAttribute, CadastroResult } from "./pim";
 export { financeApi } from "./finance";
 export type { FinanceDashboard, FinanceSummary, OrderMarginRow, Payable } from "./finance";
 export { paymentsApi } from "./payments";

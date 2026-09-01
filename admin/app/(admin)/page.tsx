@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
-import { api } from "@/lib/api";
+import { salesApi } from "@/lib/api/sales";
 import { hasPermission } from "@/lib/permissions";
 import type { DashboardData } from "@/lib/types";
 import { Alert, Card, Table } from "@/components/ui";
@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const canSeeFinance = hasPermission(user, "finance.receivables.read");
 
   useEffect(() => {
-    void api<DashboardData>("/api/v1/sales/dashboard")
+    void salesApi.dashboard()
       .then(setData)
       .catch((err) => setError(err instanceof Error ? err.message : "Erro ao carregar"))
       .finally(() => setLoading(false));

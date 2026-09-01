@@ -3,42 +3,10 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { purchasesApi, type PurchaseOrderDetail } from "@/lib/api/purchases";
 import { Alert, Button, Card, Table } from "@/components/ui";
 
-type POItem = {
-  id: string;
-  sku_id: string;
-  sku_code?: string;
-  quantity_ordered: number;
-  quantity_received: number;
-  unit_cost_usd: number;
-  unit_landed_cost_usd?: number;
-};
-
-type POPayable = {
-  id: string;
-  status: string;
-  amount_usd: number;
-  amount_paid_usd: number;
-};
-
-type PO = {
-  id: string;
-  po_number: string;
-  supplier_name?: string;
-  status: string;
-  import_origin?: string;
-  origin_country_code?: string;
-  intercompany_invoice_ref?: string;
-  customs_declaration_ref?: string;
-  incoterms?: string;
-  freight_usd?: number;
-  duties_usd?: number;
-  landed_cost_usd?: number;
-  payable?: POPayable | null;
-  items?: POItem[];
-};
+type PO = PurchaseOrderDetail;
 
 function originLabel(po: PO): string {
   switch (po.import_origin) {
@@ -62,7 +30,7 @@ export default function CompraDetailPage() {
   async function load() {
     setLoading(true);
     try {
-      const data = await api<PO>(`/api/v1/purchases/orders/${params.id}`);
+      const data = await purchasesApi.getOrder(params.id);
       setPo(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");

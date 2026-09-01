@@ -2,28 +2,13 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { purchasesApi, type PurchaseOrderSummary, type Supplier } from "@/lib/api/purchases";
+import { pimApi } from "@/lib/api/pim";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
 import type { SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
-type Supplier = {
-  id: string;
-  code: string;
-  name: string;
-  legal_name?: string;
-  country: string;
-  kind: string;
-  notes?: string;
-};
-type PO = {
-  id: string;
-  po_number: string;
-  supplier_name?: string;
-  import_origin?: string;
-  status: string;
-  created_at: string;
-};
+type PO = PurchaseOrderSummary;
 type Line = { sku_id: string; quantity: number; unit_cost_usd: string; sku_code?: string };
 
 const IMPORT_LABELS: Record<string, string> = {
@@ -62,9 +47,9 @@ export default function ComprasPage() {
   async function load() {
     try {
       const [s, o, skuRes] = await Promise.all([
-        api<{ items: Supplier[] }>("/api/v1/purchases/suppliers"),
-        api<{ items: PO[] }>("/api/v1/purchases/orders"),
-        api<{ items: SKU[] }>("/api/v1/pim/skus?active_only=true&limit=100"),
+        purchasesApi.listSuppliers(),
+        purchasesApi.listOrders(),
+        pimApi.listAllSkus(),
       ]);
       const list = s.items ?? [];
       setSuppliers(list);
@@ -131,29 +116,23 @@ export default function ComprasPage() {
     setError("");
     try {
       if (editingSupplierId) {
-        const updated = await api<Supplier>(`/api/v1/purchases/suppliers/${editingSupplierId}`, {
-          method: "PUT",
-          body: JSON.stringify({
-            name: supName,
-            legal_name: supLegalName.trim() || undefined,
-            country: supCountry,
-            kind: supKind,
-            notes: supNotes.trim() || undefined,
-          }),
+        const updated = await purchasesApi.updateSupplier(editingSupplierId, {
+          name: supName,
+          legal_name: supLegalName.trim() || undefined,
+          country: supCountry,
+          kind: supKind,
+          notes: supNotes.trim() || undefined,
         });
         setInfo(`Exportador atualizado: ${updated.legal_name ?? updated.name}`);
         resetSupplierForm();
       } else {
-        const created = await api<Supplier>("/api/v1/purchases/suppliers", {
-          method: "POST",
-          body: JSON.stringify({
-            code: supCode,
-            name: supName,
-            legal_name: supLegalName.trim() || undefined,
-            country: supCountry,
-            kind: supKind,
-            notes: supNotes.trim() || undefined,
-          }),
+        const created = await purchasesApi.createSupplier({
+          code: supCode,
+          name: supName,
+          legal_name: supLegalName.trim() || undefined,
+          country: supCountry,
+          kind: supKind,
+          notes: supNotes.trim() || undefined,
         });
         setInfo(`Exportador cadastrado: ${created.legal_name ?? created.name}`);
         resetSupplierForm();
@@ -185,22 +164,19 @@ export default function ComprasPage() {
         setError("Selecione ou cadastre a empresa exportadora");
         return;
       }
-      const po = await api<{ id: string }>("/api/v1/purchases/orders", {
-        method: "POST",
-        body: JSON.stringify({
-          supplier_id: supplierId,
-          warehouse_id: DEFAULT_WAREHOUSE_ID,
-          import_origin: importOrigin,
-          origin_country_code: importOrigin === "other" ? originCountryCode.trim() || undefined : undefined,
-          intercompany_invoice_ref: intercompanyInvoice.trim() || undefined,
-          customs_declaration_ref: customsRef.trim() || undefined,
-          incoterms: incoterms.trim() || undefined,
-          freight_usd: parseFloat(freightUsd) || 0,
-          duties_usd: parseFloat(dutiesUsd) || 0,
-          items,
-        }),
+      const po = await purchasesApi.createOrder({
+        supplier_id: supplierId,
+        warehouse_id: DEFAULT_WAREHOUSE_ID,
+        import_origin: importOrigin,
+        origin_country_code: importOrigin === "other" ? originCountryCode.trim() || undefined : undefined,
+        intercompany_invoice_ref: intercompanyInvoice.trim() || undefined,
+        customs_declaration_ref: customsRef.trim() || undefined,
+        incoterms: incoterms.trim() || undefined,
+        freight_usd: parseFloat(freightUsd) || 0,
+        duties_usd: parseFloat(dutiesUsd) || 0,
+        items,
       });
-      await api(`/api/v1/purchases/orders/${po.id}/submit`, { method: "POST" });
+      await purchasesApi.submitOrder(po.id);
       setInfo(`Pedido de compra criado (${items.length} itens) e enviado`);
       setLines([{ sku_id: skus[0]?.id ?? "", quantity: 1, unit_cost_usd: "0", sku_code: skus[0]?.code }]);
       await load();

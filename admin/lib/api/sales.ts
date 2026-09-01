@@ -1,9 +1,10 @@
 import { api, apiText } from "../api";
-import type { Customer, Order, OrderListItem, Quote } from "../types";
+import type { Customer, DashboardData, Order, OrderListItem, Quote } from "../types";
 
 const BASE = "/api/v1/sales";
 
 export const salesApi = {
+  dashboard: () => api<DashboardData>(`${BASE}/dashboard`),
   listOrders: (params?: { status?: string; channel?: string; limit?: number; q?: string }) => {
     const q = new URLSearchParams();
     if (params?.status) q.set("status", params.status);

@@ -2,7 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { pimApi } from "@/lib/api/pim";
+import { pricingApi } from "@/lib/api/pricing";
 import type { ResolvedPrice, SKU, SKUPrice } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Table } from "@/components/ui";
 
@@ -43,8 +44,7 @@ export default function PrecosPage() {
     setListing(true);
     setError("");
     try {
-      const qs = term.trim() ? `&q=${encodeURIComponent(term.trim())}` : "";
-      const res = await api<{ items: SKU[] }>(`/api/v1/pim/skus?active_only=true&limit=100${qs}`);
+      const res = await pimApi.listAllSkus({ q: term.trim() || undefined });
       setSkus(res.items ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao carregar produtos");
@@ -86,13 +86,11 @@ export default function PrecosPage() {
     });
 
     try {
-      const p = await api<SKUPrice>(`/api/v1/pricing/skus/${s.id}`);
+      const p = await pricingApi.getSkuPrice(s.id);
       fillForm(p);
       const channels = ["b2c", "b2b", "reseller"];
       const resolvedPrices = await Promise.all(
-        channels.map((ch) =>
-          api<ResolvedPrice>(`/api/v1/pricing/skus/${s.id}/resolve?channel=${ch}`).catch(() => null),
-        ),
+        channels.map((ch) => pricingApi.resolve(s.id, ch).catch(() => null)),
       );
       setResolved(resolvedPrices.filter((r): r is ResolvedPrice => Boolean(r)));
     } catch (err) {
@@ -132,10 +130,7 @@ export default function PrecosPage() {
         return;
       }
 
-      await api(`/api/v1/pricing/skus/${sku.id}`, {
-        method: "PUT",
-        body: JSON.stringify(body),
-      });
+      await pricingApi.setSkuPrice(sku.id, body);
       setInfo("Preços atualizados");
       setSkus((prev) =>
         prev.map((h) =>

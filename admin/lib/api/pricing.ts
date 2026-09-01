@@ -1,15 +1,20 @@
 import { api } from "./client";
+import type { ResolvedPrice, SKUPrice } from "../types";
+import type { ExchangeRatesToday } from "../exchange-rates";
 
 const BASE = "/api/v1/pricing";
 
-export type ResolvedPrice = {
-  base_price_usd: number;
-  price_with_iva_usd?: number;
-  price_pyg?: number;
-  price_with_iva_pyg?: number;
-};
+export type { ResolvedPrice };
 
 export const pricingApi = {
   resolveB2C: (skuId: string) =>
     api<ResolvedPrice>(`${BASE}/skus/${skuId}/resolve?channel=b2c`),
+  resolve: (skuId: string, channel: string) =>
+    api<ResolvedPrice>(`${BASE}/skus/${skuId}/resolve?channel=${encodeURIComponent(channel)}`),
+  getSkuPrice: (skuId: string) => api<SKUPrice>(`${BASE}/skus/${skuId}`),
+  setSkuPrice: (skuId: string, body: Record<string, number>) =>
+    api(`${BASE}/skus/${skuId}`, { method: "PUT", body: JSON.stringify(body) }),
+  exchangeRatesToday: () => api<ExchangeRatesToday>(`${BASE}/exchange-rates/today`),
+  syncExchangeRates: () =>
+    api<ExchangeRatesToday>(`${BASE}/exchange-rates/sync`, { method: "POST" }),
 };

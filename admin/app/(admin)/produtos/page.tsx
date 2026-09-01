@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { pimApi } from "@/lib/api/pim";
 import type { Product, SKU } from "@/lib/types";
 import { Alert, Button, Card, Input, Table } from "@/components/ui";
 
@@ -26,11 +26,11 @@ export default function ProdutosPage() {
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
-    const q = query ? `&q=${encodeURIComponent(query)}` : "";
+    const qParam = query.trim() || undefined;
     try {
       const [p, s] = await Promise.all([
-        api<{ items: Product[]; total: number }>(`/api/v1/pim/products?active_only=true&limit=100${q}`),
-        api<{ items: SKU[]; total: number }>(`/api/v1/pim/skus?active_only=true&limit=100${q}`),
+        pimApi.listProducts({ q: qParam }),
+        pimApi.listAllSkus({ q: qParam }),
       ]);
       const map: Record<string, Product> = {};
       for (const product of p.items) map[product.id] = product;
@@ -77,9 +77,9 @@ export default function ProdutosPage() {
     let ok = 0;
     for (const sku of selectedSkus) {
       try {
-        await api(`/api/v1/pim/skus/${sku.id}`, { method: "DELETE" });
+        await pimApi.deleteSku(sku.id);
         if (sku.product_id) {
-          await api(`/api/v1/pim/products/${sku.product_id}`, { method: "DELETE" }).catch(() => undefined);
+          await pimApi.deleteProduct(sku.product_id).catch(() => undefined);
         }
         ok += 1;
       } catch (err) {

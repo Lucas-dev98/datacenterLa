@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { api, apiBlob, downloadBlob } from "@/lib/api";
+import { apiBlob, downloadBlob } from "@/lib/api";
+import { pimApi } from "@/lib/api/pim";
 import type { SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
 
@@ -34,9 +35,7 @@ export default function EtiquetasPage() {
     setSearching(true);
     setError("");
     try {
-      const res = await api<{ items: SKU[] }>(
-        `/api/v1/pim/skus?active_only=true&limit=20&q=${encodeURIComponent(term)}`,
-      );
+      const res = await pimApi.searchSkus(term, 20);
       setHits(res.items ?? []);
       setSearched(true);
     } catch (err) {
