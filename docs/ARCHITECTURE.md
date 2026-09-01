@@ -23,7 +23,7 @@ Monólito modular com três processos front-end e um backend Go.
 
 ## Contratos
 
-- OpenAPI base: [`openapi.yaml`](openapi.yaml)
+- OpenAPI base: [`openapi.yaml`](openapi.yaml) (paths aligned with admin `lib/api/*` and E2E flows)
 - Regras de negócio: [`regras-globais.md`](regras-globais.md)
 
 ## CI

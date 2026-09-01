@@ -29,7 +29,16 @@ paths:
       summary: Receive PO (simple)
   /purchases/orders/{id}/receive-intake:
     post:
-      summary: Receive PO with intake photos
+      summary: Receive PO with intake photos (multipart payload + batch_photo_*)
+  /stock/intake/advance:
+    post:
+      summary: Advance unit through intake steps (received → inspecting → identified → available)
+  /stock/intake/units/{unit_id}/test-pass:
+    post:
+      summary: Pass intake bench test with test_photo_* uploads
+  /stock/intake/complete:
+    post:
+      summary: Complete intake and release units to a location
   /sales/customers:
     get:
       summary: List CRM customers
@@ -38,6 +47,36 @@ paths:
   /sales/orders:
     get:
       summary: List sales orders
+    post:
+      summary: Create sales order
+  /sales/orders/{id}/confirm:
+    post:
+      summary: Confirm order and reserve stock
+  /sales/orders/{id}/ship:
+    post:
+      summary: Ship order with photo_{order_item_id} uploads
+  /payments/intents:
+    post:
+      summary: Create payment intent for an order
+  /payments/intents/{id}/confirm:
+    post:
+      summary: Confirm payment intent (mock/stripe)
+  /sales/returns:
+    get:
+      summary: List customer returns
+    post:
+      summary: Create return with multipart payload + photo_*
+  /sales/returns/{id}/approve:
+    post:
+      summary: Approve customer return
+  /sales/returns/{id}/receive:
+    post:
+      summary: Receive returned goods into stock
+  /sales/rma:
+    get:
+      summary: List RMA cases
+    post:
+      summary: Create RMA with multipart payload + test_photo_*
   /ecommerce/catalog:
     get:
       summary: Public catalog
