@@ -4,8 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
-import { useApiQueryFn } from "@/hooks/use-api-query";
-import { pimApi } from "@/lib/api/pim";
+import { usePurchaseOrderReceive } from "@/hooks/use-purchase-order-receive";
 import { purchasesApi, type PurchaseOrderDetail, type PurchaseOrderItem } from "@/lib/api/purchases";
 import { stockApi } from "@/lib/api/stock";
 import { API_URL } from "@/lib/config";
@@ -32,12 +31,7 @@ function itemPending(item: POItem): number {
 export default function ReceberPOPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const fetchPo = useCallback(async () => {
-    const data = await purchasesApi.getOrder(params.id);
-    const skuById = await pimApi.loadSkusByIds((data.items ?? []).map((i) => i.sku_id));
-    return { po: data, skuById };
-  }, [params.id]);
-  const { data, error: loadError, loading, refetch } = useApiQueryFn(fetchPo, { deps: [params.id] });
+  const { data, error: loadError, loading, refetch } = usePurchaseOrderReceive(params.id);
   const po = data?.po ?? null;
   const skuById = data?.skuById ?? {};
   const [view, setView] = useState<View>("lista");

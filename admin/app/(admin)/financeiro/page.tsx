@@ -1,16 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useState } from "react";
-import { useApiQueryFn } from "@/hooks/use-api-query";
+import { FormEvent, useState } from "react";
+import { useFinanceDashboard } from "@/hooks/use-finance-dashboard";
 import { financeApi, type Payable } from "@/lib/api/finance";
 import type { ReceivableListItem } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
 export default function FinanceiroPage() {
   const [status, setStatus] = useState("open");
-  const fetchDashboard = useCallback(() => financeApi.loadDashboard(status), [status]);
-  const { data, error, loading, refetch } = useApiQueryFn(fetchDashboard, { deps: [status] });
+  const { data, error, loading, refetch } = useFinanceDashboard(status);
   const items = data?.receivables ?? [];
   const payables = data?.payables ?? [];
   const summary = data?.summary ?? null;
