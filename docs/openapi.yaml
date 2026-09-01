@@ -5,87 +5,833 @@ info:
   description: REST API for ERP admin, ecommerce shop, and partner integrations.
 servers:
   - url: http://localhost:8080/api/v1
-    description: Local development
+    description: Local development (via /api/v1 mount)
+  - url: http://localhost:8080
+    description: Platform routes (health, static)
+
+components:
+  schemas:
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: INVALID_INPUT
+        message:
+          type: string
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, unhealthy]
+        db:
+          type: string
+          enum: [up, down]
+        version:
+          type: string
+    TokenPair:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        mfa_code:
+          type: string
+    Customer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+        document_id:
+          type: string
+        is_active:
+          type: boolean
+    CustomerList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Customer"
+        total:
+          type: integer
+    OrderLineInput:
+      type: object
+      required: [sku_id, quantity]
+      properties:
+        sku_id:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+    CreateOrderRequest:
+      type: object
+      required: [customer_id, channel, warehouse_id, items]
+      properties:
+        customer_id:
+          type: string
+          format: uuid
+        channel:
+          type: string
+          example: erp
+        warehouse_id:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderLineInput"
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        order_number:
+          type: string
+        status:
+          type: string
+          enum: [draft, confirmed, paid, shipped, cancelled]
+        total_usd:
+          type: number
+        customer_id:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              sku_id:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+    OrderList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Order"
+        total:
+          type: integer
+    PaymentIntentRequest:
+      type: object
+      required: [order_id, provider]
+      properties:
+        order_id:
+          type: string
+          format: uuid
+        provider:
+          type: string
+          example: mock
+    PaymentIntent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        order_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        provider:
+          type: string
+    ReceivePOItem:
+      type: object
+      required: [sku_id, quantity]
+      properties:
+        sku_id:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+    ReceivePOPayload:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReceivePOItem"
+    InventoryUnit:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        sku_id:
+          type: string
+          format: uuid
+        public_code:
+          type: string
+        status:
+          type: string
+    POReceiveIntakeResult:
+      type: object
+      properties:
+        order:
+          type: object
+        units:
+          type: array
+          items:
+            $ref: "#/components/schemas/InventoryUnit"
+    IntakeAdvanceRequest:
+      type: object
+      properties:
+        unit_id:
+          type: string
+          format: uuid
+        location_id:
+          type: string
+          format: uuid
+    IntakeCompleteRequest:
+      type: object
+      required: [unit_ids, location_id]
+      properties:
+        unit_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        location_id:
+          type: string
+          format: uuid
+    CreateReturnPayload:
+      type: object
+      required: [order_id, reason, items]
+      properties:
+        order_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+        condition_notes:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              order_item_id:
+                type: string
+                format: uuid
+              sku_id:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+    CustomerReturn:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        return_number:
+          type: string
+        status:
+          type: string
+        order_id:
+          type: string
+          format: uuid
+    CreateRMAPayload:
+      type: object
+      required: [order_id, reason, test_notes, items]
+      properties:
+        order_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+        test_notes:
+          type: string
+        defect_confirmed:
+          type: boolean
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              order_item_id:
+                type: string
+                format: uuid
+              sku_id:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+    RMACase:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        case_number:
+          type: string
+        status:
+          type: string
+        order_id:
+          type: string
+          format: uuid
+    CatalogProduct:
+      type: object
+      properties:
+        sku_id:
+          type: string
+          format: uuid
+        sku_code:
+          type: string
+        name:
+          type: string
+        price_usd:
+          type: number
+        qty_available:
+          type: integer
+    Cart:
+      type: object
+      properties:
+        session_id:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              sku_id:
+                type: string
+              quantity:
+                type: integer
+    CheckoutRequest:
+      type: object
+      required: [session_id, warehouse_id, name]
+      properties:
+        session_id:
+          type: string
+        warehouse_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Invalid input
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    Unauthorized:
+      description: Missing or invalid auth
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+
 paths:
+  /health/live:
+    get:
+      summary: Liveness probe
+      tags: [Platform]
+      responses:
+        "200":
+          description: Process is running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+  /health/ready:
+    get:
+      summary: Readiness probe (database)
+      tags: [Platform]
+      responses:
+        "200":
+          description: Ready to serve traffic
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+        "503":
+          description: Not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /health:
+    get:
+      summary: Readiness alias (legacy)
+      tags: [Platform]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
   /auth/login:
     post:
       summary: Admin login
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /auth/me:
     get:
       summary: Current admin user
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User profile with permissions
+
   /pim/products:
     get:
       summary: List products
+      tags: [PIM]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: q
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product list
+
   /stock/units:
     get:
       summary: List inventory units
+      tags: [Stock]
+      security:
+        - bearerAuth: []
+
   /purchases/orders:
     get:
       summary: List purchase orders
+      tags: [Purchases]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, ordered, partial, received, cancelled]
     post:
       summary: Create purchase order
+      tags: [Purchases]
+      security:
+        - bearerAuth: []
+
   /purchases/orders/{id}/receive:
     post:
-      summary: Receive PO (simple)
+      summary: Receive PO (simple JSON)
+      tags: [Purchases]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+
   /purchases/orders/{id}/receive-intake:
     post:
-      summary: Receive PO with intake photos (multipart payload + batch_photo_*)
+      summary: Receive PO with intake photos
+      tags: [Purchases]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [payload]
+              properties:
+                payload:
+                  type: string
+                  description: JSON string of ReceivePOPayload
+                batch_photo_0:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/POReceiveIntakeResult"
+
   /stock/intake/advance:
     post:
-      summary: Advance unit through intake steps (received → inspecting → identified → available)
+      summary: Advance intake unit status
+      tags: [Stock]
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntakeAdvanceRequest"
+      responses:
+        "200":
+          description: Unit advanced
+
   /stock/intake/units/{unit_id}/test-pass:
     post:
-      summary: Pass intake bench test with test_photo_* uploads
+      summary: Pass intake bench test
+      tags: [Stock]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: unit_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                test_photo_0:
+                  type: string
+                  format: binary
+
   /stock/intake/complete:
     post:
-      summary: Complete intake and release units to a location
+      summary: Complete intake and release to location
+      tags: [Stock]
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntakeCompleteRequest"
+
   /sales/customers:
     get:
       summary: List CRM customers
+      tags: [Sales]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerList"
     post:
       summary: Create customer
+      tags: [Sales]
+      security:
+        - bearerAuth: []
+
   /sales/orders:
     get:
       summary: List sales orders
+      tags: [Sales]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderList"
     post:
       summary: Create sales order
+      tags: [Sales]
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
   /sales/orders/{id}/confirm:
     post:
       summary: Confirm order and reserve stock
+      tags: [Sales]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
   /sales/orders/{id}/ship:
     post:
-      summary: Ship order with photo_{order_item_id} uploads
+      summary: Ship order with per-item photos
+      tags: [Sales]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                photo_{order_item_id}:
+                  type: string
+                  format: binary
+
   /payments/intents:
     post:
-      summary: Create payment intent for an order
+      summary: Create payment intent
+      tags: [Payments]
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentIntentRequest"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentIntent"
+
   /payments/intents/{id}/confirm:
     post:
-      summary: Confirm payment intent (mock/stripe)
+      summary: Confirm payment intent
+      tags: [Payments]
+      security:
+        - bearerAuth: []
+
   /sales/returns:
     get:
       summary: List customer returns
+      tags: [Returns]
+      security:
+        - bearerAuth: []
     post:
-      summary: Create return with multipart payload + photo_*
+      summary: Create customer return
+      tags: [Returns]
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [payload]
+              properties:
+                payload:
+                  type: string
+                  description: JSON CreateReturnPayload
+                photo_0:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerReturn"
+
   /sales/returns/{id}/approve:
     post:
-      summary: Approve customer return
+      summary: Approve return
+      tags: [Returns]
+      security:
+        - bearerAuth: []
+
   /sales/returns/{id}/receive:
     post:
-      summary: Receive returned goods into stock
+      summary: Receive returned goods
+      tags: [Returns]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerReturn"
+
   /sales/rma:
     get:
       summary: List RMA cases
+      tags: [RMA]
+      security:
+        - bearerAuth: []
     post:
-      summary: Create RMA with multipart payload + test_photo_*
+      summary: Create RMA case
+      tags: [RMA]
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [payload]
+              properties:
+                payload:
+                  type: string
+                  description: JSON CreateRMAPayload
+                test_photo_0:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RMACase"
+
   /ecommerce/catalog:
     get:
       summary: Public catalog
+      tags: [Ecommerce]
+      parameters:
+        - name: warehouse_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CatalogProduct"
+
   /ecommerce/catalog/{sku_id}:
     get:
       summary: Product detail
+      tags: [Ecommerce]
+      parameters:
+        - name: sku_id
+          in: path
+          required: true
+          schema:
+            type: string
+
   /ecommerce/cart:
     get:
       summary: Get cart by session_id
+      tags: [Ecommerce]
+      parameters:
+        - name: session_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+
   /ecommerce/checkout:
     post:
       summary: Checkout cart
+      tags: [Ecommerce]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutRequest"
