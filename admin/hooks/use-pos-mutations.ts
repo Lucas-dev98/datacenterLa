@@ -39,3 +39,20 @@ export function usePosPixCancel() {
   const mutate = useCallback((orderId: string) => posApi.pixCancel(orderId), []);
   return useApiMutation(mutate);
 }
+
+type PosCreateCustomerInput = {
+  body: Record<string, unknown>;
+  scan?: FormData;
+};
+
+export function usePosCreateCustomer() {
+  const mutate = useCallback(async ({ body, scan }: PosCreateCustomerInput) => {
+    const customer = await posApi.createCustomer(body);
+    if (scan) {
+      await posApi.uploadDocumentScan(customer.id, scan);
+      customer.has_document_scan = true;
+    }
+    return customer;
+  }, []);
+  return useApiMutation(mutate);
+}

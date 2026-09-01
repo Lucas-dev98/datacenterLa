@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { posApi } from "@/lib/api/pos";
+import { usePosCreateCustomer } from "@/hooks/use-pos-mutations";
 import type { Customer } from "@/lib/types";
 import {
   PARAGUAY_BUYER_KINDS,
@@ -38,7 +38,7 @@ export function PDVCustomerModal({ onCreated, onClose, initialResidency = "", in
   const [scanFile, setScanFile] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
   const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
+  const { run: createCustomer, loading: saving } = usePosCreateCustomer();
 
   const brazilian = residency === "foreigner" && nationality === "BR";
   const paraguayanMeta = useMemo(
@@ -120,30 +120,29 @@ export function PDVCustomerModal({ onCreated, onClose, initialResidency = "", in
       setError("Escolha Paraguaio ou Estrangeiro");
       return;
     }
-    setSaving(true);
     setError("");
     try {
       const effectiveDocType = residency === "paraguayan" ? paraguayanMeta.documentType : documentType;
-      const customer = await posApi.createCustomer({
-        name,
-        phone: phone.trim() || undefined,
-        document_id: documentId.trim() || undefined,
-        residency,
-        nationality: residency === "paraguayan" ? "PY" : nationality,
-        document_type: effectiveDocType,
-        type: effectiveDocType === "ruc_pj" ? "b2b" : "b2c",
-      });
-      if (scanFile) {
+      const scan = scanFile ? (() => {
         const form = new FormData();
         form.append("file", scanFile);
-        await posApi.uploadDocumentScan(customer.id, form);
-        customer.has_document_scan = true;
-      }
+        return form;
+      })() : undefined;
+      const customer = await createCustomer({
+        body: {
+          name,
+          phone: phone.trim() || undefined,
+          document_id: documentId.trim() || undefined,
+          residency,
+          nationality: residency === "paraguayan" ? "PY" : nationality,
+          document_type: effectiveDocType,
+          type: effectiveDocType === "ruc_pj" ? "b2b" : "b2c",
+        },
+        scan,
+      });
       onCreated(customer);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao cadastrar cliente");
-    } finally {
-      setSaving(false);
     }
   }
 

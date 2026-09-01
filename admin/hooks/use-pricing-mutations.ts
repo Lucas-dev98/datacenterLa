@@ -16,3 +16,8 @@ export function useSetSkuPrice() {
   );
   return useApiMutation(mutate);
 }
+
+export function useSyncExchangeRates() {
+  const mutate = useCallback((_body: Record<string, never>) => pricingApi.syncExchangeRates(), []);
+  return useApiMutation(mutate);
+}

@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { pimApi } from "@/lib/api/pim";
 import { pricingApi } from "@/lib/api/pricing";
+import { useSetSkuPrice } from "@/hooks/use-pricing-mutations";
 import type { ResolvedPrice, SKU, SKUPrice } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Table } from "@/components/ui";
 
@@ -37,7 +38,7 @@ export default function PrecosPage() {
   const [reseller, setReseller] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [loading, setLoading] = useState(false);
+  const { run: saveSkuPrice, loading } = useSetSkuPrice();
   const [listing, setListing] = useState(true);
 
   const loadList = useCallback(async (term = "") => {
@@ -111,7 +112,6 @@ export default function PrecosPage() {
     if (!sku) return;
     setError("");
     setInfo("");
-    setLoading(true);
     try {
       const body: Record<string, number> = {};
       const costN = parseFloat(cost);
@@ -130,7 +130,7 @@ export default function PrecosPage() {
         return;
       }
 
-      await pricingApi.setSkuPrice(sku.id, body);
+      await saveSkuPrice({ skuId: sku.id, body });
       setInfo("Preços atualizados");
       setSkus((prev) =>
         prev.map((h) =>
@@ -151,8 +151,6 @@ export default function PrecosPage() {
       await loadPrices(updated);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar");
-    } finally {
-      setLoading(false);
     }
   }
 

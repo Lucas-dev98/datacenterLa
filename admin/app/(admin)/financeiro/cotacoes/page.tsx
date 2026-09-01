@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ApiClientError } from "@/lib/api/client";
 import { pricingApi } from "@/lib/api/pricing";
+import { useSyncExchangeRates } from "@/hooks/use-pricing-mutations";
 import { formatExchangeRate } from "@/lib/exchange-rates";
 import { useAuth } from "@/components/auth-provider";
 import { hasPermission } from "@/lib/permissions";
@@ -15,7 +16,7 @@ export default function FinanceiroCotacoesPage() {
   const canSync = hasPermission(user, "finance.exchange_rates.write");
   const [data, setData] = useState<ExchangeRatesToday | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
+  const { run: syncExchangeRates, loading: syncing } = useSyncExchangeRates();
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
 
@@ -45,17 +46,14 @@ export default function FinanceiroCotacoesPage() {
   }, [load]);
 
   async function syncNow() {
-    setSyncing(true);
     setError("");
     setInfo("");
     try {
-      const res = await pricingApi.syncExchangeRates();
+      const res = await syncExchangeRates({});
       setData(res);
       setInfo("Cotações atualizadas automaticamente a partir do mercado.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao sincronizar cotações");
-    } finally {
-      setSyncing(false);
     }
   }
 

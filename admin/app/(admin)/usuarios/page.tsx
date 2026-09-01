@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { authApi, type Role } from "@/lib/api/auth";
+import { useCreateUser, useUpdateUser } from "@/hooks/use-auth-mutations";
 import type { User } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
 
@@ -21,7 +22,9 @@ export default function UsuariosPage() {
   const [fullName, setFullName] = useState("");
   const [roleId, setRoleId] = useState("");
   const [roleEdits, setRoleEdits] = useState<Record<string, string[]>>({});
-  const [savingRoles, setSavingRoles] = useState<string | null>(null);
+  const { run: createUser, loading: creating } = useCreateUser();
+  const { run: updateUser, loading: updating } = useUpdateUser();
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
 
   async function load() {
     setError("");
@@ -42,11 +45,12 @@ export default function UsuariosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function createUser(e: FormEvent) {
+  async function handleCreateUser(e: FormEvent) {
     e.preventDefault();
     setInfo("");
+    setError("");
     try {
-      await authApi.createUser({
+      await createUser({
         email,
         password,
         full_name: fullName,
@@ -63,11 +67,15 @@ export default function UsuariosPage() {
   }
 
   async function toggleActive(user: User) {
+    setPendingUserId(user.id);
+    setError("");
     try {
-      await authApi.updateUser(user.id, { is_active: !user.is_active });
+      await updateUser({ id: user.id, body: { is_active: !user.is_active } });
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao atualizar");
+    } finally {
+      setPendingUserId(null);
     }
   }
 
@@ -87,17 +95,17 @@ export default function UsuariosPage() {
       setError("Selecione ao menos um perfil");
       return;
     }
-    setSavingRoles(userId);
+    setPendingUserId(userId);
     setError("");
     setInfo("");
     try {
-      await authApi.updateUser(userId, { role_ids: ids });
+      await updateUser({ id: userId, body: { role_ids: ids } });
       setInfo("Perfis atualizados");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar perfis");
     } finally {
-      setSavingRoles(null);
+      setPendingUserId(null);
     }
   }
 
@@ -112,7 +120,7 @@ export default function UsuariosPage() {
       {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card title="Novo usuário">
-        <form className="grid gap-4 sm:grid-cols-2" onSubmit={createUser}>
+        <form className="grid gap-4 sm:grid-cols-2" onSubmit={handleCreateUser}>
           <Field label="Nome">
             <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required />
           </Field>
@@ -130,7 +138,9 @@ export default function UsuariosPage() {
             </Select>
           </Field>
           <div className="sm:col-span-2">
-            <Button type="submit">Criar usuário</Button>
+            <Button type="submit" disabled={creating}>
+              {creating ? "Criando…" : "Criar usuário"}
+            </Button>
           </div>
         </form>
       </Card>
@@ -141,6 +151,7 @@ export default function UsuariosPage() {
             const selected = roleEdits[u.id] ?? [];
             const savedIds = roleIds(u);
             const dirty = selected.length !== savedIds.length || selected.some((id) => !savedIds.includes(id));
+            const rowBusy = updating && pendingUserId === u.id;
             return (
               <div key={u.id} className="rounded-lg border border-slate-200 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -153,7 +164,8 @@ export default function UsuariosPage() {
                   </div>
                   <button
                     type="button"
-                    className="text-sm text-blue-600 hover:underline"
+                    className="text-sm text-blue-600 hover:underline disabled:opacity-50"
+                    disabled={rowBusy}
                     onClick={() => void toggleActive(u)}
                   >
                     {u.is_active ? "Desativar" : "Ativar"}
@@ -178,10 +190,10 @@ export default function UsuariosPage() {
                       <Button
                         type="button"
                         variant="secondary"
-                        disabled={savingRoles === u.id}
+                        disabled={rowBusy}
                         onClick={() => void saveRoles(u.id)}
                       >
-                        {savingRoles === u.id ? "Salvando…" : "Salvar perfis"}
+                        {rowBusy ? "Salvando…" : "Salvar perfis"}
                       </Button>
                     </div>
                   ) : null}
