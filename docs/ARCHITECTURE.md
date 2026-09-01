@@ -19,7 +19,7 @@ Monólito modular com três processos front-end e um backend Go.
 | App | Padrão |
 |-----|--------|
 | **admin** | `hooks/use*List`, `useApiQueryFn` + `lib/api/*`, `middleware.ts` |
-| **shop** | SSR (`server-api.ts`) + client (`api.ts`), BFF opcional em `app/api/ecommerce` |
+| **shop** | SSR (`server-api.ts`) + client (`lib/api/*`), BFF opcional em `app/api/ecommerce` |
 
 ## Contratos
 
