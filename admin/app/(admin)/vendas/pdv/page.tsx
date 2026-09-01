@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { printHTML } from "@/lib/api/client";
+import { usePosPixInit } from "@/hooks/use-pos-mutations";
 import { posApi, type ExchangeRatesToday, type POSPixInitResponse } from "@/lib/api/pos";
 import { pricingApi } from "@/lib/api/pricing";
 import { stockApi } from "@/lib/api/stock";
@@ -52,7 +53,7 @@ export default function PDVPage() {
   const [discountPct, setDiscountPct] = useState("0");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const { run: initPix, loading: submitting, setError: setPixInitError } = usePosPixInit();
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRatesToday | null>(null);
   const [ratesLoading, setRatesLoading] = useState(true);
@@ -377,11 +378,11 @@ export default function PDVPage() {
       setError("Selecione ou cadastre o cliente (paraguaio ou estrangeiro) antes de finalizar");
       return;
     }
-    setSubmitting(true);
     setError("");
     setInfo("");
+    setPixInitError("");
     try {
-      const pix = await posApi.pixInit({
+      const pix = await initPix({
         customer_id: effectiveCustomerId || undefined,
         buyer_profile: profile,
         warehouse_id: DEFAULT_WAREHOUSE_ID,
@@ -391,8 +392,6 @@ export default function PDVPage() {
       setPixSession(pix);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao finalizar venda");
-    } finally {
-      setSubmitting(false);
     }
   }
 

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ApiClientError, blobObjectUrl } from "@/lib/api/client";
+import { useCreateRMA } from "@/hooks/use-create-rma";
+import { useRmaStep } from "@/hooks/use-rma-step";
 import { rmaApi, type RMACase, type WarrantyCheck } from "@/lib/api/rma";
 import type { Order, OrderItem, OrderListItem } from "@/lib/types";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
@@ -58,7 +60,8 @@ export default function RMAPage() {
   const [eligibleUnits, setEligibleUnits] = useState<number | null>(null);
   const [resolveById, setResolveById] = useState<Record<string, string>>({});
   const [loadingOrder, setLoadingOrder] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const { run: submitRMA, loading: submitting, setError: setRmaMutationError } = useCreateRMA();
+  const { run: runRmaStep } = useRmaStep();
   const [selectedOrderLabel, setSelectedOrderLabel] = useState("");
   const [expandedCaseId, setExpandedCaseId] = useState("");
   const [expandedCase, setExpandedCase] = useState<RMACase | null>(null);
@@ -250,7 +253,7 @@ export default function RMAPage() {
       }
       return;
     }
-    setSubmitting(true);
+    setRmaMutationError("");
     try {
       const form = new FormData();
       form.set(
@@ -270,7 +273,7 @@ export default function RMAPage() {
       testPhotos.forEach((photo, index) => {
         form.set(`test_photo_${index}`, photo.file, photo.file.name || `test-${index + 1}.jpg`);
       });
-      await rmaApi.createWithPhotos(form);
+      await submitRMA(form);
       setInfo("Caso RMA aberto — aguardando aprovação após revisão do teste.");
       clearSelectedOrder();
       setReason("");
@@ -285,8 +288,6 @@ export default function RMAPage() {
       } else {
         setError(err instanceof Error ? err.message : "Erro ao abrir RMA");
       }
-    } finally {
-      setSubmitting(false);
     }
   }
 
@@ -295,11 +296,11 @@ export default function RMAPage() {
     const rmaCase = items.find((c) => c.id === id);
     const bodyResolution = resolution ?? (rmaCase ? defaultRmaResolution(rmaCase) : "scrap");
     try {
-      await rmaApi.step(
+      await runRmaStep({
         id,
         step,
-        step === "resolve" ? { resolution: bodyResolution } : undefined,
-      );
+        body: step === "resolve" ? { resolution: bodyResolution } : undefined,
+      });
       setInfo(`RMA ${step}${step === "resolve" ? ` (${bodyResolution})` : ""}`);
       await loadCases(caseSearch);
     } catch (err) {

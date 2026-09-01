@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { posApi, type POSPixInitResponse } from "@/lib/api/pos";
+import { usePosPixCancel, usePosPixConfirm } from "@/hooks/use-pos-mutations";
+import type { POSPixInitResponse } from "@/lib/api/pos";
 import type { Order } from "@/lib/types";
 import { Alert, Button, Field, Input } from "@/components/ui";
 
@@ -18,8 +19,8 @@ export function PDVPixModal({ data, shipImmediately, onConfirmed, onCancelled }:
   const [reference, setReference] = useState("");
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
-  const [confirming, setConfirming] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
+  const { run: confirmPix, loading: confirming, setError: setConfirmError } = usePosPixConfirm();
+  const { run: cancelPix, loading: cancelling, setError: setCancelError } = usePosPixCancel();
 
   async function copyPaste() {
     try {
@@ -32,32 +33,29 @@ export function PDVPixModal({ data, shipImmediately, onConfirmed, onCancelled }:
   }
 
   async function confirmPayment() {
-    setConfirming(true);
     setError("");
+    setConfirmError("");
     try {
-      const order = await posApi.pixConfirm(data.order.id, {
+      const order = await confirmPix({
+        orderId: data.order.id,
         reference: reference.trim() || undefined,
         ship_immediately: shipImmediately,
       });
       onConfirmed(order);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao confirmar PIX");
-    } finally {
-      setConfirming(false);
     }
   }
 
   async function cancelSale() {
     if (!window.confirm("Cancelar esta venda e liberar o estoque reservado?")) return;
-    setCancelling(true);
     setError("");
+    setCancelError("");
     try {
-      await posApi.pixCancel(data.order.id);
+      await cancelPix(data.order.id);
       onCancelled();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao cancelar venda");
-    } finally {
-      setCancelling(false);
     }
   }
 
