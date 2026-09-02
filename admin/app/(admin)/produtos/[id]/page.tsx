@@ -13,6 +13,7 @@ import { useSetSkuPrice } from "@/hooks/use-pricing-mutations";
 import { API_URL } from "@/lib/config";
 import type { ProductAttributeValue, SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Textarea } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 function attrValue(attrs: ProductAttributeValue[], attrId: string): string {
   const a = attrs.find((x) => x.category_attribute_id === attrId);
@@ -54,7 +55,7 @@ export default function ProdutoEditPage() {
   const [b2bUsd, setB2bUsd] = useState("");
   const [resellerUsd, setResellerUsd] = useState("");
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const { run: updateProduct, loading: savingProduct } = useUpdateProduct();
   const { run: updateSku, loading: savingSku } = useUpdateSku();
   const { run: uploadSkuImage, loading: uploadingImage } = useUploadSkuImage();
@@ -110,7 +111,6 @@ export default function ProdutoEditPage() {
       return;
     }
     setError("");
-    setInfo("");
     const preview = URL.createObjectURL(file);
     if (localPreview) URL.revokeObjectURL(localPreview);
     setLocalPreview(preview);
@@ -120,7 +120,7 @@ export default function ProdutoEditPage() {
         setImageUrl(updated.image_url);
         setSku({ ...sku, image_url: updated.image_url });
       }
-      setInfo("Foto enviada e salva no cadastro.");
+      toast.push("Foto enviada e salva no cadastro.", "success");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao enviar foto");
     }
@@ -129,7 +129,6 @@ export default function ProdutoEditPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
-    setInfo("");
     try {
       const attributes = catAttrs
         .map((def) => {
@@ -187,7 +186,7 @@ export default function ProdutoEditPage() {
           await setSkuPrice({ skuId: sku.id, body: prices });
         }
       }
-      setInfo("Produto atualizado");
+      toast.push("Produto atualizado", "success");
       await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar");
@@ -368,7 +367,6 @@ export default function ProdutoEditPage() {
           ) : null}
 
           {error ? <Alert tone="error">{error}</Alert> : null}
-          {info ? <Alert tone="success">{info}</Alert> : null}
           <Button type="submit" disabled={saving || uploadingImage}>
             {saving ? "Salvando…" : "Salvar alterações"}
           </Button>
