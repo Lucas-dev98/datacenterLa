@@ -7,7 +7,7 @@ RUN CGO_ENABLED=0 go build -o /server ./cmd/server && \
     CGO_ENABLED=0 go build -o /seed ./cmd/seed
 
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates wget
+RUN apk add --no-cache ca-certificates wget postgresql-client
 COPY --from=build /server /server
 COPY --from=build /seed /seed
 COPY docker-entrypoint.sh /docker-entrypoint.sh

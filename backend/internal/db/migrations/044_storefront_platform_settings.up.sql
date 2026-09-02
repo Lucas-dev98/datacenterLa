@@ -1,5 +1,5 @@
 -- Platform and storefront configuration stored in app_settings (editable, served via API).
--- Demo catalog still loaded by cmd/seed; this migration ensures CMS/defaults exist after migrate.
+-- Demo catalog loaded by internal/db/seeds/*.sql via cmd/seed; this migration ensures CMS/defaults exist after migrate.
 
 INSERT INTO app_settings (key, value)
 VALUES (
