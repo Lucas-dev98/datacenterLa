@@ -13,6 +13,22 @@ func (s *Service) GetCatalogProduct(ctx context.Context, skuID, warehouseID uuid
 	if err != nil {
 		return nil, err
 	}
+	return s.enrichCatalogProduct(ctx, p, warehouseID)
+}
+
+func (s *Service) GetCatalogProductByCode(ctx context.Context, skuCode string, warehouseID uuid.UUID) (*domain.CatalogProduct, error) {
+	code := strings.TrimSpace(skuCode)
+	if code == "" {
+		return nil, domain.ErrInvalidInput
+	}
+	p, err := s.repo.GetEcommerceProductByCode(ctx, code, warehouseID)
+	if err != nil {
+		return nil, err
+	}
+	return s.enrichCatalogProduct(ctx, p, warehouseID)
+}
+
+func (s *Service) enrichCatalogProduct(ctx context.Context, p *domain.CatalogProduct, warehouseID uuid.UUID) (*domain.CatalogProduct, error) {
 	price, err := s.pricing.Resolve(ctx, p.SKUID, "b2c")
 	if err != nil {
 		return nil, err

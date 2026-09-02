@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { CatalogProduct } from "@/lib/types";
 import { catalogImageUrl } from "@/lib/product-image";
+import { productHref } from "@/lib/product-url";
 import {
   FALLBACK_SHOWCASE_SLIDES,
   productBrandLine,
@@ -33,7 +34,7 @@ function slidesFromProducts(products: CatalogProduct[]): Slide[] {
     image: catalogImageUrl(p.image_url),
     brand: productBrandLine(p.name),
     model: shortProductLabel(p.name),
-    href: `/produto/${p.sku_id}`,
+    href: productHref(p),
     shortLabel: shortProductLabel(p.name),
   }));
 }

@@ -18,6 +18,7 @@ import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
 import { CATALOG_GROUPS, categoryIdsForGroup, productInGroup } from "@/lib/catalog-groups";
 import { formatPyg, formatUsd } from "@/lib/format";
 import { catalogImageUrl } from "@/lib/product-image";
+import { productHref } from "@/lib/product-url";
 import { getSessionId } from "@/lib/session";
 import type { CatalogProduct, EcommerceCategory } from "@/lib/types";
 import { Breadcrumb } from "@/components/breadcrumb";
@@ -47,7 +48,7 @@ const ProductCard = memo(function ProductCard({
 }) {
   return (
     <article className="group flex flex-col bg-white ring-1 ring-neutral-200 transition hover:ring-neutral-400">
-      <Link href={`/produto/${product.sku_id}`} className="block">
+      <Link href={productHref(product)} className="block">
         <MediaFrame src={catalogImageUrl(product.image_url)} alt={product.name} ratio="4/3" />
       </Link>
       <div className="flex flex-1 flex-col gap-3 p-5">
@@ -56,7 +57,7 @@ const ProductCard = memo(function ProductCard({
             {product.category_name ?? "Hardware"} · {product.sku_code}
           </p>
           <h2 className="mt-1 text-[15px] font-medium leading-snug">
-            <Link href={`/produto/${product.sku_id}`} className="hover:underline">
+            <Link href={productHref(product)} className="hover:underline">
               {product.name}
             </Link>
           </h2>

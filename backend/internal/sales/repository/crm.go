@@ -140,6 +140,22 @@ func (r *Postgres) GetEcommerceProduct(ctx context.Context, skuID, warehouseID u
 	return &p, err
 }
 
+func (r *Postgres) GetEcommerceProductByCode(ctx context.Context, skuCode string, warehouseID uuid.UUID) (*domain.CatalogProduct, error) {
+	var p domain.CatalogProduct
+	err := r.pool.QueryRow(ctx, `
+		SELECT s.id, s.code, s.name, s.description, p.category_id, c.name, s.image_url, COALESCE(b.qty_available, 0)
+		FROM skus s
+		JOIN products p ON p.id = s.product_id
+		LEFT JOIN categories c ON c.id = p.category_id
+		LEFT JOIN stock_balances b ON b.sku_id = s.id AND b.warehouse_id = $2
+		WHERE s.code = $1 AND s.publish_ecommerce = true AND s.is_active = true
+	`, skuCode, warehouseID).Scan(&p.SKUID, &p.SKUCode, &p.Name, &p.Description, &p.CategoryID, &p.CategoryName, &p.ImageURL, &p.Available)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	return &p, err
+}
+
 func (r *Postgres) InsertOutboxEvent(ctx context.Context, eventType string, payload any) error {
 	data, err := json.Marshal(payload)
 	if err != nil {

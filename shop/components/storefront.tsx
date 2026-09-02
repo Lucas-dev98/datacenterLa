@@ -6,6 +6,7 @@ import { CtaLink } from "@/components/cta-link";
 import type { CatalogProduct } from "@/lib/types";
 import type { StorefrontContent } from "@/lib/storefront-types";
 import { catalogImageUrl } from "@/lib/product-image";
+import { productHref } from "@/lib/product-url";
 import { MediaFrame } from "@/components/media-frame";
 import { ServerShowcase } from "@/components/server-showcase";
 import { mergeStorefrontContent } from "@/lib/storefront-defaults";
@@ -116,7 +117,7 @@ export function Storefront({ content, featuredModels, featured, partCPU, partRAM
             {featuredModels.map((item) => (
               <Link
                 key={item.sku_id}
-                href={`/produto/${item.sku_id}`}
+                href={productHref(item)}
                 className="group overflow-hidden border border-white/10 bg-black hover:border-white/30"
               >
                 <MediaFrame src={catalogImageUrl(item.image_url)} alt={item.name} ratio="4/3" dark pad={false} />
@@ -133,7 +134,7 @@ export function Storefront({ content, featuredModels, featured, partCPU, partRAM
                 {featured.map((p) => (
                   <Link
                     key={p.sku_id}
-                    href={`/produto/${p.sku_id}`}
+                    href={productHref(p)}
                     className="border border-white/10 p-4 hover:border-white/40"
                   >
                     <p className="font-mono text-[11px] text-white/40">{p.sku_code}</p>

@@ -195,17 +195,18 @@ func (h *Handler) checkout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) catalogProduct(w http.ResponseWriter, r *http.Request) {
-	skuID, err := uuid.Parse(chi.URLParam(r, "sku_id"))
-	if err != nil {
-		response.Error(w, domain.ErrInvalidInput)
-		return
-	}
 	wh, err := uuid.Parse(r.URL.Query().Get("warehouse_id"))
 	if err != nil {
 		response.Error(w, domain.ErrInvalidInput)
 		return
 	}
-	p, err := h.svc.GetCatalogProduct(r.Context(), skuID, wh)
+	ref := strings.TrimSpace(chi.URLParam(r, "sku_id"))
+	var p *domain.CatalogProduct
+	if skuID, parseErr := uuid.Parse(ref); parseErr == nil {
+		p, err = h.svc.GetCatalogProduct(r.Context(), skuID, wh)
+	} else {
+		p, err = h.svc.GetCatalogProductByCode(r.Context(), ref, wh)
+	}
 	if err != nil {
 		response.Error(w, err)
 		return
