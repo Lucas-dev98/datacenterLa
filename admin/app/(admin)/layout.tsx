@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { AuthProvider, useAuth } from "@/components/auth-provider";
 import { RouteGuard } from "@/components/route-guard";
 import { Sidebar } from "@/components/sidebar";
+import { ToastProvider } from "@/components/toast-provider";
 
 function AdminShell({ children }: { children: React.ReactNode }) {
   const { loading } = useAuth();
@@ -33,7 +34,8 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <ToastProvider>
+      <div className="flex min-h-screen bg-slate-50">
       <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center gap-3 border-b border-slate-200 bg-white px-4 lg:hidden">
         <button
           type="button"
@@ -72,6 +74,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
         <RouteGuard>{children}</RouteGuard>
       </main>
     </div>
+    </ToastProvider>
   );
 }
 

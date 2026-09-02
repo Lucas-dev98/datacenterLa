@@ -5,6 +5,7 @@ import { useCreateUser, useUpdateUser } from "@/hooks/use-auth-mutations";
 import { useUsersAdmin } from "@/hooks/use-users-admin";
 import type { User } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 function roleIds(user: User): string[] {
   if (!user.roles?.length) return [];
@@ -17,7 +18,7 @@ export default function UsuariosPage() {
   const users = data?.users ?? [];
   const roles = data?.roles ?? [];
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -39,7 +40,6 @@ export default function UsuariosPage() {
 
   async function handleCreateUser(e: FormEvent) {
     e.preventDefault();
-    setInfo("");
     setError("");
     try {
       await createUser({
@@ -51,7 +51,7 @@ export default function UsuariosPage() {
       setEmail("");
       setPassword("");
       setFullName("");
-      setInfo("Usuário criado");
+      toast.push("Usuário criado", "success");
       await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao criar");
@@ -89,10 +89,9 @@ export default function UsuariosPage() {
     }
     setPendingUserId(userId);
     setError("");
-    setInfo("");
     try {
       await updateUser({ id: userId, body: { role_ids: ids } });
-      setInfo("Perfis atualizados");
+      toast.push("Perfis atualizados", "success");
       await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar perfis");
@@ -109,8 +108,6 @@ export default function UsuariosPage() {
       </header>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
-
       <Card title="Novo usuário">
         <form className="grid gap-4 sm:grid-cols-2" onSubmit={handleCreateUser}>
           <Field label="Nome">
