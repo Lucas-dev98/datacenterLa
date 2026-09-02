@@ -6,13 +6,15 @@ import Link from "next/link";
 import { useConvertQuote, useSendQuote } from "@/hooks/use-quote-mutations";
 import { useQuoteDetail } from "@/hooks/use-quotes-list";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
+import { quoteStatusLabel } from "@/lib/status-labels";
 import { Alert, Button, Card, Table } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 export default function CotacaoDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { data: quote, error: loadError, loading, setData: setQuote } = useQuoteDetail(params.id);
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const [actionError, setActionError] = useState("");
   const { run: sendQuoteMutation, loading: sending } = useSendQuote();
   const { run: convertQuote, loading: converting } = useConvertQuote();
@@ -20,12 +22,11 @@ export default function CotacaoDetailPage() {
   const error = actionError || loadError;
 
   async function sendQuote() {
-    setInfo("");
     setActionError("");
     try {
       const q = await sendQuoteMutation(params.id);
       setQuote(q);
-      setInfo("Cotação enviada — pronta para converter em pedido");
+      toast.push("Cotação enviada — pronta para converter em pedido", "success");
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao enviar");
     }
@@ -33,10 +34,9 @@ export default function CotacaoDetailPage() {
 
   async function convertToOrder() {
     setActionError("");
-    setInfo("");
     try {
       const o = await convertQuote({ id: params.id, body: { warehouse_id: DEFAULT_WAREHOUSE_ID } });
-      setInfo(`Pedido ${o.order_number} criado`);
+      toast.push(`Pedido ${o.order_number} criado`, "success");
       router.push(`/pedidos/${o.id}`);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao converter");
@@ -56,12 +56,11 @@ export default function CotacaoDetailPage() {
         </Link>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">Cotação {quote.quote_number}</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Status: <strong>{quote.status}</strong> · Total: <strong>USD {quote.total_usd.toFixed(2)}</strong>
+          Status: <strong>{quoteStatusLabel(quote.status)}</strong> · Total: <strong>USD {quote.total_usd.toFixed(2)}</strong>
         </p>
       </header>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card title="Itens">
         <Table

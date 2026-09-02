@@ -77,6 +77,22 @@ export function intakeStatusLabel(status: string): string {
   return INTAKE_STATUS_LABELS[status] ?? status;
 }
 
+export const QUOTE_STATUS_LABELS: Record<string, string> = {
+  draft: "Rascunho",
+  sent: "Enviada",
+  viewed: "Visualizada",
+  negotiating: "Em negociação",
+  approved: "Aprovada",
+  rejected: "Rejeitada",
+  expired: "Expirada",
+  converted: "Convertida em pedido",
+};
+
+export function quoteStatusLabel(status?: string | null): string {
+  if (!status) return "—";
+  return QUOTE_STATUS_LABELS[status] ?? status;
+}
+
 export { UNIT_STATUS_LABELS, unitStatusLabel } from "./stock-movements";
 
 export const UNIT_STATUS_BADGE: Record<string, string> = {

@@ -7,6 +7,7 @@ import { useSetSkuPrice } from "@/hooks/use-pricing-mutations";
 import { useSkuPricingDetail } from "@/hooks/use-sku-pricing-detail";
 import type { ResolvedPrice, SKU, SKUPrice } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Table } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 function usd(n?: number | null): string {
   return n != null && Number.isFinite(n) ? `$${n.toFixed(2)}` : "—";
@@ -41,7 +42,7 @@ export default function PrecosPage() {
   const [b2b, setB2b] = useState("");
   const [reseller, setReseller] = useState("");
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const { run: saveSkuPrice, loading } = useSetSkuPrice();
 
   useEffect(() => {
@@ -84,7 +85,6 @@ export default function PrecosPage() {
 
   function loadPrices(s: SKU) {
     setSku(s);
-    setInfo("");
     setError("");
     fillForm(priceFromSku(s));
     setEditorSkuId(s.id);
@@ -98,14 +98,12 @@ export default function PrecosPage() {
     setEditorSkuId(null);
     setPrice(null);
     setResolved([]);
-    setInfo("");
   }
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
     if (!sku) return;
     setError("");
-    setInfo("");
     try {
       const body: Record<string, number> = {};
       const costN = parseFloat(cost);
@@ -125,7 +123,7 @@ export default function PrecosPage() {
       }
 
       await saveSkuPrice({ skuId: sku.id, body });
-      setInfo("Preços atualizados");
+      toast.push("Preços atualizados", "success");
       await refetchList();
       const updated = { ...sku, ...body };
       setSku(updated);
@@ -145,7 +143,6 @@ export default function PrecosPage() {
       </header>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
 
       {sku && price ? (
         <div ref={editRef}>
