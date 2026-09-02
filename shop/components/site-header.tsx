@@ -30,6 +30,7 @@ export function SiteHeader() {
   const [q, setQ] = useState("");
   const [scrolled, setScrolled] = useState(false);
   const [cartCount, setCartCount] = useState(0);
+  const [cartStale, setCartStale] = useState(false);
   const [grupo, setGrupo] = useState("");
   const [mounted, setMounted] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -79,8 +80,11 @@ export function SiteHeader() {
       const session = getSessionId();
       if (!session) return;
       void fetchCart(session)
-        .then((cart) => setCartCount(cart.items.reduce((n, i) => n + i.quantity, 0)))
-        .catch(() => {});
+        .then((cart) => {
+          setCartCount(cart.items.reduce((n, i) => n + i.quantity, 0));
+          setCartStale(false);
+        })
+        .catch(() => setCartStale(true));
     }
     loadCount();
     window.addEventListener(CART_EVENT, loadCount);
@@ -208,10 +212,23 @@ export function SiteHeader() {
             </Link>
             <Link
               href="/cart"
-              aria-label={cartCount ? `Carrinho, ${cartCount} itens` : "Carrinho"}
+              aria-label={
+                cartStale
+                  ? "Carrinho — não foi possível atualizar a contagem"
+                  : cartCount
+                    ? `Carrinho, ${cartCount} itens`
+                    : "Carrinho"
+              }
+              title={cartStale ? "Contagem do carrinho pode estar desatualizada" : undefined}
               className="relative flex h-11 w-11 items-center justify-center text-white/80 hover:text-white"
             >
               <BagIcon />
+              {cartStale ? (
+                <span
+                  className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-black"
+                  aria-hidden
+                />
+              ) : null}
               {cartCount > 0 ? (
                 <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 text-[10px] font-semibold text-black">
                   {cartCount > 99 ? "99+" : cartCount}
@@ -280,6 +297,9 @@ export function SiteHeader() {
                       <span className="ml-2 rounded-full bg-white/15 px-2 py-0.5 text-xs">
                         {cartCount}
                       </span>
+                    ) : null}
+                    {item.href === "/cart" && cartStale ? (
+                      <span className="ml-2 text-xs text-amber-300">offline</span>
                     ) : null}
                   </Link>
                 ))}
