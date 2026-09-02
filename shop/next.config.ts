@@ -13,8 +13,20 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "http",
+        hostname: "localhost",
+        port: "8082",
+        pathname: "/static/**",
+      },
+      {
+        protocol: "http",
         hostname: "127.0.0.1",
         port: "8080",
+        pathname: "/static/**",
+      },
+      {
+        protocol: "http",
+        hostname: "127.0.0.1",
+        port: "8082",
         pathname: "/static/**",
       },
     ],
