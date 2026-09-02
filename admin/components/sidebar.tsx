@@ -38,7 +38,15 @@ function ModuleIcon({ path }: { path: string }) {
   );
 }
 
-export function Sidebar() {
+export function Sidebar({
+  className = "",
+  onNavigate,
+  id,
+}: {
+  className?: string;
+  onNavigate?: () => void;
+  id?: string;
+}) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
@@ -97,7 +105,10 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r border-slate-800 bg-slate-950 text-slate-100">
+    <aside
+      id={id}
+      className={`flex w-56 shrink-0 flex-col border-r border-slate-800 bg-slate-950 text-slate-100 ${className}`}
+    >
       <div className="border-b border-slate-800 px-4 py-4">
         <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-500">
           Data Center LA
@@ -124,6 +135,7 @@ export function Sidebar() {
               <div key={mod.id} className="mb-0.5">
                 <Link
                   href={singleLeaf.href}
+                  onClick={onNavigate}
                   className={`flex items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium transition ${
                     leafActive
                       ? "bg-blue-600 text-white"
@@ -143,6 +155,7 @@ export function Sidebar() {
                 <div className="flex items-center gap-0.5">
                   <Link
                     href={mod.hubHref}
+                    onClick={onNavigate}
                     className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium transition ${
                       active
                         ? "bg-slate-900 text-blue-300"
@@ -206,6 +219,7 @@ export function Sidebar() {
                       <li key={item.href}>
                         <Link
                           href={item.href}
+                          onClick={onNavigate}
                           className={`block rounded-md px-2.5 py-1.5 text-[13px] transition ${
                             itemActive
                               ? "bg-blue-600 font-medium text-white"
