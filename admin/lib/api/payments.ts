@@ -1,3 +1,11 @@
+/**
+ * @file payments.ts
+ * @description /api/v1/payments — PaymentIntent Stripe.
+ * @hooks hooks: use-payment-mutations
+ *
+ * @see admin/lib/api/README.md
+ */
+
 import { api } from "./client";
 import type { PaymentIntent } from "../types";
 

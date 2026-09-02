@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * @file use-auth-mutations.ts
+ * @description Cria e atualiza usuários internos (roles, ativo/inativo).
+ * @consumers usuarios/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { authApi } from "@/lib/api/auth";
 import { useApiMutation } from "./use-api-mutation";

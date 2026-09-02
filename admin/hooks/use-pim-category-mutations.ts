@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * @file use-pim-category-mutations.ts
+ * @description CRUD de categorias e atributos PIM.
+ * @consumers categorias/page.tsx, categorias/[id]/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { pimApi } from "@/lib/api/pim";
 import { useApiMutation } from "./use-api-mutation";

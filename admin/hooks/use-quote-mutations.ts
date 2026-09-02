@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * @file use-quote-mutations.ts
+ * @description Cria, envia e converte cotações; atualiza solicitação do site.
+ * @consumers cotacoes/nova/page.tsx, cotacoes/[id]/page.tsx, cotacoes/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { salesApi } from "@/lib/api/sales";
 import { useApiMutation } from "./use-api-mutation";

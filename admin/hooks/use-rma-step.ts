@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * @file use-rma-step.ts
+ * @description Avança workflow RMA: approve → receive → resolve.
+ * @consumers rma/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { rmaApi } from "@/lib/api/rma";
 import { useApiMutation } from "./use-api-mutation";

@@ -1,3 +1,11 @@
+/**
+ * @file index.ts
+ * @description Barrel export — reexporta todos os domínios da API admin.
+ * @hooks Import: `@/lib/api`
+ *
+ * @see admin/lib/api/README.md
+ */
+
 export { salesApi } from "./sales";
 export type { WebsiteRequest, Lead } from "./sales";
 export { stockApi } from "./stock";

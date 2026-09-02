@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * @file use-stock-intake-mutations.ts
+ * @description Fluxo de intake: receber com fotos, avançar etapas, passar/falhar teste.
+ * @consumers estoque/entrada/recebimento/page.tsx, estoque/entrada/avulsa/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { stockApi } from "@/lib/api/stock";
 import { useApiMutation } from "./use-api-mutation";

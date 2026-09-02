@@ -1,3 +1,11 @@
+/**
+ * @file returns.ts
+ * @description /api/v1/sales/returns — devoluções comerciais.
+ * @hooks hooks: use-customer-returns-*, use-return-step
+ *
+ * @see admin/lib/api/README.md
+ */
+
 import { api, apiBlob, apiForm } from "./client";
 import type { Order, OrderItem, OrderListItem } from "../types";
 import { salesApi } from "./sales";

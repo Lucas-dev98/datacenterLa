@@ -1,3 +1,11 @@
+/**
+ * @file sales.ts
+ * @description /api/v1/sales — pedidos, cotações, clientes, leads, dashboard.
+ * @hooks hooks: use-sales-*, use-quotes-*, use-leads-*
+ *
+ * @see admin/lib/api/README.md
+ */
+
 import { api, apiBlob, apiForm, apiText } from "./client";
 import type {
   AnalyticsDashboard,

@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * @file use-pim-product-mutations.ts
+ * @description Mutações de produto/SKU: editar, foto, cadastro em massa, exclusão.
+ * @consumers produtos/page.tsx, produtos/[id]/page.tsx, cadastros/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { pimApi } from "@/lib/api/pim";
 import { useApiMutation } from "./use-api-mutation";

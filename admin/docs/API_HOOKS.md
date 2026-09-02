@@ -2,6 +2,11 @@
 
 Padrão para leituras e escritas no admin Next.js.
 
+**Documentação completa:**
+
+- [`hooks/README.md`](../hooks/README.md) — catálogo de todos os hooks
+- [`lib/api/README.md`](../lib/api/README.md) — módulos HTTP por domínio
+
 ## `useApiQueryFn` — leituras
 
 Use para listagens, detalhes e dashboards. O hook dispara fetch no mount e quando `deps` mudam.

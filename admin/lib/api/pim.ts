@@ -1,3 +1,11 @@
+/**
+ * @file pim.ts
+ * @description /api/v1/pim — produtos, SKUs, categorias.
+ * @hooks hooks: use-pim-*, use-product-detail
+ *
+ * @see admin/lib/api/README.md
+ */
+
 import { api, apiForm } from "./client";
 import type { CadastroResult, Category, CategoryAttribute, Product, SKU } from "../types";
 

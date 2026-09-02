@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * @file use-analytics-dashboard.ts
+ * @description Dashboard de analytics de vendas (período, canal, produtos).
+ * @consumers financeiro/analytics/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { salesApi } from "@/lib/api/sales";
 import type { AnalyticsDashboard } from "@/lib/types";

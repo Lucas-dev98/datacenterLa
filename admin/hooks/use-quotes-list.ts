@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * @file use-quotes-list.ts
+ * @description Lista cotações, solicitações web e detalhe de cotação.
+ * @consumers cotacoes/page.tsx, cotacoes/[id]/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { salesApi } from "@/lib/api/sales";
 import { useApiQueryFn } from "./use-api-query";

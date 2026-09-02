@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * @file use-purchases-page-data.ts
+ * @description Dados agregados da página de compras (fornecedores, POs, SKUs).
+ * @consumers compras/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { pimApi } from "@/lib/api/pim";
 import { purchasesApi, type PurchaseOrderSummary, type Supplier } from "@/lib/api/purchases";

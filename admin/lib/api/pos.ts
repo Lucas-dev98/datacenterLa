@@ -1,3 +1,11 @@
+/**
+ * @file pos.ts
+ * @description /api/v1/sales/pos — PDV balcão, PIX, comprovante.
+ * @hooks hooks: use-pdv-bootstrap, use-pos-mutations
+ *
+ * @see admin/lib/api/README.md
+ */
+
 import { api, apiText } from "./client";
 import type { Customer, Order, SKU } from "../types";
 import type { ExchangeRatesToday } from "../exchange-rates";

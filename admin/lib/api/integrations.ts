@@ -1,3 +1,11 @@
+/**
+ * @file integrations.ts
+ * @description /api/v1/integrations/compras-paraguai — feed XML.
+ * @hooks hooks: use-compras-paraguai-*
+ *
+ * @see admin/lib/api/README.md
+ */
+
 import { api } from "./client";
 import type { FeedDiagnostics, FeedSyncLog, FeedSyncLogDetail } from "../types";
 

@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * Formulário Stripe Elements — pagamento com cartão no admin.
+ *
+ * O estado `busy` e `confirmPayment` ficam aqui (SDK Stripe), não em useApiMutation,
+ * porque o fluxo depende de `stripe` + `elements` do React Stripe.js.
+ *
+ * @see hooks/use-payment-mutations.ts — cria/confirma PaymentIntent no backend
+ */
 import { FormEvent, useState } from "react";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";

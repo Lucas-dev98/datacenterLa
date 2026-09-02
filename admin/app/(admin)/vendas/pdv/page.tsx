@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * PDV (ponto de venda) — balcão com PIX e expedição imediata.
+ *
+ * Arquitetura de dados:
+ * - **Hooks**: bootstrap (walk-in + câmbio), mutations PIX (`usePosPixInit`, etc.).
+ * - **Local na página**: busca debounced de produtos/clientes, carrinho, comprovante HTML.
+ *   Esses fluxos são interativos e não se beneficiam de useApiQueryFn.
+ */
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { printHTML } from "@/lib/api/client";

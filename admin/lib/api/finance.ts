@@ -1,3 +1,11 @@
+/**
+ * @file finance.ts
+ * @description /api/v1/sales/finance — recebíveis, pagáveis, margens.
+ * @hooks hooks: use-finance-*
+ *
+ * @see admin/lib/api/README.md
+ */
+
 import { api, apiBlob } from "./client";
 import type { ReceivableListItem } from "../types";
 

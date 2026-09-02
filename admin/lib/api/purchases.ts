@@ -1,3 +1,11 @@
+/**
+ * @file purchases.ts
+ * @description /api/v1/purchases — fornecedores e POs.
+ * @hooks hooks: use-purchase-*
+ *
+ * @see admin/lib/api/README.md
+ */
+
 import { api, apiForm, apiText } from "./client";
 import type { InventoryUnitReceive } from "../types";
 

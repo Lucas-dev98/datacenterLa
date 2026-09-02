@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * @file use-stock-health-dashboard.ts
+ * @description Painel de saúde: reservas órfãs, divergências, alertas.
+ * @consumers estoque/saude/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { stockApi, type HealthIssue, type HealthStats, type ExpiringReservation } from "@/lib/api/stock";
 import { useApiQueryFn } from "./use-api-query";

@@ -1,3 +1,11 @@
+/**
+ * @file rma.ts
+ * @description /api/v1/sales/rma — garantia técnica.
+ * @hooks hooks: use-rma-*
+ *
+ * @see admin/lib/api/README.md
+ */
+
 import { api, apiBlob, apiForm } from "./client";
 import type { Order, OrderItem, OrderListItem } from "../types";
 import { salesApi } from "./sales";

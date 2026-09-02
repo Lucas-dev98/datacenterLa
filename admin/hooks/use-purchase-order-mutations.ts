@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * @file use-purchase-order-mutations.ts
+ * @description Salva fornecedor e cria/submete pedido de compra.
+ * @consumers compras/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { purchasesApi } from "@/lib/api/purchases";
 import { useApiMutation } from "./use-api-mutation";

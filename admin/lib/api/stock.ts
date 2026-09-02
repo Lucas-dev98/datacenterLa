@@ -1,3 +1,11 @@
+/**
+ * @file stock.ts
+ * @description /api/v1/stock — saldos, intake, inventário, saúde.
+ * @hooks hooks: use-stock-*, use-intake-*
+ *
+ * @see admin/lib/api/README.md
+ */
+
 import { api, apiBlob, apiForm } from "./client";
 import type {
   InventoryUnit,

@@ -1,3 +1,13 @@
+/**
+ * Cliente HTTP do admin Next.js.
+ *
+ * - `authFetch`: injeta JWT e renova com refresh token em 401.
+ * - `api` / `apiBlob` / `apiForm` / `apiText`: helpers tipados.
+ * - Domínios ficam em `lib/api/*.ts`; páginas usam hooks, não este arquivo direto.
+ *
+ * @see admin/lib/api/README.md
+ */
+
 import { API_URL } from "./config";
 import {
   clearTokens,

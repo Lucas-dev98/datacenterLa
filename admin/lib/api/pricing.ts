@@ -1,3 +1,11 @@
+/**
+ * @file pricing.ts
+ * @description /api/v1/pricing — preços USD e câmbio.
+ * @hooks hooks: use-pricing-mutations, use-sku-pricing-detail
+ *
+ * @see admin/lib/api/README.md
+ */
+
 import { api } from "./client";
 import type { ResolvedPrice, SKUPrice } from "../types";
 import type { ExchangeRatesToday } from "../exchange-rates";

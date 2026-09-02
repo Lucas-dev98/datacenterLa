@@ -1,3 +1,11 @@
+/**
+ * @file auth.ts
+ * @description /api/v1/auth — usuários, roles, MFA.
+ * @hooks hooks: use-auth-mutations, useUsersAdmin
+ *
+ * @see admin/lib/api/README.md
+ */
+
 import { api } from "./client";
 import type { User } from "../types";
 

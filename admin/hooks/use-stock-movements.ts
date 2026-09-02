@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * @file use-stock-movements.ts
+ * @description Movimentações de estoque paginadas com filtros.
+ * @consumers estoque/movimentacoes/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { stockApi } from "@/lib/api/stock";
 import type { StockMovementRow } from "@/lib/types";

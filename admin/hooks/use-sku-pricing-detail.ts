@@ -1,5 +1,14 @@
 "use client";
 
+/**
+ * @file use-sku-pricing-detail.ts
+ * @description Preço bruto e resolução por canal (b2c, b2b, reseller).
+ * @consumers precos/page.tsx
+ * @remarks Resolve ignora canais que falharem (retorna lista parcial).
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { pricingApi } from "@/lib/api/pricing";
 import type { ResolvedPrice, SKUPrice } from "@/lib/types";
