@@ -112,7 +112,12 @@ func normalizeIdentity(in *domain.CreateCustomerInput) {
 }
 
 func (s *Service) SearchCustomers(ctx context.Context, query string) ([]domain.Customer, error) {
-	return s.repo.SearchCustomers(ctx, query, 30)
+	items, _, err := s.repo.SearchCustomers(ctx, query, 30, 0)
+	return items, err
+}
+
+func (s *Service) SearchCustomersPaged(ctx context.Context, query string, limit, offset int) ([]domain.Customer, int, error) {
+	return s.repo.SearchCustomers(ctx, query, limit, offset)
 }
 
 func (s *Service) SaveCustomerDocument(ctx context.Context, id uuid.UUID, ext string, body []byte) (*domain.Customer, error) {
@@ -133,8 +138,8 @@ func (s *Service) GetCustomer(ctx context.Context, id uuid.UUID) (*domain.Custom
 	return s.repo.GetCustomer(ctx, id)
 }
 
-func (s *Service) ListCustomers(ctx context.Context, activeOnly bool) ([]domain.Customer, error) {
-	return s.repo.ListCustomers(ctx, activeOnly)
+func (s *Service) ListCustomers(ctx context.Context, activeOnly bool, limit, offset int) ([]domain.Customer, int, error) {
+	return s.repo.ListCustomers(ctx, activeOnly, limit, offset)
 }
 
 func (s *Service) ListQuotes(ctx context.Context, limit, offset int, status string) ([]domain.QuoteListItem, int, error) {

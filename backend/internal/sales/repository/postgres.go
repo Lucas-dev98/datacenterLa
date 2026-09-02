@@ -61,18 +61,40 @@ func (r *Postgres) GetCustomer(ctx context.Context, id uuid.UUID) (*domain.Custo
 	return scanCustomer(r.pool.QueryRow(ctx, customerSelect+" WHERE id = $1", id))
 }
 
-func (r *Postgres) ListCustomers(ctx context.Context, activeOnly bool) ([]domain.Customer, error) {
-	q := customerSelect
+func (r *Postgres) ListCustomers(ctx context.Context, activeOnly bool, limit, offset int) ([]domain.Customer, int, error) {
+	where := ""
 	if activeOnly {
-		q += " WHERE is_active = true"
+		where = " WHERE is_active = true"
 	}
-	q += " ORDER BY name"
-	rows, err := r.pool.Query(ctx, q)
+	var total int
+	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM customers`+where).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	q := customerSelect + where + " ORDER BY name"
+	args := []any{}
+	if limit > 0 {
+		if limit > 100 {
+			limit = 100
+		}
+		q += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
+		args = append(args, limit, offset)
+	}
+	var rows pgx.Rows
+	var err error
+	if len(args) > 0 {
+		rows, err = r.pool.Query(ctx, q, args...)
+	} else {
+		rows, err = r.pool.Query(ctx, q)
+	}
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
-	return scanCustomers(rows)
+	items, err := scanCustomers(rows)
+	return items, total, err
 }
 
 func digitsOnly(s string) string {
@@ -131,25 +153,33 @@ func shiftSQLPlaceholders(sql string, offset int) string {
 	})
 }
 
-func (r *Postgres) SearchCustomers(ctx context.Context, query string, limit int) ([]domain.Customer, error) {
+func (r *Postgres) SearchCustomers(ctx context.Context, query string, limit, offset int) ([]domain.Customer, int, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return []domain.Customer{}, nil
+		return []domain.Customer{}, 0, nil
 	}
 	if limit <= 0 || limit > 50 {
 		limit = 30
 	}
+	if offset < 0 {
+		offset = 0
+	}
 	like := "%" + query + "%"
 	digits := digitsOnly(query)
 	digitLike := "%" + digits + "%"
-	rows, err := r.pool.Query(ctx, customerSelect+`
+	searchWhere := `
 		WHERE is_active = true
 		  AND (
 		    name ILIKE $1
 		    OR COALESCE(document_id,'') ILIKE $1
 		    OR COALESCE(phone,'') ILIKE $1
 		    OR ($2 <> '' AND regexp_replace(COALESCE(document_id,''), '[^0-9A-Za-z]', '', 'g') ILIKE $3)
-		  )
+		  )`
+	var total int
+	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM customers`+searchWhere, like, digits, digitLike).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.pool.Query(ctx, customerSelect+searchWhere+`
 		ORDER BY
 		  CASE
 		    WHEN $2 <> '' AND regexp_replace(COALESCE(document_id,''), '[^0-9A-Za-z]', '', 'g') = $2 THEN 0
@@ -157,13 +187,14 @@ func (r *Postgres) SearchCustomers(ctx context.Context, query string, limit int)
 		    ELSE 2
 		  END,
 		  name
-		LIMIT $5
-	`, like, digits, digitLike, query+"%", limit)
+		LIMIT $5 OFFSET $6
+	`, like, digits, digitLike, query+"%", limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
-	return scanCustomers(rows)
+	items, err := scanCustomers(rows)
+	return items, total, err
 }
 
 func (r *Postgres) SetCustomerDocumentScan(ctx context.Context, id uuid.UUID, path string) error {

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/datacenterla/platform/internal/platform/http/response"
@@ -15,18 +16,43 @@ import (
 
 func (h *Handler) listCustomers(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	activeOnly := r.URL.Query().Get("active_only") == "true"
+	limit := 0
+	offset := 0
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
 	var items []domain.Customer
+	var total int
 	var err error
 	if q != "" {
-		items, err = h.svc.SearchCustomers(r.Context(), q)
+		if limit <= 0 {
+			limit = 25
+		}
+		items, total, err = h.svc.SearchCustomersPaged(r.Context(), q, limit, offset)
 	} else {
-		items, err = h.svc.ListCustomers(r.Context(), r.URL.Query().Get("active_only") == "true")
+		items, total, err = h.svc.ListCustomers(r.Context(), activeOnly, limit, offset)
 	}
 	if err != nil {
 		response.Error(w, err)
 		return
 	}
-	response.JSON(w, http.StatusOK, map[string]any{"items": items})
+	if items == nil {
+		items = []domain.Customer{}
+	}
+	resp := map[string]any{"items": items, "total": total}
+	if limit > 0 {
+		resp["limit"] = limit
+		resp["offset"] = offset
+	}
+	response.JSON(w, http.StatusOK, resp)
 }
 
 func (h *Handler) createCustomer(w http.ResponseWriter, r *http.Request) {

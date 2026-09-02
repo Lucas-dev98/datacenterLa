@@ -13,13 +13,13 @@ import { ListPagination } from "@/components/list-pagination";
 const CUSTOMERS_PAGE_SIZE = 25;
 
 export default function ClientesPage() {
-  const { data, error, loading, refetch } = useCustomersList();
-  const items = data?.items ?? [];
   const [offset, setOffset] = useState(0);
-  const pageItems = useMemo(
-    () => items.slice(offset, offset + CUSTOMERS_PAGE_SIZE),
-    [items, offset],
-  );
+  const { data, error, loading, refetch } = useCustomersList(true, {
+    limit: CUSTOMERS_PAGE_SIZE,
+    offset,
+  });
+  const items = data?.items ?? [];
+  const total = data?.total ?? items.length;
   const [createError, setCreateError] = useState("");
   const toast = useToast();
   const [name, setName] = useState("");
@@ -189,7 +189,7 @@ export default function ClientesPage() {
           <>
             <Table
               headers={["Nome", "Perfil", "Documento", "Tipo", "E-mail"]}
-              rows={pageItems.map((c) => [
+              rows={items.map((c) => [
                 c.name,
                 c.residency === "paraguayan" ? "Paraguaio" : c.residency === "foreigner" ? "Estrangeiro" : "—",
                 c.document_id ? `${documentTypeLabel(c.document_type)} ${c.document_id}` : "—",
@@ -200,7 +200,7 @@ export default function ClientesPage() {
             <ListPagination
               offset={offset}
               limit={CUSTOMERS_PAGE_SIZE}
-              total={items.length}
+              total={total}
               onPageChange={setOffset}
             />
           </>

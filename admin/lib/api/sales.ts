@@ -122,8 +122,15 @@ export const salesApi = {
     apiForm<void>(`${BASE}/orders/${orderId}/ship`, form),
   shipPhotoBlob: (orderId: string, photoId: string) =>
     apiBlob(`${BASE}/orders/${orderId}/ship-photos/${photoId}/file`),
-  listCustomers: (activeOnly = true) =>
-    api<{ items: Customer[] }>(`${BASE}/customers?active_only=${activeOnly}`),
+  listCustomers: (params?: { activeOnly?: boolean; limit?: number; offset?: number; q?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.activeOnly !== false) q.set("active_only", "true");
+    if (params?.limit != null) q.set("limit", String(params.limit));
+    if (params?.offset != null) q.set("offset", String(params.offset));
+    if (params?.q) q.set("q", params.q);
+    const qs = q.toString();
+    return api<{ items: Customer[]; total?: number }>(`${BASE}/customers${qs ? `?${qs}` : ""}`);
+  },
   getCustomer: (id: string) => api<Customer>(`${BASE}/customers/${id}`),
   createCustomer: (body: Record<string, unknown>) =>
     api<Customer>(`${BASE}/customers`, { method: "POST", body: JSON.stringify(body) }),
