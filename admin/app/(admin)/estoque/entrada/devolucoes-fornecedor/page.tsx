@@ -7,6 +7,7 @@ import { useSupplierReturnsList } from "@/hooks/use-supplier-returns-list";
 import type { SupplierReturn } from "@/lib/api/stock";
 import { supplierReturnStatusLabel } from "@/lib/status-labels";
 import { Alert, Button, Card, Table } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 const STATUS_FILTERS = [
   { value: "", label: "Todas" },
@@ -21,7 +22,7 @@ export default function DevolucoesFornecedorPage() {
   const { data: itemsData, error: loadError, loading, refetch } = useSupplierReturnsList(statusFilter);
   const items = itemsData ?? [];
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const { run: updateStatus, loading: updating } = useUpdateSupplierReturnStatus();
   const [pendingId, setPendingId] = useState<string | null>(null);
 
@@ -32,10 +33,9 @@ export default function DevolucoesFornecedorPage() {
   async function changeStatus(id: string, status: "sent" | "closed" | "cancelled") {
     setPendingId(id);
     setError("");
-    setInfo("");
     try {
       await updateStatus({ id, status });
-      setInfo(`Devolução atualizada: ${supplierReturnStatusLabel(status)}`);
+      toast.push(`Devolução atualizada: ${supplierReturnStatusLabel(status)}`, "success");
       await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao atualizar status");
@@ -108,7 +108,6 @@ export default function DevolucoesFornecedorPage() {
       </div>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card>
         {loading ? (

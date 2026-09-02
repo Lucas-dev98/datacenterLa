@@ -16,6 +16,7 @@ import { IntakeBatchPhotoGallery, IntakePhotoThumb } from "@/components/intake-b
 import { IntakeTestPanel } from "@/components/intake-test-panel";
 import { intakeStatusLabel } from "@/lib/status-labels";
 import { Alert, Button, Card, Field, Input, Table } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 const ACTION_LABEL: Record<string, string> = {
   inspecionar: "Inspecionar",
@@ -34,7 +35,7 @@ export default function RecebimentoPage() {
   const [scanCode, setScanCode] = useState("");
   const [printOnRelease, setPrintOnRelease] = useState(true);
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const { run: intakeAdvance, loading: advancing } = useIntakeAdvance();
   const { run: intakeComplete, loading: completing } = useIntakeComplete();
   const { run: lookupUnit, loading: scanning } = useUnitByCode();
@@ -67,7 +68,6 @@ export default function RecebimentoPage() {
 
   async function advanceOne(unitId: string, unitCode: string, nextAction: string) {
     setError("");
-    setInfo("");
     try {
       const body: { unit_id: string; location_id?: string } = { unit_id: unitId };
       if (nextAction === "liberar") {
@@ -77,7 +77,7 @@ export default function RecebimentoPage() {
       if (res.unit.status === "available" && printOnRelease) {
         await printUnitLabel(unitCode);
       }
-      setInfo(`Unidade ${unitCode}: ${intakeStatusLabel(res.unit.status ?? "")}`);
+      toast.push(`Unidade ${unitCode}: ${intakeStatusLabel(res.unit.status ?? "")}`, "success");
       await reloadQueue();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao avançar");
@@ -87,7 +87,6 @@ export default function RecebimentoPage() {
   async function advanceBatch(unitIds: string[], mode: "step" | "complete") {
     if (unitIds.length === 0) return;
     setError("");
-    setInfo("");
     try {
       const released: string[] = [];
       let ok = 0;
@@ -122,7 +121,7 @@ export default function RecebimentoPage() {
       }
 
       if (failed > 0) setError(`${failed} unidade(s) falharam`);
-      if (ok > 0) setInfo(`${ok} unidade(s) processada(s)`);
+      if (ok > 0) toast.push(`${ok} unidade(s) processada(s)`, "success");
       if (printOnRelease && released.length > 0) {
         for (const code of released) {
           await printUnitLabel(code);
@@ -139,7 +138,6 @@ export default function RecebimentoPage() {
     const code = scanCode.trim().toUpperCase();
     if (!code) return;
     setError("");
-    setInfo("");
     try {
       const unit = await lookupUnit(code);
       const status = unit.status ?? unit.Status ?? "";
@@ -150,7 +148,7 @@ export default function RecebimentoPage() {
       if (status === "inspecting") {
         setActiveTestUnit({ id: unit.id, code });
         setScanCode("");
-        setInfo(`Unidade ${code} aberta para teste com fotos.`);
+        toast.push(`Unidade ${code} aberta para teste com fotos.`, "info");
         return;
       }
       const inQueue = items.find((i) => i.id === unit.id);
@@ -196,7 +194,6 @@ export default function RecebimentoPage() {
       </div>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card title="Scanner">
         <form className="flex flex-wrap items-end gap-4" onSubmit={onScan}>
