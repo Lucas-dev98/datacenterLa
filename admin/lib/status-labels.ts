@@ -93,6 +93,18 @@ export function quoteStatusLabel(status?: string | null): string {
   return QUOTE_STATUS_LABELS[status] ?? status;
 }
 
+export const FINANCE_ACCOUNT_STATUS_LABELS: Record<string, string> = {
+  open: "Em aberto",
+  partial: "Parcial",
+  paid: "Quitado",
+  cancelled: "Cancelado",
+};
+
+export function financeAccountStatusLabel(status?: string | null): string {
+  if (!status) return "—";
+  return FINANCE_ACCOUNT_STATUS_LABELS[status] ?? status;
+}
+
 export { UNIT_STATUS_LABELS, unitStatusLabel } from "./stock-movements";
 
 export const UNIT_STATUS_BADGE: Record<string, string> = {

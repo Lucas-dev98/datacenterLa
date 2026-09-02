@@ -7,6 +7,7 @@ import { usePayPayable, useRecordReceivablePayment } from "@/hooks/use-finance-m
 import { financeApi, type Payable } from "@/lib/api/finance";
 import type { ReceivableListItem } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
+import { financeAccountStatusLabel, orderStatusLabel } from "@/lib/status-labels";
 import { useToast } from "@/components/toast-provider";
 
 export default function FinanceiroPage() {
@@ -166,7 +167,7 @@ export default function FinanceiroPage() {
               `$${m.revenue_usd.toFixed(2)}`,
               `$${m.cogs_usd.toFixed(2)}`,
               `$${m.margin_usd.toFixed(2)} (${m.margin_pct.toFixed(0)}%)`,
-              m.status,
+              orderStatusLabel(m.status),
             ])}
           />
         </Card>
@@ -192,7 +193,7 @@ export default function FinanceiroPage() {
                 `$${p.amount_usd.toFixed(2)}`,
                 `$${p.amount_paid_usd.toFixed(2)}`,
                 `$${balance.toFixed(2)}`,
-                p.status,
+                financeAccountStatusLabel(p.status),
                 canPay ? (
                   <button key="pay" type="button" className="text-blue-600 hover:underline" onClick={() => openPayablePayment(p)}>
                     Pagar
@@ -246,7 +247,7 @@ export default function FinanceiroPage() {
                 `$${r.amount_usd.toFixed(2)}`,
                 `$${r.paid_usd.toFixed(2)}`,
                 `$${balance.toFixed(2)}`,
-                r.status,
+                financeAccountStatusLabel(r.status),
                 <div key="a" className="flex gap-2">
                   <Link href={`/pedidos/${r.order_id}`} className="text-blue-600 hover:underline">Pedido</Link>
                   {canPay ? (
