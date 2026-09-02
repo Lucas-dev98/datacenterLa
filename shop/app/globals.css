@@ -36,6 +36,13 @@ body {
   outline-offset: 3px;
 }
 
+/* Shop transactional pages (beige background) */
 #conteudo :focus-visible {
   outline-color: #111;
+}
+
+/* Marketing home: keep high-contrast focus on dark sections */
+#conteudo .bg-black :focus-visible,
+#conteudo [class*="bg-black"] :focus-visible {
+  outline-color: #fff;
 }
