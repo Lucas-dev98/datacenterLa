@@ -8,10 +8,18 @@ import { PARAGUAY_BUYER_KINDS } from "@/lib/paraguay-documents";
 import type { Customer } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 import { useToast } from "@/components/toast-provider";
+import { ListPagination } from "@/components/list-pagination";
+
+const CUSTOMERS_PAGE_SIZE = 25;
 
 export default function ClientesPage() {
   const { data, error, loading, refetch } = useCustomersList();
   const items = data?.items ?? [];
+  const [offset, setOffset] = useState(0);
+  const pageItems = useMemo(
+    () => items.slice(offset, offset + CUSTOMERS_PAGE_SIZE),
+    [items, offset],
+  );
   const [createError, setCreateError] = useState("");
   const toast = useToast();
   const [name, setName] = useState("");
@@ -178,16 +186,24 @@ export default function ClientesPage() {
         {loading ? (
           <p className="text-sm text-slate-500">Carregando…</p>
         ) : (
-          <Table
-            headers={["Nome", "Perfil", "Documento", "Tipo", "E-mail"]}
-            rows={items.map((c) => [
-              c.name,
-              c.residency === "paraguayan" ? "Paraguaio" : c.residency === "foreigner" ? "Estrangeiro" : "—",
-              c.document_id ? `${documentTypeLabel(c.document_type)} ${c.document_id}` : "—",
-              c.type,
-              c.email ?? "—",
-            ])}
-          />
+          <>
+            <Table
+              headers={["Nome", "Perfil", "Documento", "Tipo", "E-mail"]}
+              rows={pageItems.map((c) => [
+                c.name,
+                c.residency === "paraguayan" ? "Paraguaio" : c.residency === "foreigner" ? "Estrangeiro" : "—",
+                c.document_id ? `${documentTypeLabel(c.document_type)} ${c.document_id}` : "—",
+                c.type,
+                c.email ?? "—",
+              ])}
+            />
+            <ListPagination
+              offset={offset}
+              limit={CUSTOMERS_PAGE_SIZE}
+              total={items.length}
+              onPageChange={setOffset}
+            />
+          </>
         )}
       </Card>
     </div>
