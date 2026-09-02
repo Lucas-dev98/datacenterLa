@@ -7,10 +7,10 @@ import {
 
 export function Card({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+    <section className="rounded-xl border border-neutral-200 bg-[var(--shop-card)] shadow-sm">
       {title ? (
-        <header className="border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+        <header className="border-b border-neutral-100 px-5 py-4">
+          <h2 className="text-sm font-semibold text-neutral-900">{title}</h2>
         </header>
       ) : null}
       <div className="p-5">{children}</div>
@@ -21,7 +21,7 @@ export function Card({ title, children }: { title?: string; children: ReactNode 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block space-y-1.5">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <span className="text-sm font-medium text-neutral-700">{label}</span>
       {children}
     </label>
   );
@@ -31,7 +31,7 @@ export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 outline-none ring-blue-500 placeholder:text-slate-400 focus:ring-2 sm:py-2 sm:text-sm ${props.className ?? ""}`}
+      className={`w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-base text-neutral-900 outline-none ring-neutral-900 placeholder:text-neutral-400 focus:ring-2 sm:py-2 sm:text-sm ${props.className ?? ""}`}
     />
   );
 }
@@ -40,7 +40,7 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 outline-none ring-blue-500 focus:ring-2 sm:py-2 sm:text-sm ${props.className ?? ""}`}
+      className={`w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-base text-neutral-900 outline-none ring-neutral-900 focus:ring-2 sm:py-2 sm:text-sm ${props.className ?? ""}`}
     />
   );
 }
@@ -67,6 +67,6 @@ export function Alert({ tone = "info", children }: { tone?: "info" | "error" | "
       ? "border-red-200 bg-red-50 text-red-800"
       : tone === "success"
         ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-        : "border-slate-200 bg-slate-50 text-slate-700";
+        : "border-neutral-200 bg-neutral-50 text-neutral-700";
   return <div className={`rounded-lg border px-4 py-3 text-sm ${styles}`}>{children}</div>;
 }

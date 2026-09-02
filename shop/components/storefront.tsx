@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { type ReactNode, useState } from "react";
+import { CtaLink } from "@/components/cta-link";
 import type { CatalogProduct } from "@/lib/types";
 import type { StorefrontContent } from "@/lib/storefront-types";
 import { catalogImageUrl } from "@/lib/product-image";
@@ -213,18 +214,15 @@ export function Storefront({ content, featuredModels, featured, partCPU, partRAM
               Solicite sua cotação e receba atendimento personalizado da nossa equipe.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-4">
-              <Link href="/contato" className="bg-white px-6 py-3 text-sm font-medium text-black hover:bg-white/90">
+              <CtaLink href="/contato" variant="primary" className="py-3">
                 Solicitar cotação
-              </Link>
-              <Link
-                href="/contato"
-                className="border border-white/50 px-6 py-3 text-sm font-medium hover:border-white"
-              >
+              </CtaLink>
+              <CtaLink href="/contato" variant="secondary" className="py-3">
                 Falar com um especialista
-              </Link>
-              <Link href="/loja" className="border border-white/30 px-6 py-3 text-sm font-medium text-white/80 hover:border-white hover:text-white">
+              </CtaLink>
+              <CtaLink href="/loja" variant="ghost" className="py-3">
                 Ver a loja
-              </Link>
+              </CtaLink>
             </div>
             <p className="mt-4 text-xs text-white/50">Resposta em menos de 24 horas.</p>
           </div>
@@ -263,18 +261,12 @@ function Hero() {
               preços competitivos e entrega rápida em toda a América Latina.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Link
-                href="/loja"
-                className="bg-white px-6 py-2.5 text-sm font-medium text-black hover:bg-white/90"
-              >
+              <CtaLink href="/loja" variant="primary">
                 Ver produtos
-              </Link>
-              <Link
-                href="/contato"
-                className="border border-white/80 bg-transparent px-6 py-2.5 text-sm font-medium text-white hover:bg-white/10"
-              >
+              </CtaLink>
+              <CtaLink href="/contato" variant="secondary">
                 Solicitar cotação
-              </Link>
+              </CtaLink>
             </div>
           </div>
         </div>

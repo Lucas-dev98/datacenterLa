@@ -2,6 +2,12 @@
 
 :root {
   --shop-header-h: 4rem; /* h-16 */
+  --shop-surface: #f4f3ef;
+  --shop-ink: #171717;
+  --shop-muted: #525252;
+  --shop-border: #e5e5e5;
+  --shop-card: #ffffff;
+  --shop-accent: #171717;
 }
 
 @media (min-width: 768px) {
