@@ -20,8 +20,10 @@ import {
   useRecordOrderPayment,
 } from "@/hooks/use-sales-order-mutations";
 import { orderChannelLabel } from "@/lib/order-channels";
+import { orderStatusLabel } from "@/lib/status-labels";
 import type { PaymentIntent } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 import { StripePaymentForm } from "@/components/stripe-payment-form";
 import { ShipExpeditionModal } from "@/components/ship-expedition-modal";
 import { OrderShipPhotosGallery } from "@/components/order-ship-photos-gallery";
@@ -31,7 +33,7 @@ export default function PedidoDetailPage() {
   const { user } = useAuth();
   const { order, customer, error, loading, refetch, setOrder } = useOrderDetail(params.id);
   const [actionError, setActionError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("transfer");
   const [payRef, setPayRef] = useState("");
@@ -54,22 +56,20 @@ export default function PedidoDetailPage() {
   }, []);
 
   async function confirmOrder() {
-    setInfo("");
     setActionError("");
     try {
       setOrder(await confirmOrderMutation(params.id));
-      setInfo("Pedido confirmado — estoque reservado");
+      toast.push("Pedido confirmado — estoque reservado", "success");
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao confirmar");
     }
   }
 
   async function confirmCredit() {
-    setInfo("");
     setActionError("");
     try {
       setOrder(await confirmCreditMutation(params.id));
-      setInfo("Pedido confirmado com crédito B2B — estoque reservado");
+      toast.push("Pedido confirmado com crédito B2B — estoque reservado", "success");
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao confirmar crédito");
     }
@@ -77,7 +77,6 @@ export default function PedidoDetailPage() {
 
   async function recordPayment(e: FormEvent) {
     e.preventDefault();
-    setInfo("");
     setActionError("");
     try {
       const o = await submitPayment({
@@ -87,14 +86,16 @@ export default function PedidoDetailPage() {
         reference: payRef || undefined,
       });
       setOrder(o);
-      setInfo(o.status === "paid" ? "Pagamento registrado — pedido pago" : "Pagamento parcial registrado");
+      toast.push(
+        o.status === "paid" ? "Pagamento registrado — pedido pago" : "Pagamento parcial registrado",
+        "success",
+      );
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao registrar pagamento");
     }
   }
 
   async function payViaGateway() {
-    setInfo("");
     setActionError("");
     setGatewayIntent(null);
     try {
@@ -105,12 +106,12 @@ export default function PedidoDetailPage() {
           return;
         }
         setGatewayIntent(intent);
-        setInfo("Informe o cartão abaixo para concluir a cobrança.");
+        toast.push("Informe o cartão abaixo para concluir a cobrança.", "info");
         return;
       }
       await confirmPaymentIntent(intent.id);
       await refetch();
-      setInfo("Pagamento via gateway confirmado — pedido atualizado");
+      toast.push("Pagamento via gateway confirmado — pedido atualizado", "success");
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro no gateway");
     }
@@ -123,7 +124,7 @@ export default function PedidoDetailPage() {
       await confirmPaymentIntent(gatewayIntent.id);
       setGatewayIntent(null);
       await refetch();
-      setInfo("Pagamento via Stripe confirmado — pedido atualizado");
+      toast.push("Pagamento via Stripe confirmado — pedido atualizado", "success");
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao confirmar pagamento");
     }
@@ -132,16 +133,15 @@ export default function PedidoDetailPage() {
   async function onShipped() {
     setShipModalOpen(false);
     await refetch();
-    setInfo("Pedido expedido — estoque baixado");
+    toast.push("Pedido expedido — estoque baixado", "success");
   }
 
   async function cancelOrder() {
     if (!confirm("Cancelar este pedido? Reservas de estoque serão liberadas.")) return;
-    setInfo("");
     setActionError("");
     try {
       setOrder(await cancelOrderMutation(params.id));
-      setInfo("Pedido cancelado");
+      toast.push("Pedido cancelado", "success");
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao cancelar");
     }
@@ -177,7 +177,7 @@ export default function PedidoDetailPage() {
         </Link>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">Pedido {order.order_number}</h1>
 		<p className="mt-1 text-sm text-slate-600">
-          Status: <strong>{order.status}</strong> · Origem:{" "}
+          Status: <strong>{orderStatusLabel(order.status)}</strong> · Origem:{" "}
           <strong>{orderChannelLabel(order.channel)}</strong> · Total:{" "}
           <strong>USD {order.total_usd.toFixed(2)}</strong>
           {customer ? <> · Cliente: <strong>{customer.name}</strong></> : null}
@@ -207,7 +207,6 @@ export default function PedidoDetailPage() {
       </header>
 
       {displayError ? <Alert tone="error">{displayError}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card title="Itens">
         <Table
