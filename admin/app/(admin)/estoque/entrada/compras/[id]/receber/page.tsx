@@ -227,7 +227,7 @@ export default function ReceberPOPage() {
       {displayError ? <Alert tone="error">{displayError}</Alert> : null}
 
       {poComplete && view === "lista" ? (
-        <Alert tone="success">
+        <Alert tone="info">
           Todos os itens desta PO foram recebidos.{" "}
           <Link href="/estoque/entrada/recebimento" className="font-medium text-blue-700 hover:underline">
             Ir para fila de recebimento

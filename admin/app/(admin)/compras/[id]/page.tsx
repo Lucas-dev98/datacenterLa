@@ -132,7 +132,7 @@ export default function CompraDetailPage() {
           </div>
         </Card>
       ) : po.status === "received" ? (
-        <Alert tone="success">
+        <Alert tone="info">
           PO recebida.{" "}
           <Link href="/estoque/entrada/recebimento" className="font-medium text-blue-700 hover:underline">
             Ir para fila de recebimento

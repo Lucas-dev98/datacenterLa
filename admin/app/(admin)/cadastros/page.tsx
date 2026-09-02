@@ -8,6 +8,7 @@ import { usePlatformDefaults } from "@/hooks/use-platform-defaults";
 import { DEFAULT_CATEGORY_ID } from "@/lib/config";
 import type { CadastroResult, Category } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Textarea } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 type CategoryAttribute = {
   id: string;
@@ -222,6 +223,7 @@ export default function CadastrosPage() {
   const { run: bulkCadastro, loading } = useBulkCadastro();
   const [error, setError] = useState("");
   const [result, setResult] = useState<CadastroResult | null>(null);
+  const toast = useToast();
 
   const categoryTree = sortCategoryTree(categories.filter((c) => c.is_active));
 
@@ -270,6 +272,7 @@ export default function CadastrosPage() {
       };
       const res = await bulkCadastro(body);
       setResult(res);
+      toast.push(`Cadastro ${res.sku.code} criado — ${res.product.name}`, "success");
       setName("");
       setBrand("");
       setDescription("");
@@ -359,11 +362,12 @@ export default function CadastrosPage() {
       </Card>
 
       {result ? (
-        <Alert tone="success">
-          Cadastro <strong>{result.sku.code}</strong> criado — {result.product.name}
-          <br />
-          <span className="text-xs">SKU ID: {result.sku.id}</span>
-        </Alert>
+        <Card title="Último cadastro">
+          <p className="text-sm text-slate-700">
+            SKU <strong className="font-mono">{result.sku.code}</strong> — {result.product.name}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">SKU ID: {result.sku.id}</p>
+        </Card>
       ) : null}
     </div>
   );

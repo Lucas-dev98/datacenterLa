@@ -10,6 +10,7 @@ import {
 import { useCategoriesList } from "@/hooks/use-pim-list-queries";
 import type { Category } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 function slugCode(name: string): string {
   return name
@@ -91,7 +92,7 @@ export default function CategoriasPage() {
   const [childCode, setChildCode] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const toast = useToast();
   const { run: createCategory, loading: creating } = useCreateCategory();
   const { run: updateCategory, loading: updating } = useUpdateCategory();
   const { run: deleteCategory, loading: deleting } = useDeleteCategory();
@@ -159,8 +160,7 @@ export default function CategoriasPage() {
   }
 
   function flash(msg: string) {
-    setSuccess(msg);
-    setTimeout(() => setSuccess(""), 3000);
+    toast.push(msg, "success");
   }
 
   function toggle(id: string) {
@@ -270,7 +270,6 @@ export default function CategoriasPage() {
   async function deleteSelected() {
     if (selectedRows.length === 0) return;
     setError("");
-    setSuccess("");
     const failed: string[] = [];
     let ok = 0;
     const ordered = [...selectedRows].sort((a, b) => b.depth - a.depth);
@@ -302,7 +301,6 @@ export default function CategoriasPage() {
       </header>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {success ? <Alert tone="success">{success}</Alert> : null}
 
       <Card title="Nova categoria">
         <form className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" onSubmit={(e) => void create(e)}>
