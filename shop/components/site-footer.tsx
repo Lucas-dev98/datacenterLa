@@ -81,10 +81,10 @@ export function SiteFooter() {
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-5 text-[12px] text-white/40 md:flex-row md:items-center md:justify-between md:px-6">
           <p>© DATACENTER L.A. — Todos os direitos reservados.</p>
           <div className="flex flex-wrap gap-4">
-            <Link href="/contato" className="hover:text-white/70">
+            <Link href="/termos" className="hover:text-white/70">
               Termos e condições
             </Link>
-            <Link href="/contato" className="hover:text-white/70">
+            <Link href="/privacidade" className="hover:text-white/70">
               Política de privacidade
             </Link>
             <a
