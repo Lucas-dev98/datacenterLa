@@ -3,92 +3,21 @@
 import Link from "next/link";
 import { type ReactNode, useState } from "react";
 import type { CatalogProduct } from "@/lib/types";
+import type { StorefrontContent } from "@/lib/storefront-types";
 import { catalogImageUrl } from "@/lib/product-image";
 import { MediaFrame } from "@/components/media-frame";
 
-const TRUST = [
-  { title: "Resposta rápida", icon: BoltIcon },
-  { title: "Envios para toda a LATAM", icon: GlobeIcon },
-  { title: "+10.000 produtos disponíveis", icon: BoxIcon },
-  { title: "Garantia em todos os produtos", icon: ShieldIcon },
-  { title: "Suporte técnico especializado", icon: HeadsetIcon },
-  { title: "Equipamentos novos e refurbished", icon: RefreshIcon },
-];
-
-const PILLARS = [
-  {
-    title: "Sourcing global",
-    text: "Obtemos equipamentos difíceis de encontrar, novos ou refurbished, nos maiores mercados tecnológicos.",
-  },
-  {
-    title: "Preços competitivos",
-    text: "Negociamos direto com distribuidores e atacadistas para oferecer o melhor custo.",
-  },
-  {
-    title: "Garantia real",
-    text: "Todos os equipamentos passam por revisão técnica e contam com garantia.",
-  },
-  {
-    title: "Entrega internacional",
-    text: "Enviamos do Paraguai para toda a América Latina com rapidez e segurança.",
-  },
-  {
-    title: "Atendimento técnico",
-    text: "Assessoria para escolher o servidor, storage ou switch ideal para o seu projeto.",
-  },
-  {
-    title: "Inventário amplo",
-    text: "+10.000 SKUs disponíveis sob pedido.",
-  },
-];
-
-const STEPS = [
-  {
-    title: "Passo 1 — Você solicita a cotação",
-    text: "Envie o modelo, marca ou o requisito técnico do servidor, storage ou switch.",
-  },
-  {
-    title: "Passo 2 — Localizamos o produto",
-    text: "Buscamos na nossa rede global de fornecedores para garantir disponibilidade e o melhor preço.",
-  },
-  {
-    title: "Passo 3 — Enviamos a proposta",
-    text: "Você recebe uma proposta clara com especificações, preço, prazos e condições.",
-  },
-  {
-    title: "Passo 4 — Envio internacional",
-    text: "Despachamos do Paraguai com embalagem segura e documentação completa.",
-  },
-  {
-    title: "Passo 5 — Garantia e suporte",
-    text: "Todos os equipamentos incluem garantia e acompanhamento pós-venda.",
-  },
-];
-
-const FAQS = [
-  {
-    q: "Trabalham com equipamentos novos e recondicionados?",
-    a: "Sim. Oferecemos equipamentos novos, usados e refurbished, sempre verificados e com garantia.",
-  },
-  {
-    q: "Fazem envios internacionais?",
-    a: "Sim. Enviamos do Paraguai para toda a América Latina.",
-  },
-  {
-    q: "Posso solicitar um produto específico que não aparece no site?",
-    a: "Sim. Fazemos sourcing global para encontrar modelos específicos conforme a sua necessidade.",
-  },
-  {
-    q: "Os produtos têm garantia?",
-    a: "Todos os equipamentos têm garantia e revisão técnica antes do despacho.",
-  },
-  {
-    q: "Atendem empresas, datacenters e MSPs?",
-    a: "Sim. Trabalhamos com integradores, MSPs, datacenters e empresas de todos os portes.",
-  },
-];
+const TRUST_ICONS: Record<string, () => ReactNode> = {
+  bolt: () => <BoltIcon />,
+  globe: () => <GlobeIcon />,
+  box: () => <BoxIcon />,
+  shield: () => <ShieldIcon />,
+  headset: () => <HeadsetIcon />,
+  refresh: () => <RefreshIcon />,
+};
 
 type StorefrontProps = {
+  content?: StorefrontContent;
   featuredModels: CatalogProduct[];
   featured: CatalogProduct[];
   partCPU?: CatalogProduct;
@@ -96,13 +25,17 @@ type StorefrontProps = {
   partSSD?: CatalogProduct;
 };
 
-export function Storefront({ featuredModels, featured, partCPU, partRAM, partSSD }: StorefrontProps) {
+export function Storefront({ content, featuredModels, featured, partCPU, partRAM, partSSD }: StorefrontProps) {
+  const trust = content?.trust ?? [];
+  const pillars = content?.pillars ?? [];
+  const steps = content?.steps ?? [];
+  const faqs = content?.faqs ?? [];
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   return (
     <div className="bg-black text-white">
       <Hero />
-      <TrustStrip />
+      <TrustStrip trust={trust} />
       <ProductsIntro />
       <CategoryBlock
         id="servidores"
@@ -157,7 +90,7 @@ export function Storefront({ featuredModels, featured, partCPU, partRAM, partSSD
             Conectamos a América Latina ao melhor hardware enterprise do mercado, com disponibilidade, preço e suporte.
           </p>
           <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {PILLARS.map((item) => (
+            {pillars.map((item) => (
               <article key={item.title} className="border-t border-white/20 pt-5">
                 <h3 className="text-lg font-medium">{item.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-white/65">{item.text}</p>
@@ -212,7 +145,7 @@ export function Storefront({ featuredModels, featured, partCPU, partRAM, partSSD
         <div className="mx-auto max-w-6xl">
           <h2 className="text-3xl font-semibold">Um processo simples, rápido e seguro</h2>
           <ol className="mt-10 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {STEPS.map((step, i) => (
+            {steps.map((step, i) => (
               <li key={step.title} className="border-l border-white/20 pl-4">
                 <p className="text-xs text-white/40">{String(i + 1).padStart(2, "0")}</p>
                 <h3 className="mt-2 font-medium">{step.title}</h3>
@@ -230,7 +163,7 @@ export function Storefront({ featuredModels, featured, partCPU, partRAM, partSSD
           <div>
             <h2 className="text-3xl font-semibold">Perguntas frequentes</h2>
             <ul className="mt-8 divide-y divide-white/10 border-y border-white/10">
-              {FAQS.map((item, i) => (
+              {faqs.map((item, i) => (
                 <li key={item.q}>
                   <button
                     type="button"
@@ -318,7 +251,7 @@ function Hero() {
   );
 }
 
-function TrustStrip() {
+function TrustStrip({ trust }: { trust: { icon: string; title: string }[] }) {
   return (
     <section className="bg-white text-black">
       <div className="grid md:grid-cols-3">
@@ -327,12 +260,15 @@ function TrustStrip() {
         <TrustCell icon={<QaIcon />} label="Atendimento técnico especializado" />
       </div>
       <div className="grid gap-6 border-t border-black px-4 py-10 text-center text-sm font-medium sm:grid-cols-2 lg:grid-cols-3 md:px-6">
-        {TRUST.map((item) => (
-          <p key={item.title} className="flex items-center justify-center gap-2">
-            <item.icon />
-            {item.title}
-          </p>
-        ))}
+        {trust.map((item) => {
+          const Icon = TRUST_ICONS[item.icon] ?? TRUST_ICONS.bolt;
+          return (
+            <p key={item.title} className="flex items-center justify-center gap-2">
+              <Icon />
+              {item.title}
+            </p>
+          );
+        })}
       </div>
     </section>
   );

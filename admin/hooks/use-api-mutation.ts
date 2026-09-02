@@ -9,6 +9,15 @@
  * @see admin/hooks/README.md — catálogo completo
  * @see admin/docs/API_HOOKS.md — padrão query/mutation
  */
+/**
+ * @file use-api-mutation.ts
+ * @description Primitivo de escrita: encapsula POST/PATCH/DELETE com loading e erro.
+ * @consumers Todos os hooks use-*-mutations
+ * @remarks run() relança o erro após setError; trate com try/catch na página.
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback, useState } from "react";
 import { api } from "@/lib/api/client";
 

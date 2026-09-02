@@ -6,6 +6,7 @@ import (
 
 	authmiddleware "github.com/datacenterla/platform/internal/auth/middleware"
 	paydomain "github.com/datacenterla/platform/internal/payments/domain"
+	"github.com/datacenterla/platform/internal/platform/settings"
 	"github.com/datacenterla/platform/internal/sales/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -15,14 +16,15 @@ type Handler struct {
 	svc      *service.Service
 	pay      PaymentIntentCreator
 	shopAuth func(http.Handler) http.Handler
+	settings *settings.Repository
 }
 
 type PaymentIntentCreator interface {
 	CreateIntent(ctx context.Context, orderID uuid.UUID, provider string) (*paydomain.PaymentIntent, error)
 }
 
-func New(svc *service.Service, pay PaymentIntentCreator, shopAuth func(http.Handler) http.Handler) *Handler {
-	return &Handler{svc: svc, pay: pay, shopAuth: shopAuth}
+func New(svc *service.Service, pay PaymentIntentCreator, shopAuth func(http.Handler) http.Handler, settings *settings.Repository) *Handler {
+	return &Handler{svc: svc, pay: pay, shopAuth: shopAuth, settings: settings}
 }
 
 func (h *Handler) Routes() chi.Router {
@@ -116,6 +118,7 @@ func (h *Handler) Routes() chi.Router {
 
 func (h *Handler) EcommerceRoutes() chi.Router {
 	r := chi.NewRouter()
+	r.Get("/storefront", h.storefront)
 	r.Get("/catalog", h.catalog)
 	r.Get("/catalog/{sku_id}", h.catalogProduct)
 	r.Get("/categories", h.listCategories)

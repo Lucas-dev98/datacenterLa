@@ -8,6 +8,14 @@
  * @see admin/hooks/README.md — catálogo completo
  * @see admin/docs/API_HOOKS.md — padrão query/mutation
  */
+/**
+ * @file use-pricing-mutations.ts
+ * @description Define preços USD do SKU e sincroniza câmbio.
+ * @consumers precos/page.tsx, produtos/[id]/page.tsx, financeiro/cotacoes/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { pricingApi } from "@/lib/api/pricing";
 import { useApiMutation } from "./use-api-mutation";

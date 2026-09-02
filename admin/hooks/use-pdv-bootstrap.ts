@@ -9,6 +9,15 @@
  * @see admin/hooks/README.md — catálogo completo
  * @see admin/docs/API_HOOKS.md — padrão query/mutation
  */
+/**
+ * @file use-pdv-bootstrap.ts
+ * @description Dados iniciais do PDV: cliente balcão (walk-in) e câmbio.
+ * @consumers vendas/pdv/page.tsx
+ * @remarks Busca de produtos/clientes permanece local na página.
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { posApi, type ExchangeRatesToday } from "@/lib/api/pos";
 import type { Customer } from "@/lib/types";

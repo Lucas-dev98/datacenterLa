@@ -8,6 +8,14 @@
  * @see admin/hooks/README.md — catálogo completo
  * @see admin/docs/API_HOOKS.md — padrão query/mutation
  */
+/**
+ * @file use-compras-paraguai-dashboard.ts
+ * @description Logs de sync e diagnóstico do feed Compras Paraguai.
+ * @consumers integracoes/compras-paraguai/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { integrationsApi } from "@/lib/api/integrations";
 import type { FeedDiagnostics, FeedSyncLog } from "@/lib/types";

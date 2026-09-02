@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -14,6 +15,9 @@ import (
 )
 
 func main() {
+	ifEmpty := flag.Bool("if-empty", false, "skip seed when skus table already has rows")
+	flag.Parse()
+
 	_ = godotenv.Load()
 	cfg := config.Load()
 	ctx := context.Background()
@@ -27,6 +31,18 @@ func main() {
 	if err := db.Migrate(ctx, pool); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
+
+	if *ifEmpty {
+		needs, err := db.NeedsDemoSeed(ctx, pool)
+		if err != nil {
+			log.Fatalf("check empty: %v", err)
+		}
+		if !needs {
+			fmt.Println("seed skip: database already has catalog data")
+			return
+		}
+	}
+
 	if err := wipeTransactional(ctx, pool); err != nil {
 		log.Fatalf("wipe: %v", err)
 	}
@@ -78,6 +94,9 @@ func main() {
 	}
 	if err := seedLeadsAndOps(ctx, pool, ids, skus, customers); err != nil {
 		log.Fatalf("ops: %v", err)
+	}
+	if err := seedAppSettings(ctx, pool); err != nil {
+		log.Fatalf("settings: %v", err)
 	}
 
 	fmt.Println("seed ok — dados de demonstração carregados")

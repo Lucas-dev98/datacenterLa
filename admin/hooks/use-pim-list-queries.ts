@@ -8,6 +8,14 @@
  * @see admin/hooks/README.md — catálogo completo
  * @see admin/docs/API_HOOKS.md — padrão query/mutation
  */
+/**
+ * @file use-pim-list-queries.ts
+ * @description Consultas de catálogo: produtos+SKUs, lista de SKUs e categorias.
+ * @consumers produtos/page.tsx, precos/page.tsx, cadastros/page.tsx, categorias/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { pimApi } from "@/lib/api/pim";
 import type { Product, SKU } from "@/lib/types";

@@ -19,6 +19,9 @@ send-test:
 seed:
 	go run ./cmd/seed
 
+seed-if-empty:
+	go run ./cmd/seed -if-empty
+
 test:
 	go test ./... -count=1
 

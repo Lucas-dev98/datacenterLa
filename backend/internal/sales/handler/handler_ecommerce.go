@@ -7,6 +7,7 @@ import (
 
 	authdomain "github.com/datacenterla/platform/internal/auth/domain"
 	"github.com/datacenterla/platform/internal/platform/http/response"
+	"github.com/datacenterla/platform/internal/platform/settings"
 	"github.com/datacenterla/platform/internal/sales/domain"
 	"github.com/datacenterla/platform/internal/sales/service"
 	shopdomain "github.com/datacenterla/platform/internal/shopauth/domain"
@@ -45,6 +46,34 @@ func (h *Handler) catalog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.JSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (h *Handler) storefront(w http.ResponseWriter, r *http.Request) {
+	var wh uuid.UUID
+	var err error
+	if v := r.URL.Query().Get("warehouse_id"); v != "" {
+		wh, err = uuid.Parse(v)
+		if err != nil {
+			response.Error(w, domain.ErrInvalidInput)
+			return
+		}
+	} else {
+		var defs settings.PlatformDefaults
+		if err := h.settings.GetJSON(r.Context(), settings.KeyPlatformDefaults, &defs); err != nil {
+			defs = settings.DefaultPlatformDefaults()
+		}
+		wh, err = uuid.Parse(defs.WarehouseID)
+		if err != nil {
+			response.Error(w, domain.ErrInvalidInput)
+			return
+		}
+	}
+	page, err := h.svc.BuildStorefront(r.Context(), wh, h.settings)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, page)
 }
 
 func (h *Handler) listCategories(w http.ResponseWriter, r *http.Request) {

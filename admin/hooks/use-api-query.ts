@@ -9,6 +9,15 @@
  * @see admin/hooks/README.md — catálogo completo
  * @see admin/docs/API_HOOKS.md — padrão query/mutation
  */
+/**
+ * @file use-api-query.ts
+ * @description Primitivo de leitura: encapsula fetch assíncrono com loading, erro e refetch.
+ * @consumers Todos os hooks use-*-list, use-*-dashboard, use-*-detail
+ * @remarks data inicia como null — use `data ?? []` nas páginas.
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback, useEffect, useState } from "react";
 
 /** Opções do hook de leitura. */

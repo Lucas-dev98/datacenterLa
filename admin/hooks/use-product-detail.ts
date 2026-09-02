@@ -8,6 +8,14 @@
  * @see admin/hooks/README.md — catálogo completo
  * @see admin/docs/API_HOOKS.md — padrão query/mutation
  */
+/**
+ * @file use-product-detail.ts
+ * @description Produto para edição: dados, 1º SKU e atributos da categoria.
+ * @consumers produtos/[id]/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { pimApi } from "@/lib/api/pim";
 import type { CategoryAttribute, Product, SKU } from "@/lib/types";

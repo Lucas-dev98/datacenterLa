@@ -1,5 +1,6 @@
 import { API_URL, DEFAULT_WAREHOUSE_ID } from "./config";
 import type { CatalogProduct, EcommerceCategory } from "./types";
+import type { PlatformDefaults, StorefrontPage } from "./storefront-types";
 
 const REVALIDATE_SEC = 120;
 
@@ -51,4 +52,15 @@ export async function fetchProductServer(
     `/api/v1/ecommerce/catalog/${encodeURIComponent(skuIdOrCode)}?${params}`,
   );
   return data;
+}
+
+export async function fetchStorefrontServer(
+  warehouseId = DEFAULT_WAREHOUSE_ID,
+): Promise<StorefrontPage | null> {
+  const params = new URLSearchParams({ warehouse_id: warehouseId });
+  return serverGet<StorefrontPage>(`/api/v1/ecommerce/storefront?${params}`);
+}
+
+export async function fetchPlatformDefaultsServer(): Promise<PlatformDefaults | null> {
+  return serverGet<PlatformDefaults>("/api/v1/platform/defaults");
 }

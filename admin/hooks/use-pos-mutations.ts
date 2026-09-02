@@ -8,6 +8,14 @@
  * @see admin/hooks/README.md — catálogo completo
  * @see admin/docs/API_HOOKS.md — padrão query/mutation
  */
+/**
+ * @file use-pos-mutations.ts
+ * @description Fluxo PIX do PDV e cadastro rápido de cliente.
+ * @consumers vendas/pdv/page.tsx, components/pdv-pix-modal.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { posApi } from "@/lib/api/pos";
 import { useApiMutation } from "./use-api-mutation";

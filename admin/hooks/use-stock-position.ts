@@ -8,6 +8,14 @@
  * @see admin/hooks/README.md — catálogo completo
  * @see admin/docs/API_HOOKS.md — padrão query/mutation
  */
+/**
+ * @file use-stock-position.ts
+ * @description Posição de estoque por armazém e SKUs com estoque baixo.
+ * @consumers estoque/posicao/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { stockApi } from "@/lib/api/stock";
 import type { LowStockSKU, StockBalanceRow } from "@/lib/types";

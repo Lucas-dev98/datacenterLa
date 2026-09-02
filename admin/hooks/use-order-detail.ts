@@ -9,6 +9,15 @@
  * @see admin/hooks/README.md — catálogo completo
  * @see admin/docs/API_HOOKS.md — padrão query/mutation
  */
+/**
+ * @file use-order-detail.ts
+ * @description Carrega pedido e cliente; expõe setOrder para atualização otimista.
+ * @consumers pedidos/[id]/page.tsx, components/ship-expedition-modal.tsx
+ * @remarks Cliente é opcional — falha silenciosa se getCustomer falhar.
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { salesApi } from "@/lib/api/sales";
 import type { Customer, Order } from "@/lib/types";

@@ -8,6 +8,14 @@
  * @see admin/hooks/README.md — catálogo completo
  * @see admin/docs/API_HOOKS.md — padrão query/mutation
  */
+/**
+ * @file use-stock-count-mutations.ts
+ * @description Contagem cíclica e ajustes de inventário (criar → aprovar → aplicar).
+ * @consumers estoque/inventario/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { stockApi } from "@/lib/api/stock";
 import { useApiMutation } from "./use-api-mutation";

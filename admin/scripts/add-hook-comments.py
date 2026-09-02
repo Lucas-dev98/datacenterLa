@@ -154,6 +154,11 @@ META: dict[str, tuple[str, str, str]] = {
         "produtos/page.tsx, precos/page.tsx, cadastros/page.tsx, categorias/page.tsx",
         "",
     ),
+    "use-platform-defaults.ts": (
+        "IDs operacionais (armazém, local, categoria padrão) via app_settings.",
+        "cadastros/page.tsx",
+        "Fonte: GET /api/v1/platform/defaults",
+    ),
     "use-pim-product-mutations.ts": (
         "Mutações de produto/SKU: editar, foto, cadastro em massa, exclusão.",
         "produtos/page.tsx, produtos/[id]/page.tsx, cadastros/page.tsx",

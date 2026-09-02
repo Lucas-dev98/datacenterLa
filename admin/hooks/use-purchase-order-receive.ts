@@ -8,6 +8,14 @@
  * @see admin/hooks/README.md — catálogo completo
  * @see admin/docs/API_HOOKS.md — padrão query/mutation
  */
+/**
+ * @file use-purchase-order-receive.ts
+ * @description Estado da tela de recebimento de PO (mapa SKU, linhas).
+ * @consumers estoque/entrada/compras/[id]/receber/page.tsx
+ *
+ * @see admin/hooks/README.md — catálogo completo
+ * @see admin/docs/API_HOOKS.md — padrão query/mutation
+ */
 import { useCallback } from "react";
 import { pimApi } from "@/lib/api/pim";
 import { purchasesApi, type PurchaseOrderDetail } from "@/lib/api/purchases";

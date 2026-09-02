@@ -69,6 +69,8 @@ services:
       postgres:
         condition: service_healthy
     restart: "no"
+    profiles:
+      - tools
 
   admin:
     build:

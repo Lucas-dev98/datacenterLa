@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useBulkCadastro } from "@/hooks/use-pim-product-mutations";
 import { useCategoryAttributes } from "@/hooks/use-category-attributes";
 import { useCategoriesList } from "@/hooks/use-pim-list-queries";
+import { usePlatformDefaults } from "@/hooks/use-platform-defaults";
 import { DEFAULT_CATEGORY_ID } from "@/lib/config";
 import type { CadastroResult, Category } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Textarea } from "@/components/ui";
@@ -201,9 +202,12 @@ const CATEGORY_ATTR_DEFAULTS: Record<string, Record<string, string>> = {
 };
 
 export default function CadastrosPage() {
+  const { data: platformDefaults } = usePlatformDefaults();
   const { data: categoriesData } = useCategoriesList(true);
   const categories = categoriesData ?? [];
-  const [categoryId, setCategoryId] = useState(DEFAULT_CATEGORY_ID);
+  const [categoryId, setCategoryId] = useState(
+    platformDefaults?.category_id ?? DEFAULT_CATEGORY_ID,
+  );
   const { data: attributesData } = useCategoryAttributes(categoryId);
   const attributes = (attributesData ?? []) as CategoryAttribute[];
   const [attrValues, setAttrValues] = useState<Record<string, string>>({});
@@ -220,6 +224,12 @@ export default function CadastrosPage() {
   const [result, setResult] = useState<CadastroResult | null>(null);
 
   const categoryTree = sortCategoryTree(categories.filter((c) => c.is_active));
+
+  useEffect(() => {
+    if (platformDefaults?.category_id) {
+      setCategoryId((prev) => prev || platformDefaults.category_id);
+    }
+  }, [platformDefaults?.category_id]);
 
   useEffect(() => {
     if (categories.length && !categories.find((c) => c.id === categoryId)) {

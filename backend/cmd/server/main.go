@@ -33,6 +33,8 @@ import (
 	pimrepo "github.com/datacenterla/platform/internal/pim/repository"
 	pimservice "github.com/datacenterla/platform/internal/pim/service"
 	"github.com/datacenterla/platform/internal/platform/http/ratelimit"
+	platformhandler "github.com/datacenterla/platform/internal/platform/handler"
+	"github.com/datacenterla/platform/internal/platform/settings"
 	"github.com/datacenterla/platform/internal/platform/worker"
 	pricinghandler "github.com/datacenterla/platform/internal/pricing/handler"
 	pricingrepo "github.com/datacenterla/platform/internal/pricing/repository"
@@ -97,6 +99,8 @@ func main() {
 	salesRepository := salesrepo.NewPostgres(pool)
 	salesSvc := salesservice.New(salesRepository, pricingSvc, stockSvc)
 
+	settingsRepo := settings.New(pool)
+
 	payRepository := payrepo.New(pool)
 	payGw := paygateway.NewFromEnv()
 	paySvc := payservice.NewWithCart(payRepository, salesSvc, salesSvc, payGw)
@@ -108,11 +112,13 @@ func main() {
 	shopAuthH := shopauthhandler.New(shopAuthSvc)
 	shopAuthMW := shopauthmiddleware.Authenticate(shopJWT)
 
-	salesH := saleshandler.New(salesSvc, paySvc, shopAuthMW)
+	salesH := saleshandler.New(salesSvc, paySvc, shopAuthMW, settingsRepo)
 
 	authRepository := authrepo.New(pool)
 	authSvc := authservice.New(authRepository, jwtMgr, cfg.JWTIssuer, cfg.MFARequired)
 	authH := authhandler.New(authSvc)
+
+	platformH := platformhandler.New(settingsRepo)
 
 	purchRepository := purchrepo.New(pool)
 	purchSvc := purchservice.New(purchRepository, stockSvc)
@@ -189,6 +195,8 @@ func main() {
 
 	r.Get("/health/ready", writeReady)
 	r.Get("/health", writeReady)
+
+	r.Get("/api/v1/platform/defaults", platformH.Defaults)
 
 	r.Mount("/api/v1/auth", authH.Routes())
 	r.Route("/api/v1/ecommerce", func(r chi.Router) {
