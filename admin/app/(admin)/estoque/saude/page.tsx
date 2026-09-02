@@ -8,6 +8,7 @@ import {
 } from "@/hooks/use-stock-health-mutations";
 import { useStockHealthDashboard } from "@/hooks/use-stock-health-dashboard";
 import { Alert, Button, Card, Table } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 export default function EstoqueSaudePage() {
   const { data, error: loadError, loading, refetch } = useStockHealthDashboard();
@@ -15,7 +16,7 @@ export default function EstoqueSaudePage() {
   const expiring = data?.expiring ?? [];
   const issues = data?.issues ?? [];
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const { run: healthScan, loading: scanning } = useStockHealthScan();
   const { run: resolveIssue, loading: resolving } = useResolveStockHealthIssue();
 
@@ -24,11 +25,10 @@ export default function EstoqueSaudePage() {
   }, [loadError]);
 
   async function scan() {
-    setInfo("");
     setError("");
     try {
       const res = await healthScan({});
-      setInfo(`${res.detected} nova(s) inconsistência(s) detectada(s)`);
+      toast.push(`${res.detected} nova(s) inconsistência(s) detectada(s)`, "success");
       await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro no scan");
@@ -63,7 +63,6 @@ export default function EstoqueSaudePage() {
       </header>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
 
       {loading || !stats ? (
         <p className="text-sm text-slate-500">Carregando…</p>

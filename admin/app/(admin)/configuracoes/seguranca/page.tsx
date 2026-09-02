@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api/auth";
 import { useAuth } from "@/components/auth-provider";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 export default function SegurancaPage() {
   const { refreshUser } = useAuth();
@@ -13,7 +14,7 @@ export default function SegurancaPage() {
   const [url, setUrl] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const [step, setStep] = useState<"idle" | "setup">("idle");
 
   async function startSetup() {
@@ -34,7 +35,7 @@ export default function SegurancaPage() {
     try {
       await authApi.mfaEnable(code);
       localStorage.removeItem("dcla_mfa_setup");
-      setInfo("MFA ativado com sucesso");
+      toast.push("MFA ativado com sucesso", "success");
       await refreshUser();
       router.replace("/");
     } catch (err) {
@@ -54,7 +55,6 @@ export default function SegurancaPage() {
       </header>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card title="Configurar autenticador">
         {step === "setup" ? (

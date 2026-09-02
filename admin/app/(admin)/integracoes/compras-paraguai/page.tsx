@@ -8,6 +8,7 @@ import { hasPermission } from "@/lib/permissions";
 import { useAuth } from "@/components/auth-provider";
 import type { FeedSyncLogDetail } from "@/lib/types";
 import { Alert, Button, Card, Table } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 export default function ComprasParaguaiPage() {
   const { user } = useAuth();
@@ -16,7 +17,7 @@ export default function ComprasParaguaiPage() {
   const diagnostics = data?.diagnostics ?? null;
   const [selected, setSelected] = useState<FeedSyncLogDetail | null>(null);
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const { run: runSync, loading: syncing } = useRunComprasParaguaiSync();
 
   const canRun = hasPermission(user, "pim.products.write");
@@ -26,11 +27,10 @@ export default function ComprasParaguaiPage() {
   }, [loadError]);
 
   async function handleSync() {
-    setInfo("");
     setError("");
     try {
       await runSync({});
-      setInfo("Sincronização concluída");
+      toast.push("Sincronização concluída", "success");
       await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao sincronizar");
@@ -71,7 +71,6 @@ export default function ComprasParaguaiPage() {
         ) : null}
       </header>
 
-      {info ? <Alert tone="success">{info}</Alert> : null}
       {error ? <Alert tone="error">{error}</Alert> : null}
 
       {diagnostics ? (
