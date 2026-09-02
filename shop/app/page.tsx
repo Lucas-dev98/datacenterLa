@@ -1,4 +1,5 @@
 import { Storefront } from "@/components/storefront";
+import { ApiStatusBanner } from "@/components/api-status-banner";
 import {
   DEFAULT_FEATURED_CODES,
   emptyStorefrontPage,
@@ -9,6 +10,7 @@ import { fetchCatalogByCodesServer, fetchStorefrontServer } from "@/lib/server-a
 
 export default async function HomePage() {
   const remote = await fetchStorefrontServer();
+  const apiDegraded = remote === null;
   const base = remote ?? emptyStorefrontPage();
 
   let featuredModels = base.featured_models ?? [];
@@ -42,6 +44,7 @@ export default async function HomePage() {
         type="image/webp"
         fetchPriority="high"
       />
+      {apiDegraded ? <ApiStatusBanner /> : null}
       <Storefront
         content={page.content}
         featuredModels={page.featured_models}
