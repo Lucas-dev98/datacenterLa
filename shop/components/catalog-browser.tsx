@@ -48,7 +48,7 @@ const ProductCard = memo(function ProductCard({
   return (
     <article className="group flex flex-col bg-white ring-1 ring-neutral-200 transition hover:ring-neutral-400">
       <Link href={`/produto/${product.sku_id}`} className="block">
-        <MediaFrame src={catalogImageUrl(product.image_url)} alt="" ratio="4/3" />
+        <MediaFrame src={catalogImageUrl(product.image_url)} alt={product.name} ratio="4/3" />
       </Link>
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div>
@@ -277,6 +277,9 @@ export function CatalogBrowser({
           </div>
           <div className="flex flex-1 flex-col gap-2 sm:flex-row lg:justify-end">
             <form onSubmit={submitSearch} className="relative w-full max-w-none flex-1 sm:max-w-xs">
+              <label htmlFor="busca" className="sr-only">
+                Buscar no catálogo
+              </label>
               <Input
                 id="busca"
                 className="min-h-11 bg-white pr-9 text-base sm:text-sm"

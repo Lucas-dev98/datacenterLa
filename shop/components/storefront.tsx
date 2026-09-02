@@ -118,7 +118,7 @@ export function Storefront({ content, featuredModels, featured, partCPU, partRAM
                 href={`/produto/${item.sku_id}`}
                 className="group overflow-hidden border border-white/10 bg-black hover:border-white/30"
               >
-                <MediaFrame src={catalogImageUrl(item.image_url)} alt="" ratio="4/3" dark pad={false} />
+                <MediaFrame src={catalogImageUrl(item.image_url)} alt={item.name} ratio="4/3" dark pad={false} />
                 <div className="border-t border-white/10 px-4 py-3 text-sm font-medium group-hover:underline">
                   {item.name}
                 </div>
@@ -164,23 +164,42 @@ export function Storefront({ content, featuredModels, featured, partCPU, partRAM
       <section className="border-t border-white/10 px-4 py-20 md:px-6">
         <div className="mx-auto grid max-w-6xl items-start gap-10 md:grid-cols-[160px_1fr]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/featured.png" alt="" className="mx-auto aspect-square w-36 object-contain md:mx-0" />
+          <img src="/brand/featured.png" alt="" aria-hidden className="mx-auto aspect-square w-36 object-contain md:mx-0" />
           <div>
             <h2 className="text-3xl font-semibold">Perguntas frequentes</h2>
             <ul className="mt-8 divide-y divide-white/10 border-y border-white/10">
-              {faqs.map((item, i) => (
-                <li key={item.q}>
-                  <button
-                    type="button"
-                    className="flex w-full items-start justify-between gap-4 py-4 text-left"
-                    onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  >
-                    <span className="font-medium">{item.q}</span>
-                    <span className="text-white/40">{openFaq === i ? "–" : "+"}</span>
-                  </button>
-                  {openFaq === i ? <p className="pb-4 text-sm text-white/65">{item.a}</p> : null}
-                </li>
-              ))}
+              {faqs.map((item, i) => {
+                const panelId = `faq-panel-${i}`;
+                const buttonId = `faq-button-${i}`;
+                const isOpen = openFaq === i;
+                return (
+                  <li key={item.q}>
+                    <button
+                      type="button"
+                      id={buttonId}
+                      className="flex w-full items-start justify-between gap-4 py-4 text-left"
+                      aria-expanded={isOpen}
+                      aria-controls={panelId}
+                      onClick={() => setOpenFaq(isOpen ? null : i)}
+                    >
+                      <span className="font-medium">{item.q}</span>
+                      <span className="text-white/40" aria-hidden>
+                        {isOpen ? "–" : "+"}
+                      </span>
+                    </button>
+                    {isOpen ? (
+                      <p
+                        id={panelId}
+                        role="region"
+                        aria-labelledby={buttonId}
+                        className="pb-4 text-sm text-white/65"
+                      >
+                        {item.a}
+                      </p>
+                    ) : null}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </div>
@@ -222,6 +241,7 @@ function Hero() {
       <img
         src="/brand/hero-aisle.webp"
         alt=""
+        aria-hidden
         fetchPriority="high"
         decoding="async"
         className="absolute inset-0 h-full w-full object-cover object-[center_40%]"

@@ -65,13 +65,15 @@ export function ServerShowcase({ products }: ServerShowcaseProps) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={slide.image}
-                alt=""
+                alt={`${slide.brand} ${slide.model}`}
                 className="max-h-[min(58vh,520px)] w-auto max-w-full object-contain"
               />
             </Link>
             <div className="border-t border-white/10 px-8 py-10 text-center md:border-l md:border-t-0 md:py-0 md:pr-12 md:text-left">
               <p className="text-xs uppercase tracking-[0.28em] text-white/45">{slide.brand}</p>
-              <p className="mt-3 text-4xl font-semibold tracking-tight md:text-5xl">{slide.model}</p>
+              <p className="mt-3 text-4xl font-semibold tracking-tight md:text-5xl" aria-live="polite">
+                {slide.model}
+              </p>
               <div className="mt-8 flex items-center justify-center gap-3 md:justify-start">
                 <button
                   type="button"
