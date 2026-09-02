@@ -60,7 +60,7 @@ export function Storefront({ content, featuredModels, featured, partCPU, partRAM
         imageAlt="Storages Seagate, Dell, HPE e NetApp"
         reverse
         imageFit="rack"
-        rackClass="h-[min(72vh,780px)]"
+        rackClass="h-[min(48vh,480px)] md:h-[min(72vh,780px)]"
       />
       <CategoryBlock
         id="switch"
@@ -352,7 +352,7 @@ function CategoryBlock({
   reverse,
   extraImages,
   imageFit = "well",
-  rackClass = "h-[min(88vh,1000px)]",
+  rackClass = "h-[min(48vh,480px)] md:h-[min(88vh,1000px)]",
 }: {
   id: string;
   title: string;
