@@ -7,6 +7,7 @@ import { formatUsd } from "@/lib/format";
 import { getSessionId } from "@/lib/session";
 import type { Cart } from "@/lib/types";
 import { ShopShell } from "@/components/shop-shell";
+import { CartSkeleton } from "@/components/cart-skeleton";
 import { Alert, Button } from "@/components/ui";
 
 export default function CartPage() {
@@ -51,7 +52,7 @@ export default function CartPage() {
       {error ? <div className="mt-6"><Alert tone="error">{error}</Alert></div> : null}
 
       {loading ? (
-        <p className="mt-8 text-sm text-neutral-500">Carregando…</p>
+        <CartSkeleton />
       ) : items.length === 0 ? (
         <div className="mt-10 rounded-lg bg-white px-6 py-14 text-center ring-1 ring-neutral-200">
           <p className="text-neutral-800">Seu carrinho está vazio.</p>

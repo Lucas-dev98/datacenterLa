@@ -14,6 +14,7 @@ import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
 import { getSessionId } from "@/lib/session";
 import type { Cart, Order } from "@/lib/types";
 import { ShopShell } from "@/components/shop-shell";
+import { CheckoutSkeleton } from "@/components/cart-skeleton";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 import { StripePaymentForm } from "@/components/stripe-payment-form";
 
@@ -120,7 +121,8 @@ export default function CheckoutPage() {
   if (loading) {
     return (
       <ShopShell crumbs={[{ href: "/cart", label: "Carrinho" }, { label: "Checkout" }]}>
-        <p className="text-sm text-neutral-500">Carregando…</p>
+        <h1 className="text-3xl font-semibold tracking-tight">Checkout</h1>
+        <CheckoutSkeleton />
       </ShopShell>
     );
   }
