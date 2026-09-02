@@ -9,6 +9,7 @@ import { useRmaStep } from "@/hooks/use-rma-step";
 import { rmaApi, type RMACase, type WarrantyCheck } from "@/lib/api/rma";
 import type { OrderItem, OrderListItem } from "@/lib/types";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
+import { rmaStatusLabel } from "@/lib/status-labels";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
 function RMATestPhotoThumb({ caseId, photoId, alt }: { caseId: string; photoId: string; alt: string }) {
@@ -304,21 +305,6 @@ export default function RMAPage() {
     }
   }
 
-  function statusLabel(status: string): string {
-    switch (status) {
-      case "inspecting":
-        return "Em teste / aguardando aprovação";
-      case "approved":
-        return "Aprovado — aguardando recebimento";
-      case "received":
-        return "Recebido — aguardando resolução";
-      case "resolved":
-        return "Resolvido";
-      default:
-        return status;
-    }
-  }
-
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <header>
@@ -530,7 +516,7 @@ export default function RMAPage() {
               </button>,
               r.order_number ?? "—",
               r.customer_name ?? "—",
-              statusLabel(r.status),
+              rmaStatusLabel(r.status),
               r.within_warranty ? (
                 <span className="text-emerald-700">Dentro do prazo</span>
               ) : (

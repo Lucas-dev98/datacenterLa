@@ -5,12 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePendingReceiveOrders } from "@/hooks/use-pending-receive-orders";
 import { purchasesApi, type PurchaseOrderSummary } from "@/lib/api/purchases";
+import { purchaseReceiveStatusLabel } from "@/lib/status-labels";
 import { Alert, Button, Card, Table } from "@/components/ui";
-
-const STATUS_LABEL: Record<string, string> = {
-  ordered: "Aguardando recebimento",
-  partial: "Recebimento parcial",
-};
 
 export default function EntradaComprasPage() {
   const router = useRouter();
@@ -173,7 +169,7 @@ export default function EntradaComprasPage() {
                   {po.po_number}
                 </span>,
                 po.supplier_name ?? "—",
-                STATUS_LABEL[po.status] ?? po.status,
+                purchaseReceiveStatusLabel(po.status),
                 new Date(po.created_at).toLocaleString("pt-BR"),
               ])}
               selectedRowIndices={selectedIndices}

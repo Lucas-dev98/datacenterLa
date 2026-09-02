@@ -8,13 +8,8 @@ import type { OrderListItem } from "@/lib/types";
 import { ShipExpeditionModal } from "@/components/ship-expedition-modal";
 import { useAuth } from "@/components/auth-provider";
 import { hasPermission } from "@/lib/permissions";
+import { orderExpeditionStatusLabel } from "@/lib/status-labels";
 import { Alert, Button, Card, Table } from "@/components/ui";
-
-const STATUS_LABEL: Record<string, string> = {
-  confirmed: "Confirmado — aguardando separação",
-  paid: "Pago — aguardando separação",
-  picking: "Em separação",
-};
 
 type Props = {
   sectionLabel?: string;
@@ -177,7 +172,7 @@ export function ExpeditionQueuePanel({
                 {orderChannelLabel(o.channel)}
               </span>,
               o.customer_name,
-              STATUS_LABEL[o.status] ?? o.status,
+              orderExpeditionStatusLabel(o.status),
               `$${o.total_usd.toFixed(2)}`,
               new Date(o.created_at).toLocaleString("pt-BR"),
               <span key={`a-${o.id}`} className="flex gap-2">

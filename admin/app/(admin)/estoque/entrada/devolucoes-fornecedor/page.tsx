@@ -5,14 +5,8 @@ import Link from "next/link";
 import { useUpdateSupplierReturnStatus } from "@/hooks/use-supplier-return-mutations";
 import { useSupplierReturnsList } from "@/hooks/use-supplier-returns-list";
 import type { SupplierReturn } from "@/lib/api/stock";
+import { supplierReturnStatusLabel } from "@/lib/status-labels";
 import { Alert, Button, Card, Table } from "@/components/ui";
-
-const STATUS_LABEL: Record<string, string> = {
-  open: "Aberta",
-  sent: "Enviada ao fornecedor",
-  closed: "Encerrada",
-  cancelled: "Cancelada",
-};
 
 const STATUS_FILTERS = [
   { value: "", label: "Todas" },
@@ -41,7 +35,7 @@ export default function DevolucoesFornecedorPage() {
     setInfo("");
     try {
       await updateStatus({ id, status });
-      setInfo(`Devolução atualizada: ${STATUS_LABEL[status] ?? status}`);
+      setInfo(`Devolução atualizada: ${supplierReturnStatusLabel(status)}`);
       await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao atualizar status");
@@ -130,7 +124,7 @@ export default function DevolucoesFornecedorPage() {
               r.po_number ?? "—",
               r.supplier_name ?? "—",
               r.reason,
-              STATUS_LABEL[r.status] ?? r.status,
+              supplierReturnStatusLabel(r.status),
               new Date(r.created_at).toLocaleString("pt-BR"),
               actionsFor(r),
             ])}

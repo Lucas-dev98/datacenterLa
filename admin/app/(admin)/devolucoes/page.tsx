@@ -9,6 +9,7 @@ import { useReturnStep } from "@/hooks/use-return-step";
 import { returnsApi, type CustomerReturn, type ReturnWindowCheck } from "@/lib/api/returns";
 import type { OrderItem, OrderListItem } from "@/lib/types";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
+import { customerReturnStatusLabel } from "@/lib/status-labels";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
 
 type ReturnPhoto = { id: string; return_id: string; created_at: string };
@@ -247,16 +248,6 @@ export default function DevolucoesPage() {
     }
   }
 
-  function statusLabel(status: string): string {
-    switch (status) {
-      case "requested": return "Solicitada";
-      case "approved": return "Aprovada — aguardando recebimento";
-      case "received": return "Recebida — aguardando resolução";
-      case "resolved": return "Resolvida";
-      default: return status;
-    }
-  }
-
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <header>
@@ -401,7 +392,7 @@ export default function DevolucoesPage() {
               </button>,
               r.order_number ?? "—",
               r.customer_name ?? "—",
-              statusLabel(r.status),
+              customerReturnStatusLabel(r.status),
               r.within_return_window ? <span className="text-emerald-700">OK</span> : <span className="text-red-700">Expirado</span>,
               r.reason,
               <div key={`a-${r.id}`} className="flex flex-wrap gap-2">

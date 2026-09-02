@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useOrdersList, ORDERS_PAGE_SIZE } from "@/hooks/use-orders-list";
 import { orderChannelLabel } from "@/lib/order-channels";
+import { ORDER_STATUS_LABELS, orderStatusLabel } from "@/lib/status-labels";
 import { ListPagination } from "@/components/list-pagination";
 import { Alert, Card, Select, Table } from "@/components/ui";
 
@@ -35,13 +36,11 @@ export default function PedidosPage() {
           }}
         >
           <option value="">Todos os status</option>
-          <option value="draft">Rascunho</option>
-          <option value="confirmed">Confirmado</option>
-          <option value="paid">Pago</option>
-          <option value="picking">Separação</option>
-          <option value="shipped">Expedido</option>
-          <option value="delivered">Entregue</option>
-          <option value="cancelled">Cancelado</option>
+          {Object.entries(ORDER_STATUS_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
         </Select>
       </Card>
 
@@ -57,7 +56,7 @@ export default function PedidosPage() {
             rows={items.map((o) => [
               <span key="n" className="font-mono font-medium">{o.order_number}</span>,
               o.customer_name,
-              o.status,
+              orderStatusLabel(o.status),
               orderChannelLabel(o.channel),
               `$${o.total_usd.toFixed(2)}`,
               new Date(o.created_at).toLocaleDateString("pt-BR"),

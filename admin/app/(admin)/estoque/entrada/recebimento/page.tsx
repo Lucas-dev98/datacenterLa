@@ -14,13 +14,8 @@ import { DEFAULT_LOCATION_ID } from "@/lib/config";
 import type { InventoryUnit } from "@/lib/types";
 import { IntakeBatchPhotoGallery, IntakePhotoThumb } from "@/components/intake-batch-photos";
 import { IntakeTestPanel } from "@/components/intake-test-panel";
+import { intakeStatusLabel } from "@/lib/status-labels";
 import { Alert, Button, Card, Field, Input, Table } from "@/components/ui";
-
-const STATUS_LABEL: Record<string, string> = {
-  received: "Recebido",
-  inspecting: "Em inspeção",
-  identified: "Identificado",
-};
 
 const ACTION_LABEL: Record<string, string> = {
   inspecionar: "Inspecionar",
@@ -82,7 +77,7 @@ export default function RecebimentoPage() {
       if (res.unit.status === "available" && printOnRelease) {
         await printUnitLabel(unitCode);
       }
-      setInfo(`Unidade ${unitCode}: ${STATUS_LABEL[res.unit.status ?? ""] ?? res.unit.status}`);
+      setInfo(`Unidade ${unitCode}: ${intakeStatusLabel(res.unit.status ?? "")}`);
       await reloadQueue();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao avançar");
@@ -312,7 +307,7 @@ export default function RecebimentoPage() {
               ) : (
                 "—"
               ),
-              STATUS_LABEL[item.status] ?? item.status,
+              intakeStatusLabel(item.status),
               item.next_action,
               item.unit_cost_usd != null ? item.unit_cost_usd.toFixed(2) : "—",
               item.received_at ? new Date(item.received_at).toLocaleString("pt-BR") : "—",

@@ -4,31 +4,8 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useInventoryUnitByCode } from "@/hooks/use-inventory-unit";
+import { unitStatusLabel, UNIT_STATUS_BADGE } from "@/lib/status-labels";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
-
-const STATUS_LABEL: Record<string, string> = {
-  received: "Recebido (fila)",
-  inspecting: "Em inspeção",
-  identified: "Identificado",
-  available: "Disponível",
-  reserved: "Reservado (pedido)",
-  picking: "Em separação",
-  sold: "Vendido / expedido",
-  returned: "Devolvido",
-  damaged: "Avariado",
-};
-
-const STATUS_BADGE: Record<string, string> = {
-  received: "bg-amber-100 text-amber-900",
-  inspecting: "bg-amber-100 text-amber-900",
-  identified: "bg-sky-100 text-sky-900",
-  available: "bg-emerald-100 text-emerald-900",
-  reserved: "bg-violet-100 text-violet-900",
-  picking: "bg-violet-100 text-violet-900",
-  sold: "bg-slate-200 text-slate-800",
-  returned: "bg-orange-100 text-orange-900",
-  damaged: "bg-red-100 text-red-900",
-};
 
 function formatDateTime(iso?: string): string {
   if (!iso) return "—";
@@ -72,8 +49,8 @@ export default function EstoqueUnidadesPage() {
   }
 
   const status = unit?.status ?? "";
-  const statusLabel = STATUS_LABEL[status] ?? status;
-  const statusBadge = STATUS_BADGE[status] ?? "bg-slate-100 text-slate-700";
+  const statusLabel = unitStatusLabel(status);
+  const statusBadge = UNIT_STATUS_BADGE[status] ?? "bg-slate-100 text-slate-700";
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
