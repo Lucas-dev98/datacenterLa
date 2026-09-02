@@ -6,6 +6,8 @@ import type { CatalogProduct } from "@/lib/types";
 import type { StorefrontContent } from "@/lib/storefront-types";
 import { catalogImageUrl } from "@/lib/product-image";
 import { MediaFrame } from "@/components/media-frame";
+import { ServerShowcase } from "@/components/server-showcase";
+import { mergeStorefrontContent } from "@/lib/storefront-defaults";
 
 const TRUST_ICONS: Record<string, () => ReactNode> = {
   bolt: () => <BoltIcon />,
@@ -22,14 +24,14 @@ type StorefrontProps = {
   featured: CatalogProduct[];
   partCPU?: CatalogProduct;
   partRAM?: CatalogProduct;
-  partSSD?: CatalogProduct;
 };
 
-export function Storefront({ content, featuredModels, featured, partCPU, partRAM, partSSD }: StorefrontProps) {
-  const trust = content?.trust ?? [];
-  const pillars = content?.pillars ?? [];
-  const steps = content?.steps ?? [];
-  const faqs = content?.faqs ?? [];
+export function Storefront({ content, featuredModels, featured, partCPU, partRAM }: StorefrontProps) {
+  const cms = mergeStorefrontContent(content);
+  const trust = cms.trust;
+  const pillars = cms.pillars;
+  const steps = cms.steps;
+  const faqs = cms.faqs;
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   return (
@@ -49,7 +51,7 @@ export function Storefront({ content, featuredModels, featured, partCPU, partRAM
       />
       <CategoryBlock
         id="storages"
-        title="Storages"
+        title="Storages (SAN / NAS)"
         href="/loja?grupo=storages"
         text="Equipamentos NAS, SAN e JBOD — Seagate Exos, Dell PowerVault, HPE MSA, NetApp, Synology e Lenovo. Chassis de armazenamento, não discos avulsos."
         image="/brand/storage.webp"
@@ -72,14 +74,15 @@ export function Storefront({ content, featuredModels, featured, partCPU, partRAM
         id="componentes"
         title="Componentes e peças"
         href="/loja?grupo=componentes"
-        text="SSD e HDD enterprise, placas de rede, placas de vídeo, processadores, memórias ECC e fontes — peças para montar e expandir servidores e storages."
-        image={partSSD ? catalogImageUrl(partSSD.image_url) : "/brand/servers.webp"}
-        imageAlt={partSSD?.name ?? "SSD enterprise"}
+        text="Processadores Intel/AMD, memórias ECC, SSD enterprise, fontes, controladoras, placas de rede e peças originais de servidores e storages."
+        image={partCPU ? catalogImageUrl(partCPU.image_url) : "/products/amd-epyc-7302p.jpg"}
+        imageAlt={partCPU?.name ?? "Processador enterprise"}
         reverse
         extraImages={[
-          partCPU ? { src: catalogImageUrl(partCPU.image_url), alt: partCPU.name } : null,
-          partRAM ? { src: catalogImageUrl(partRAM.image_url), alt: partRAM.name } : null,
-        ].filter((x): x is { src: string; alt: string } => Boolean(x))}
+          partRAM
+            ? { src: catalogImageUrl(partRAM.image_url), alt: partRAM.name }
+            : { src: "/products/rdimm-ddr5-ecc.png", alt: "Memória ECC RDIMM" },
+        ]}
         imageFit="parts"
       />
 
@@ -99,6 +102,8 @@ export function Storefront({ content, featuredModels, featured, partCPU, partRAM
           </div>
         </div>
       </section>
+
+      <ServerShowcase products={featuredModels} />
 
       <section className="border-t border-white/10 px-4 py-20 md:px-6">
         <div className="mx-auto max-w-6xl">
@@ -192,7 +197,13 @@ export function Storefront({ content, featuredModels, featured, partCPU, partRAM
               <Link href="/contato" className="bg-white px-6 py-3 text-sm font-medium text-black hover:bg-white/90">
                 Solicitar cotação
               </Link>
-              <Link href="/loja" className="border border-white/50 px-6 py-3 text-sm font-medium hover:border-white">
+              <Link
+                href="/contato"
+                className="border border-white/50 px-6 py-3 text-sm font-medium hover:border-white"
+              >
+                Falar com um especialista
+              </Link>
+              <Link href="/loja" className="border border-white/30 px-6 py-3 text-sm font-medium text-white/80 hover:border-white hover:text-white">
                 Ver a loja
               </Link>
             </div>
@@ -216,6 +227,10 @@ function Hero() {
         className="absolute inset-0 h-full w-full object-cover object-[center_40%]"
       />
       <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/25 to-black/80" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -left-[18%] top-[18%] h-[min(70vw,520px)] w-[min(70vw,520px)] rounded-full bg-[#1a4fd6]/35 blur-3xl"
+      />
       <div className="relative z-10 mx-auto flex h-full max-w-6xl flex-col px-4 pb-10 pt-16 md:px-6">
         <h1 className="max-w-4xl text-center text-3xl font-semibold leading-tight md:mx-auto md:text-5xl">
           Hardware profissional para datacenters e infraestrutura de TI
