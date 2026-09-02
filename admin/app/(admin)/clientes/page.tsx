@@ -7,12 +7,13 @@ import { documentTypeLabel } from "@/lib/customer-profile";
 import { PARAGUAY_BUYER_KINDS } from "@/lib/paraguay-documents";
 import type { Customer } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 export default function ClientesPage() {
   const { data, error, loading, refetch } = useCustomersList();
   const items = data?.items ?? [];
   const [createError, setCreateError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [type, setType] = useState("b2b");
@@ -43,7 +44,6 @@ export default function ClientesPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    setInfo("");
     setCreateError("");
     try {
       await createCustomer({
@@ -58,7 +58,7 @@ export default function ClientesPage() {
           credit_limit_usd: parseFloat(creditLimit) || 0,
           payment_terms_days: parseInt(terms, 10) || 30,
       });
-      setInfo("Cliente criado");
+      toast.push("Cliente criado", "success");
       setName("");
       setEmail("");
       setPhone("");
@@ -80,7 +80,6 @@ export default function ClientesPage() {
 
       {error ? <Alert tone="error">{error}</Alert> : null}
       {createError ? <Alert tone="error">{createError}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card title="Novo cliente">
         <form className="grid gap-4 sm:grid-cols-2" onSubmit={onCreate}>

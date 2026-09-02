@@ -11,6 +11,7 @@ import type { OrderItem, OrderListItem } from "@/lib/types";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
 import { customerReturnStatusLabel } from "@/lib/status-labels";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 type ReturnPhoto = { id: string; return_id: string; created_at: string };
 
@@ -52,7 +53,7 @@ export default function DevolucoesPage() {
   const [searchingOrders, setSearchingOrders] = useState(false);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const [orderId, setOrderId] = useState("");
   const [orderItemId, setOrderItemId] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -201,7 +202,6 @@ export default function DevolucoesPage() {
       return;
     }
     setError("");
-    setInfo("");
     setReturnMutationError("");
     try {
       const form = new FormData();
@@ -218,7 +218,7 @@ export default function DevolucoesPage() {
         form.set(`photo_${index}`, photo.file, photo.file.name || `return-${index + 1}.jpg`);
       });
       await submitReturn(form);
-      setInfo("Devolução registrada — aguardando aprovação.");
+      toast.push("Devolução registrada — aguardando aprovação.", "success");
       clearOrder();
       setReason("");
       setConditionNotes("");
@@ -239,7 +239,7 @@ export default function DevolucoesPage() {
         step,
         body: step === "resolve" ? { resolution: resolution ?? "restock" } : undefined,
       });
-      setInfo(`Devolução: ${step}`);
+      toast.push(`Devolução: ${step}`, "success");
       await refetchCases();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro na ação");
@@ -260,7 +260,6 @@ export default function DevolucoesPage() {
       </header>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card title="Registrar devolução">
         <form className="grid gap-4 sm:grid-cols-2" onSubmit={createReturn}>

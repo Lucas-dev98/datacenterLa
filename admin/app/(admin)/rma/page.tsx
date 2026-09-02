@@ -11,6 +11,7 @@ import type { OrderItem, OrderListItem } from "@/lib/types";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
 import { rmaStatusLabel } from "@/lib/status-labels";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 function RMATestPhotoThumb({ caseId, photoId, alt }: { caseId: string; photoId: string; alt: string }) {
   const [url, setUrl] = useState("");
@@ -52,7 +53,7 @@ export default function RMAPage() {
   const [searchingOrders, setSearchingOrders] = useState(false);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const [orderId, setOrderId] = useState("");
   const [orderItemId, setOrderItemId] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -220,7 +221,7 @@ export default function RMAPage() {
       setOrderItemId(order.matched_order_item_id);
     }
     if (order.matched_unit_code) {
-      setInfo(`Unidade ${order.matched_unit_code} vinculada ao pedido.`);
+      toast.push(`Unidade ${order.matched_unit_code} vinculada ao pedido.`, "success");
     }
   }
 
@@ -231,12 +232,10 @@ export default function RMAPage() {
     setSelectedOrderLabel("");
     setWarranty(null);
     setEligibleUnits(null);
-    setInfo("");
   }
 
   async function createRMA(e: FormEvent) {
     e.preventDefault();
-    setInfo("");
     setError("");
     if (!selectedLine || !canOpenCase) {
       if (warranty && !warranty.within_warranty) {
@@ -271,7 +270,7 @@ export default function RMAPage() {
         form.set(`test_photo_${index}`, photo.file, photo.file.name || `test-${index + 1}.jpg`);
       });
       await submitRMA(form);
-      setInfo("Caso RMA aberto — aguardando aprovação após revisão do teste.");
+      toast.push("Caso RMA aberto — aguardando aprovação após revisão do teste.", "success");
       clearSelectedOrder();
       setReason("");
       setTestNotes("");
@@ -298,7 +297,7 @@ export default function RMAPage() {
         step,
         body: step === "resolve" ? { resolution: bodyResolution } : undefined,
       });
-      setInfo(`RMA ${step}${step === "resolve" ? ` (${bodyResolution})` : ""}`);
+      toast.push(`RMA ${step}${step === "resolve" ? ` (${bodyResolution})` : ""}`, "success");
       await refetchCases();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro na ação");
@@ -317,7 +316,6 @@ export default function RMAPage() {
       </header>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card title="Abrir RMA">
         <form className="grid gap-4 sm:grid-cols-2" onSubmit={createRMA}>
