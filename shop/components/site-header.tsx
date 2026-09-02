@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { ShopSearch } from "@/components/shop-search";
@@ -32,6 +32,8 @@ export function SiteHeader() {
   const [cartCount, setCartCount] = useState(0);
   const [grupo, setGrupo] = useState("");
   const [mounted, setMounted] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileNavRef = useRef<HTMLDivElement>(null);
   const home = pathname === "/";
 
   useEffect(() => {
@@ -112,6 +114,36 @@ export function SiteHeader() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const root = mobileNavRef.current;
+    if (!root) return;
+    const focusables = root.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    focusables[0]?.focus();
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Tab" || focusables.length === 0) return;
+      const list = Array.from(focusables);
+      const first = list[0];
+      const last = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    root.addEventListener("keydown", onKeyDown);
+    return () => root.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) menuButtonRef.current?.focus();
+  }, [open]);
+
   function closeMenu() {
     setOpen(false);
   }
@@ -135,6 +167,7 @@ export function SiteHeader() {
         </a>
         <div className="mx-auto flex h-[var(--shop-header-h)] max-w-7xl items-center gap-3 px-4 sm:gap-4 md:px-6">
           <button
+            ref={menuButtonRef}
             type="button"
             className="flex h-11 w-11 shrink-0 items-center justify-center text-white lg:hidden"
             aria-expanded={open}
@@ -198,6 +231,7 @@ export function SiteHeader() {
       {mounted && open
         ? createPortal(
             <div
+              ref={mobileNavRef}
               id="mobile-nav"
               role="dialog"
               aria-modal="true"
