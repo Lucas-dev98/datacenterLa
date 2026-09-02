@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useOrdersList } from "@/hooks/use-orders-list";
+import { useOrdersList, ORDERS_PAGE_SIZE } from "@/hooks/use-orders-list";
 import { orderChannelLabel } from "@/lib/order-channels";
+import { ListPagination } from "@/components/list-pagination";
 import { Alert, Card, Select, Table } from "@/components/ui";
 
 export default function PedidosPage() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState(() => searchParams.get("status") ?? "");
-  const { data, error, loading } = useOrdersList({ status });
+  const [offset, setOffset] = useState(0);
+  const { data, error, loading } = useOrdersList({ status, offset, limit: ORDERS_PAGE_SIZE });
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
 
@@ -24,7 +26,14 @@ export default function PedidosPage() {
       </header>
 
       <Card title="Filtros">
-        <Select className="max-w-xs" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <Select
+          className="max-w-xs"
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setOffset(0);
+          }}
+        >
           <option value="">Todos os status</option>
           <option value="draft">Rascunho</option>
           <option value="confirmed">Confirmado</option>
@@ -58,6 +67,12 @@ export default function PedidosPage() {
             ])}
           />
         )}
+        <ListPagination
+          offset={offset}
+          limit={ORDERS_PAGE_SIZE}
+          total={total}
+          onPageChange={setOffset}
+        />
       </Card>
     </div>
   );

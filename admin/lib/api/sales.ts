@@ -49,11 +49,12 @@ export const salesApi = {
     if (params.channel) q.set("channel", params.channel);
     return api<AnalyticsDashboard>(`${BASE}/analytics/dashboard?${q}`);
   },
-  listOrders: (params?: { status?: string; channel?: string; limit?: number; q?: string }) => {
+  listOrders: (params?: { status?: string; channel?: string; limit?: number; offset?: number; q?: string }) => {
     const q = new URLSearchParams();
     if (params?.status) q.set("status", params.status);
     if (params?.channel) q.set("channel", params.channel);
     if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.offset) q.set("offset", String(params.offset));
     if (params?.q) q.set("q", params.q);
     const qs = q.toString();
     return api<{ items: OrderListItem[]; total?: number }>(`${BASE}/orders${qs ? `?${qs}` : ""}`);

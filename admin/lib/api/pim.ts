@@ -26,10 +26,11 @@ export const pimApi = {
     api<Product>(`${BASE}/products/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteProduct: (id: string) => api(`${BASE}/products/${id}`, { method: "DELETE" }),
   listSkus: (productId: string) => api<{ items: SKU[] }>(`${BASE}/products/${productId}/skus`),
-  listAllSkus: (params?: { active_only?: boolean; limit?: number; q?: string }) => {
+  listAllSkus: (params?: { active_only?: boolean; limit?: number; offset?: number; q?: string }) => {
     const q = new URLSearchParams();
     if (params?.active_only !== false) q.set("active_only", "true");
-    q.set("limit", String(params?.limit ?? 100));
+    q.set("limit", String(params?.limit ?? 50));
+    if (params?.offset) q.set("offset", String(params.offset));
     if (params?.q?.trim()) q.set("q", params.q.trim());
     return api<{ items: SKU[]; total?: number }>(`${BASE}/skus?${q}`);
   },

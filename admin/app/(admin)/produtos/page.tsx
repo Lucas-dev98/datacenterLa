@@ -4,9 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDeleteSkuProduct } from "@/hooks/use-pim-product-mutations";
-import { useProductCatalog } from "@/hooks/use-pim-list-queries";
+import { useProductCatalog, SKUS_PAGE_SIZE } from "@/hooks/use-pim-list-queries";
 import type { Product, SKU } from "@/lib/types";
 import { Alert, Button, Card, Input, Table } from "@/components/ui";
+import { ListPagination } from "@/components/list-pagination";
 
 function usd(n?: number | null): string {
   return n != null && Number.isFinite(n) ? `$${n.toFixed(2)}` : "—";
@@ -15,9 +16,11 @@ function usd(n?: number | null): string {
 export default function ProdutosPage() {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const { data, error: loadError, loading, refetch } = useProductCatalog(query);
+  const [offset, setOffset] = useState(0);
+  const { data, error: loadError, loading, refetch } = useProductCatalog(query, offset, SKUS_PAGE_SIZE);
   const productsById = data?.productsById ?? {};
   const skus = data?.skus ?? [];
+  const skuTotal = data?.total ?? skus.length;
   const [info, setInfo] = useState("");
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -99,7 +102,10 @@ export default function ProdutosPage() {
             <Input
               placeholder="Buscar por código, nome ou marca…"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setOffset(0);
+              }}
             />
           </div>
           {selected.size > 0 ? (
@@ -217,6 +223,7 @@ export default function ProdutosPage() {
             })}
           />
         )}
+        <ListPagination offset={offset} limit={SKUS_PAGE_SIZE} total={skuTotal} onPageChange={setOffset} />
       </Card>
     </div>
   );

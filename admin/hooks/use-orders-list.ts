@@ -23,12 +23,17 @@ import { useApiQueryFn } from "./use-api-query";
 type Options = {
   status?: string;
   limit?: number;
+  offset?: number;
 };
 
-export function useOrdersList({ status = "", limit = 50 }: Options = {}) {
+const PAGE_SIZE = 25;
+
+export function useOrdersList({ status = "", limit = PAGE_SIZE, offset = 0 }: Options = {}) {
   const fetcher = useCallback(
-    () => salesApi.listOrders({ limit, status: status || undefined }),
-    [limit, status],
+    () => salesApi.listOrders({ limit, offset, status: status || undefined }),
+    [limit, offset, status],
   );
-  return useApiQueryFn(fetcher, { deps: [status, limit] });
+  return useApiQueryFn(fetcher, { deps: [status, limit, offset] });
 }
+
+export { PAGE_SIZE as ORDERS_PAGE_SIZE };

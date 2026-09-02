@@ -24,21 +24,26 @@ import { useApiQueryFn } from "./use-api-query";
 export type ProductCatalog = {
   productsById: Record<string, Product>;
   skus: SKU[];
+  total: number;
 };
 
-export function useProductCatalog(query = "") {
+const SKUS_PAGE_SIZE = 30;
+
+export function useProductCatalog(query = "", offset = 0, limit = SKUS_PAGE_SIZE) {
   const fetcher = useCallback(async (): Promise<ProductCatalog> => {
     const qParam = query.trim() || undefined;
     const [p, s] = await Promise.all([
-      pimApi.listProducts({ q: qParam }),
-      pimApi.listAllSkus({ q: qParam }),
+      pimApi.listProducts({ q: qParam, limit: 200 }),
+      pimApi.listAllSkus({ q: qParam, limit, offset }),
     ]);
     const productsById: Record<string, Product> = {};
     for (const product of p.items) productsById[product.id] = product;
-    return { productsById, skus: s.items ?? [] };
-  }, [query]);
-  return useApiQueryFn(fetcher, { deps: [query] });
+    return { productsById, skus: s.items ?? [], total: s.total ?? s.items?.length ?? 0 };
+  }, [query, offset, limit]);
+  return useApiQueryFn(fetcher, { deps: [query, offset, limit] });
 }
+
+export { SKUS_PAGE_SIZE };
 
 export function useSkusList(query = "") {
   const fetcher = useCallback(async () => {
