@@ -20,6 +20,7 @@ import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
 import { parseQrPayload } from "@/lib/qr-decode";
 import { playScanBeep, unlockScanAudio } from "@/lib/scan-beep";
 import { Alert, Button, Card, Field, Input, Table } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 type ResolvedItem = {
   kind: "unit" | "sku";
@@ -43,7 +44,7 @@ export default function InventarioPage() {
   const [adjDelta, setAdjDelta] = useState("-1");
   const [adjReason, setAdjReason] = useState("");
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const scanInputRef = useRef<HTMLInputElement>(null);
 
   const { run: createCount, loading: creating } = useCreateStockCount();
@@ -90,7 +91,7 @@ export default function InventarioPage() {
       setSelectedCount(c);
       setPendingSkuCounts({});
       setResolved(null);
-      setInfo("Sessão de inventário criada — clique em Iniciar para começar a contagem.");
+      toast.push("Sessão de inventário criada — clique em Iniciar para começar a contagem.", "success");
       await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
@@ -102,7 +103,7 @@ export default function InventarioPage() {
     try {
       await startCount(id);
       await refreshCount(id);
-      setInfo("Contagem iniciada — escaneie QR codes ou digite códigos.");
+      toast.push("Contagem iniciada — escaneie QR codes ou digite códigos.", "success");
       setScanInput("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
@@ -139,7 +140,7 @@ export default function InventarioPage() {
         body: { unit_code: unitCode },
       });
       setSelectedCount(c);
-      setInfo(`Unidade ${unitCode} registrada na contagem.`);
+      toast.push(`Unidade ${unitCode} registrada na contagem.`, "success");
       playScanBeep();
     },
     [selectedCount, addCountLine],
@@ -154,7 +155,7 @@ export default function InventarioPage() {
       });
       setSelectedCount(c);
       setPendingSkuCounts((prev) => ({ ...prev, [item.skuId]: qty }));
-      setInfo(`SKU ${item.skuCode}: ${qty} unidade(s) registrada(s).`);
+      toast.push(`SKU ${item.skuCode}: ${qty} unidade(s) registrada(s).`, "success");
       playScanBeep();
     },
     [selectedCount, addCountLine],
@@ -244,7 +245,7 @@ export default function InventarioPage() {
     try {
       await completeCount(selectedCount.id);
       await refreshCount(selectedCount.id);
-      setInfo("Contagem finalizada — aguardando aprovação.");
+      toast.push("Contagem finalizada — aguardando aprovação.", "success");
       await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
@@ -256,7 +257,7 @@ export default function InventarioPage() {
     try {
       const c = await approveCount(selectedCount.id);
       setSelectedCount(c);
-      setInfo("Inventário aprovado — ajustes gerados.");
+      toast.push("Inventário aprovado — ajustes gerados.", "success");
       await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro");
@@ -273,7 +274,7 @@ export default function InventarioPage() {
         quantity_delta: parseInt(adjDelta, 10) || 0,
         reason: adjReason,
       });
-      setInfo("Ajuste solicitado");
+      toast.push("Ajuste solicitado", "success");
       await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao solicitar ajuste");
@@ -294,7 +295,7 @@ export default function InventarioPage() {
     setError("");
     try {
       await applyAdjustment(id);
-      setInfo("Ajuste aplicado no estoque");
+      toast.push("Ajuste aplicado no estoque", "success");
       await refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao aplicar ajuste");
@@ -318,7 +319,6 @@ export default function InventarioPage() {
       </header>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card title="Inventário">
         <div className="mb-4 flex flex-wrap gap-2">
