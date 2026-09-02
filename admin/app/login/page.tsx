@@ -9,8 +9,9 @@ import { Alert, Button, Card, Field, Input } from "@/components/ui";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("admin@datacenterla.local");
-  const [password, setPassword] = useState("Admin@12345678");
+  const isDev = process.env.NODE_ENV === "development";
+  const [email, setEmail] = useState(isDev ? "admin@datacenterla.local" : "");
+  const [password, setPassword] = useState(isDev ? "Admin@12345678" : "");
   const [mfaCode, setMfaCode] = useState("");
   const [needMfa, setNeedMfa] = useState(false);
   const [error, setError] = useState("");
