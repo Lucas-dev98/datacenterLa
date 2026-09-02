@@ -10,6 +10,7 @@ import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
 import type { InventoryUnitReceive, SKU } from "@/lib/types";
 import { BatchPhotoUploader, type BatchPhotoDraft } from "@/components/intake-batch-photos";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 async function searchSkus(term: string): Promise<SKU[]> {
   const q = term.trim();
@@ -34,7 +35,7 @@ export default function EntradaAvulsaPage() {
   const [batchPhotos, setBatchPhotos] = useState<BatchPhotoDraft[]>([]);
   const [codesLoading, setCodesLoading] = useState(false);
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const { run: receiveIntake, loading, setError: setReceiveError } = useReceiveIntakeWithPhotos();
   const [units, setUnits] = useState<InventoryUnitReceive[]>([]);
 
@@ -117,7 +118,6 @@ export default function EntradaAvulsaPage() {
     if (!sku || !ready) return;
     setError("");
     setReceiveError("");
-    setInfo("");
     try {
       const payload = {
         warehouse_id: DEFAULT_WAREHOUSE_ID,
@@ -136,8 +136,9 @@ export default function EntradaAvulsaPage() {
       });
       const res = await receiveIntake(form);
       setUnits(res.units ?? []);
-      setInfo(
+      toast.push(
         `${res.units?.length ?? 0} unidade(s) registrada(s) com ${batchPhotos.length} foto(s) do lote. Prossiga na fila de recebimento.`,
+        "success",
       );
       batchPhotos.forEach((p) => URL.revokeObjectURL(p.preview));
       setBatchPhotos([]);
@@ -165,7 +166,6 @@ export default function EntradaAvulsaPage() {
       </header>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card title="1. Identificar item">
         <form className="flex flex-wrap gap-3" onSubmit={onSearchSubmit}>

@@ -11,6 +11,7 @@ import { type PurchaseOrderSummary, type Supplier } from "@/lib/api/purchases";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
 import type { SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 type PO = PurchaseOrderSummary;
 type Line = { sku_id: string; quantity: number; unit_cost_usd: string; sku_code?: string };
@@ -30,7 +31,7 @@ export default function ComprasPage() {
   const orders = data?.orders ?? [];
   const skus = data?.skus ?? [];
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const { run: saveSupplierMutation, loading: savingSupplier } = useSaveSupplier();
   const { run: createAndSubmitPO, loading: submitting } = useCreateAndSubmitPurchaseOrder();
   const [supplierId, setSupplierId] = useState("");
@@ -124,10 +125,11 @@ export default function ComprasPage() {
             notes: supNotes.trim() || undefined,
           };
       const saved = await saveSupplierMutation({ editingId: editingSupplierId, body });
-      setInfo(
+      toast.push(
         editingSupplierId
           ? `Exportador atualizado: ${saved.legal_name ?? saved.name}`
           : `Exportador cadastrado: ${saved.legal_name ?? saved.name}`,
+        "success",
       );
       resetSupplierForm();
       if (!editingSupplierId) setSupplierId(saved.id);
@@ -168,7 +170,7 @@ export default function ComprasPage() {
         duties_usd: parseFloat(dutiesUsd) || 0,
         items,
       });
-      setInfo(`Pedido de compra criado (${items.length} itens) e enviado`);
+      toast.push(`Pedido de compra criado (${items.length} itens) e enviado`, "success");
       setLines([{ sku_id: skus[0]?.id ?? "", quantity: 1, unit_cost_usd: "0", sku_code: skus[0]?.code }]);
       await refetch();
     } catch (err) {
@@ -189,7 +191,6 @@ export default function ComprasPage() {
       </header>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card title={editingSupplierId ? "Editar exportador" : "Cadastrar empresa exportadora"}>
         <p className="mb-4 text-sm text-slate-600">

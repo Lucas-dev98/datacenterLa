@@ -11,6 +11,7 @@ import { stockApi } from "@/lib/api/stock";
 import { API_URL } from "@/lib/config";
 import type { InventoryUnitReceive } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Table } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 type POItem = PurchaseOrderItem;
 type PO = PurchaseOrderDetail;
@@ -45,7 +46,7 @@ export default function ReceberPOPage() {
   const [lastUnits, setLastUnits] = useState<InventoryUnitReceive[]>([]);
   const [nextCodes, setNextCodes] = useState<string[]>([]);
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const [codesLoading, setCodesLoading] = useState(false);
   const displayError = error || loadError || receiveError;
 
@@ -109,7 +110,6 @@ export default function ReceberPOPage() {
     setView("sku");
     setSkuStep("detalhe");
     setError("");
-    setInfo("");
   }
 
   function backToList() {
@@ -148,7 +148,7 @@ export default function ReceberPOPage() {
       setBatchPhotos([]);
       await refetch();
       setSkuStep("concluido");
-      setInfo(`${res.units?.length ?? 0} unidade(s) de ${activeSku?.name ?? "SKU"} registrada(s).`);
+      toast.push(`${res.units?.length ?? 0} unidade(s) de ${activeSku?.name ?? "SKU"} registrada(s).`, "success");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro no recebimento");
     }
@@ -225,7 +225,6 @@ export default function ReceberPOPage() {
       )}
 
       {displayError ? <Alert tone="error">{displayError}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
 
       {poComplete && view === "lista" ? (
         <Alert tone="success">
