@@ -20,6 +20,7 @@ import { pimApi } from "@/lib/api/pim";
 import { DEFAULT_WAREHOUSE_ID } from "@/lib/config";
 import type { Customer, Order, SKU } from "@/lib/types";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 import { PDVExchangeRatesPanel } from "@/components/pdv-exchange-rates";
 import { PDVPixModal } from "@/components/pdv-pix-modal";
 import { PDVCustomerModal } from "@/components/pdv-customer-modal";
@@ -63,7 +64,8 @@ export default function PDVPage() {
   const [shipImmediately, setShipImmediately] = useState(true);
   const [discountPct, setDiscountPct] = useState("0");
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
+  const [saleSummary, setSaleSummary] = useState("");
   const { run: initPix, loading: submitting, setError: setPixInitError } = usePosPixInit();
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [pixSession, setPixSession] = useState<POSPixInitResponse | null>(null);
@@ -309,9 +311,9 @@ export default function PDVPage() {
         if (autoPrintReceiptRef.current) {
           autoPrintReceiptRef.current = false;
           if (!printHTML(html)) {
-            setInfo(
-              (prev) =>
-                `${prev}${prev ? " · " : ""}Comprovante abaixo — use Imprimir comprovante ou o botão no preview.`,
+            toast.push(
+              "Comprovante abaixo — use Imprimir comprovante ou o botão no preview.",
+              "info",
             );
           }
         }
@@ -358,7 +360,7 @@ export default function PDVPage() {
     setProfile("walkin");
     setQuery("");
     setSearchResults([]);
-    setInfo("");
+    setSaleSummary("");
     setError("");
     setPixSession(null);
     searchRef.current?.focus();
@@ -387,7 +389,6 @@ export default function PDVPage() {
       return;
     }
     setError("");
-    setInfo("");
     setPixInitError("");
     try {
       const pix = await initPix({
@@ -409,7 +410,7 @@ export default function PDVPage() {
     setLastOrder(order);
     setLastCustomer(profile === "walkin" ? null : selectedCustomer ?? null);
     setCart([]);
-    setInfo(
+    setSaleSummary(
       shipImmediately
         ? `Venda ${order.order_number} concluída via PIX — cliente retira na hora`
         : `Venda ${order.order_number} registrada via PIX — pedido na fila de expedição`,
@@ -418,7 +419,7 @@ export default function PDVPage() {
 
   function onPixCancelled() {
     setPixSession(null);
-    setInfo("Venda PIX cancelada — estoque liberado.");
+    toast.push("Venda PIX cancelada — estoque liberado.", "info");
   }
 
   return (
@@ -443,7 +444,6 @@ export default function PDVPage() {
       </header>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {info && !lastOrder ? <Alert tone="success">{info}</Alert> : null}
 
       {lastOrder ? (
         <Card>
@@ -470,7 +470,7 @@ export default function PDVPage() {
                 ? ` · R$ ${(lastOrder.total_usd * brlRate).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 : ""}
             </p>
-            <p className="text-sm text-slate-500">{info}</p>
+            <p className="text-sm text-slate-500">{saleSummary}</p>
             <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
               <Button type="button" disabled={printing || !receiptHtml} onClick={() => void printReceipt()}>
                 {printing ? "Abrindo…" : "Imprimir comprovante"}
