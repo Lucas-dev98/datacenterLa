@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AuthProvider, useAuth } from "@/components/auth-provider";
+import { RouteGuard } from "@/components/route-guard";
 import { Sidebar } from "@/components/sidebar";
 
 function AdminShell({ children }: { children: React.ReactNode }) {
@@ -67,7 +68,9 @@ function AdminShell({ children }: { children: React.ReactNode }) {
         onNavigate={() => setMobileNavOpen(false)}
       />
 
-      <main className="flex-1 overflow-auto p-4 pt-[4.5rem] lg:p-8 lg:pt-8">{children}</main>
+      <main className="flex-1 overflow-auto p-4 pt-[4.5rem] lg:p-8 lg:pt-8">
+        <RouteGuard>{children}</RouteGuard>
+      </main>
     </div>
   );
 }
