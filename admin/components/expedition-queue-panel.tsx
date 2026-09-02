@@ -10,6 +10,7 @@ import { useAuth } from "@/components/auth-provider";
 import { hasPermission } from "@/lib/permissions";
 import { orderExpeditionStatusLabel } from "@/lib/status-labels";
 import { Alert, Button, Card, Table } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 type Props = {
   sectionLabel?: string;
@@ -33,7 +34,7 @@ export function ExpeditionQueuePanel({
   const [activeShip, setActiveShip] = useState<OrderListItem | null>(null);
   const [bulkConfirm, setBulkConfirm] = useState<OrderListItem[] | null>(null);
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
 
   useEffect(() => {
     if (loadError) setError(loadError);
@@ -61,7 +62,7 @@ export function ExpeditionQueuePanel({
   }
 
   function onShippedOne() {
-    setInfo("Pedido expedido — estoque baixado");
+    toast.push("Pedido expedido — estoque baixado", "success");
     const rest = shipQueue.slice(1);
     setShipQueue(rest);
     if (rest.length > 0) {
@@ -110,7 +111,6 @@ export function ExpeditionQueuePanel({
       ) : null}
 
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card>
         {bulkConfirm ? (

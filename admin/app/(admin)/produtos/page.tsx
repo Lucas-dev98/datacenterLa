@@ -8,6 +8,7 @@ import { useProductCatalog, SKUS_PAGE_SIZE } from "@/hooks/use-pim-list-queries"
 import type { Product, SKU } from "@/lib/types";
 import { Alert, Button, Card, Input, Table } from "@/components/ui";
 import { ListPagination } from "@/components/list-pagination";
+import { useToast } from "@/components/toast-provider";
 
 function usd(n?: number | null): string {
   return n != null && Number.isFinite(n) ? `$${n.toFixed(2)}` : "—";
@@ -21,7 +22,7 @@ export default function ProdutosPage() {
   const productsById = data?.productsById ?? {};
   const skus = data?.skus ?? [];
   const skuTotal = data?.total ?? skus.length;
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -53,7 +54,6 @@ export default function ProdutosPage() {
   async function deleteSelected() {
     if (selectedSkus.length === 0) return;
     setError("");
-    setInfo("");
     const failed: string[] = [];
     let ok = 0;
     for (const sku of selectedSkus) {
@@ -67,7 +67,7 @@ export default function ProdutosPage() {
     }
     setConfirmDelete(false);
     if (ok > 0) {
-      setInfo(`${ok} produto(s) removido(s).`);
+      toast.push(`${ok} produto(s) removido(s).`, "success");
     }
     if (failed.length > 0) {
       setError(`Não foi possível apagar ${failed.length} produto(s): ${failed.join(" · ")}`);
@@ -138,7 +138,6 @@ export default function ProdutosPage() {
         ) : null}
 
         {error ? <Alert tone="error">{error}</Alert> : null}
-        {info ? <Alert tone="success">{info}</Alert> : null}
         {loading ? (
           <p className="text-sm text-slate-500">Carregando…</p>
         ) : skus.length === 0 ? (
