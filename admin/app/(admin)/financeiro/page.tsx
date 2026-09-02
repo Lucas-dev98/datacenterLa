@@ -7,6 +7,7 @@ import { usePayPayable, useRecordReceivablePayment } from "@/hooks/use-finance-m
 import { financeApi, type Payable } from "@/lib/api/finance";
 import type { ReceivableListItem } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select, Table } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 export default function FinanceiroPage() {
   const [status, setStatus] = useState("open");
@@ -18,7 +19,7 @@ export default function FinanceiroPage() {
   const summary = data?.summary ?? null;
   const margins = data?.margins ?? [];
   const total = data?.receivablesTotal ?? 0;
-  const [info, setInfo] = useState("");
+  const toast = useToast();
   const [payingReceivableId, setPayingReceivableId] = useState<string | null>(null);
   const [payingPayableId, setPayingPayableId] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState("");
@@ -50,7 +51,6 @@ export default function FinanceiroPage() {
     e.preventDefault();
     if (!payingReceivableId) return;
     setActionError("");
-    setInfo("");
     receivablePayment.setError("");
     try {
       await receivablePayment.run({
@@ -60,7 +60,7 @@ export default function FinanceiroPage() {
         reference: payRef || undefined,
       });
       setPayingReceivableId(null);
-      setInfo("Pagamento registrado no título a receber");
+      toast.push("Pagamento registrado no título a receber", "success");
       await refetch();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao registrar pagamento");
@@ -71,7 +71,6 @@ export default function FinanceiroPage() {
     e.preventDefault();
     if (!payingPayableId) return;
     setActionError("");
-    setInfo("");
     payablePayment.setError("");
     try {
       await payablePayment.run({
@@ -81,7 +80,7 @@ export default function FinanceiroPage() {
         reference: payRef || undefined,
       });
       setPayingPayableId(null);
-      setInfo("Pagamento registrado na conta a pagar");
+      toast.push("Pagamento registrado na conta a pagar", "success");
       await refetch();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao registrar pagamento");
@@ -117,7 +116,6 @@ export default function FinanceiroPage() {
         </Link>
       </header>
 
-      {info ? <Alert tone="success">{info}</Alert> : null}
       {displayError ? <Alert tone="error">{displayError}</Alert> : null}
 
       {summary ? (

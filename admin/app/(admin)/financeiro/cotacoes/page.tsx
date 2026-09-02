@@ -8,6 +8,7 @@ import { formatExchangeRate } from "@/lib/exchange-rates";
 import { useAuth } from "@/components/auth-provider";
 import { hasPermission } from "@/lib/permissions";
 import { Alert, Button, Card } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 export default function FinanceiroCotacoesPage() {
   const { user } = useAuth();
@@ -15,7 +16,7 @@ export default function FinanceiroCotacoesPage() {
   const { data, error: loadError, loading, setData } = useExchangeRatesToday();
   const { run: syncExchangeRates, loading: syncing } = useSyncExchangeRates();
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const toast = useToast();
 
   const displayError = (() => {
     if (error) return error;
@@ -31,11 +32,10 @@ export default function FinanceiroCotacoesPage() {
 
   async function syncNow() {
     setError("");
-    setInfo("");
     try {
       const res = await syncExchangeRates({});
       setData(res);
-      setInfo("Cotações atualizadas automaticamente a partir do mercado.");
+      toast.push("Cotações atualizadas automaticamente a partir do mercado.", "success");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao sincronizar cotações");
     }
@@ -82,7 +82,6 @@ export default function FinanceiroCotacoesPage() {
       </header>
 
       {displayError ? <Alert tone="error">{displayError}</Alert> : null}
-      {info ? <Alert tone="success">{info}</Alert> : null}
 
       <Card title="Referência atual (1 USD)">
         {loading ? (
