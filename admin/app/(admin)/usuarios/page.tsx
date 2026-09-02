@@ -6,6 +6,7 @@ import { useUsersAdmin } from "@/hooks/use-users-admin";
 import type { User } from "@/lib/types";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
 import { useToast } from "@/components/toast-provider";
+import { PageLoading } from "@/components/page-loading";
 
 function roleIds(user: User): string[] {
   if (!user.roles?.length) return [];
@@ -14,7 +15,7 @@ function roleIds(user: User): string[] {
 }
 
 export default function UsuariosPage() {
-  const { data, error: loadError, refetch } = useUsersAdmin();
+  const { data, error: loadError, loading, refetch } = useUsersAdmin();
   const users = data?.users ?? [];
   const roles = data?.roles ?? [];
   const [error, setError] = useState("");
@@ -98,6 +99,10 @@ export default function UsuariosPage() {
     } finally {
       setPendingUserId(null);
     }
+  }
+
+  if (loading && !data) {
+    return <PageLoading title="Carregando usuários…" />;
   }
 
   return (
